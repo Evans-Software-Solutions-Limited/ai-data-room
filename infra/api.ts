@@ -7,7 +7,6 @@ import {
   workos_api_key,
   workos_webhook_secret,
   workos_cookie_password,
-  planetscale_database_url,
 } from "./secrets";
 
 export const coreAPI = new sst.aws.ApiGatewayV2("api-core", {
@@ -21,13 +20,17 @@ export const coreAPI = new sst.aws.ApiGatewayV2("api-core", {
 });
 
 // $default route: every HTTP request not matched by a more specific
-// route below lands here. WorkOS + DB secrets are linked at this level
-// so all auth-and-orgs handlers (and any layered handler they call)
-// can read them via `Resource.<NAME>.value`.
+// route below lands here. WorkOS secrets are linked at this level so
+// all auth-and-orgs handlers (and any layered handler they call) can
+// read them via `Resource.<NAME>.value`.
 //
 // Per-stage secret values must be provisioned before this stack will
 // deploy successfully:
 //   bun sst secret set <NAME> <VALUE> --stage <stage>
+//
+// DB secret (PLANETSCALE_DATABASE_URL) will be added to this link[] as
+// part of auth-and-orgs T-003 when the `packages/db` workspace is
+// wired in. See `infra/secrets.ts` for the deferred-secret ledger.
 coreAPI.route("$default", {
   handler: "microservices/core/src/api.handler",
   name: `core-api-${$app.stage}`,
@@ -36,7 +39,6 @@ coreAPI.route("$default", {
     workos_api_key,
     workos_webhook_secret,
     workos_cookie_password,
-    planetscale_database_url,
   ],
   environment: {
     SST_STAGE: $app.stage,
@@ -46,11 +48,12 @@ coreAPI.route("$default", {
 
 // Dedicated webhook handler — sits outside the Hono/Elysia stack so that
 // API Gateway passes the raw body string to the Lambda. Required for
-// WorkOS HMAC-SHA256 signature verification (T-016 / T-006). Lands then:
+// WorkOS HMAC-SHA256 signature verification (T-016 / T-006). Lands then
+// (db secret added as part of T-003):
 // coreAPI.route("POST /webhooks/workos", {
 //   handler: "microservices/core/src/handlers/webhooks/workos.handler",
 //   name: `core-webhook-workos-${$app.stage}`,
-//   link: [workos_api_key, workos_webhook_secret, planetscale_database_url],
+//   link: [workos_api_key, workos_webhook_secret /* + planetscale_database_url from T-003 */],
 //   environment: { SST_STAGE: $app.stage },
 //   memory: "256 MB",
 // });

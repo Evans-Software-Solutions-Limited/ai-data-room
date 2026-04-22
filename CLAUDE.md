@@ -13,11 +13,11 @@ Spec snapshot lives in `.kiro/specs/ai-data-room/<slice>/` — the `requirements
 ## Non-negotiables
 
 1. **Spec before code.** Don't touch implementation until the slice's `design.md` is signed off in the upstream spec workspace. If you think the spec is wrong, update the spec first, get sign-off, then code.
-2. **One slice at a time.** Feature branches live under `slice/<name>/*`. PRs don't span slices.
+2. **Branch per task — never commit to `main`.** Feature branches follow `feat/<slice>-T-XXX-<short-desc>` (e.g. `feat/auth-and-orgs-T-002-workos-secrets`). One task → one branch → one PR. `main` is only ever advanced by merging a PR. Scaffold / repo-hygiene work uses `chore/<short-desc>`.
 3. **Layered architecture.** See `microservices/core/src/README.md`. Handlers never import Drizzle types; infrastructure never imports handler types.
 4. **Tests are not optional.** Every task listed in `.kiro/specs/ai-data-room/<slice>/tasks.md` has a `Tests required` line. Honour it.
 5. **`bun run test`, not `bun test`.** The latter runs Bun's built-in runner and fails on Vitest suites.
-6. **Secrets via SST.** Never inline credentials; use `Resource.<Name>.value` via `infra/secrets.ts`.
+6. **Secrets via SST — declared only when their slice ships.** Never inline credentials; use `Resource.<NAME>.value` via `infra/secrets.ts`. **Do not pre-declare future-slice secrets.** SST resolves every `new sst.Secret(...)` at deploy time and refuses to deploy if any value is unset, so an unused declaration blocks every stage. `infra/secrets.ts` keeps a commented ledger of deferred secrets — uncomment (and link in `infra/api.ts`) only in the task that actually uses the secret.
 
 ## Default stack reminders
 
@@ -31,12 +31,13 @@ Spec snapshot lives in `.kiro/specs/ai-data-room/<slice>/` — the `requirements
 ## Workflow for executing a slice's tasks.md
 
 1. Read the slice's `.kiro/specs/ai-data-room/<slice>/requirements.md` then `design.md` in full.
-2. Create a feature branch: `slice/<slice>/<short-desc>`.
-3. Pick the lowest-numbered incomplete task from `tasks.md`. Tick it `[x]` when a merged PR satisfies the DoD.
-4. One PR per task unless the task explicitly bundles (e.g. "T-003 → T-005 bundle for schema + types + zod").
-5. PR description mirrors the task: scope, files, DoD, tests run.
+2. Pick the lowest-numbered incomplete task from `tasks.md`.
+3. Create the task's feature branch off the current `main`: `git checkout -b feat/<slice>-T-XXX-<short-desc>`. **Never commit to `main` directly.**
+4. One PR per task unless the task explicitly bundles (e.g. "T-003 → T-005 bundle for schema + types + zod"). PR title: `feat(<slice>): T-XXX <short description>`.
+5. PR description mirrors the task: scope, files, DoD, tests run. Tick the task `[x]` in the upstream `tasks.md` (and the mirrored `.kiro/` copy) only when the PR is merged.
 6. Run `bun run typecheck && bun run test && bun run lint` before opening the PR.
-7. `release-please` handles versioning. Tag per slice.
+7. After merge, delete the feature branch locally and on GitHub. Pull `main`, branch again for the next task.
+8. `release-please` handles versioning. Tag per slice.
 
 ## Parallelism
 

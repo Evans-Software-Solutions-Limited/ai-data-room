@@ -44,11 +44,16 @@ Status: `[~]` (code landed 2026-04-22; pending Bradley actions below)
 **Scope:** Create WorkOS project for ai-data-room. Add API key,
 client ID, webhook secret, cookie signing key to AWS Secrets Manager
 via SST. Pattern matches FDP's `infra/secrets.ts`.
-**Files (likely):** `infra/secrets.ts`, `sst.config.ts`.
+**Files (likely):** `infra/secrets.ts`, `infra/api.ts`, `sst.config.ts`,
+`microservices/core/src/handlers/auth/healthWorkosGetHandler.ts`.
 **Definition of done:**
 - `dev` and `staging` stages each reference WorkOS secrets. ⏳ See
   Bradley actions.
 - Secret names follow FDP convention. ✅ snake_case + SCREAMING_SNAKE.
+- **Only secrets this slice uses** are declared in `infra/secrets.ts`.
+  Pre-declaring future-slice secrets blocks every stage's deploy with
+  `SecretMissingError` (SST resolves every `new sst.Secret(...)` at
+  deploy time). Deferred secrets stay as comments in the ledger. ✅
 - A simple handler `GET /_health/workos` returns 200 when creds are
   wired correctly (internal-only, removed in T-015 before prod). ✅
   handler in `microservices/core/src/handlers/auth/healthWorkosGetHandler.ts`.
@@ -56,12 +61,17 @@ via SST. Pattern matches FDP's `infra/secrets.ts`.
 the dev stack. ⏳ Unit tests landed (`__tests__/healthWorkosGetHandler.test.ts`);
 dev-stack integration via `scripts/check-workos-health.ts <url>`.
 
+**Branch:** `feat/auth-and-orgs-T-002-workos-secrets` (open PR into
+`main`). **Never commit directly to `main`.**
+
 **Bradley actions to close T-002:**
 1. Sign up to WorkOS, create the `ai-data-room` project for each stage
    (`dev`, `staging`, `production`).
 2. From each stage's WorkOS dashboard, copy the API key, client ID,
    and webhook secret. Generate a 32+ char random string for the
-   cookie password.
+   cookie password with `openssl rand -base64 48` (WorkOS cannot
+   generate this — it's the symmetric key AuthKit uses to seal the
+   session cookie; rotate per stage, non-recoverable once set).
 3. From the repo root, for each stage:
    ```
    bun sst secret set WORKOS_CLIENT_ID <value> --stage <stage>
