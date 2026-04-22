@@ -32,3 +32,13 @@ runs:
       if: steps.cache-deps.outputs.cache-hit != 'true'
       shell: bash
       run: bun install --frozen-lockfile
+
+    # Bootstraps `.sst/platform/` so downstream `sst` CLI calls (diff,
+    # deploy, shell) don't pay a cold install on every job. Typecheck
+    # deliberately does NOT depend on `.sst/platform/` — it uses the
+    # ambient shim at `infra/_sst-globals.d.ts` instead, so that SST's
+    # own internal TS errors (on modern @types/node) can't break CI.
+    # Idempotent; cheap; keep here so deploy jobs find a warm cache.
+    - name: Bootstrap SST platform
+      shell: bash
+      run: bun sst install

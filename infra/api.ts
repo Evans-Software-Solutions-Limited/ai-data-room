@@ -9,10 +9,14 @@ import {
   workos_cookie_password,
 } from "./secrets";
 
+// `args` is SST's Lambda function input shape. We only touch `runtime`,
+// so we type that one field. Widening to any surface SST passes would
+// require pulling in `.sst/platform/**` which isn't on the typecheck path
+// (see `tsconfig.infra.json` + `infra/_sst-globals.d.ts`).
 export const coreAPI = new sst.aws.ApiGatewayV2("api-core", {
   transform: {
     route: {
-      handler: (args) => {
+      handler: (args: { runtime?: string }) => {
         args.runtime ??= "nodejs22.x";
       },
     },

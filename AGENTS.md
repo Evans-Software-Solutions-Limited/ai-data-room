@@ -19,6 +19,7 @@ Full context lives in [`CLAUDE.md`](./CLAUDE.md). This file is the agent-agnosti
    - Hand-written SQL only for Postgres-specific DDL Drizzle can't emit (pgvector, partial unique, RLS).
 7. **Style:** Prettier defaults (see root `.prettierignore`); ESLint via `bun run lint` at each package.
 8. **Commits:** Conventional commits (`feat:`, `fix:`, `chore:`, `refactor:`) — `release-please` parses them.
+9. **Typecheck is the primary guardrail.** `bun run typecheck` chains (a) `tsc -p tsconfig.infra.json` over `infra/` + `sst.config.ts`, then (b) Turbo per-workspace `tsc --noEmit`. Both must pass. Infra globals come from `infra/_sst-globals.d.ts` (an ambient shim — see its header), not from SST's shipped `.d.ts` (which has internal TS errors against modern Node). The shim types `sst.aws.<Component>` as `any`, so **SST component-name typos only surface at deploy time** — run `bun sst diff --stage <your-dev>` before pushing any infra change. Do not cast to silence typecheck failures; fix the type or ask before loosening it.
 
 ## What to do when a spec seems wrong
 

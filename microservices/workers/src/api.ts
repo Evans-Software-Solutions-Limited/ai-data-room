@@ -1,17 +1,20 @@
-// Placeholder worker handler — flesh out when slice 5 (ai-doc-sensecheck)
-// wires its SQS consumer. The worker surface is _not_ a public HTTP API;
-// keeping a tiny healthz app for smoke tests and operational poking.
+// Workers surface — **status: stub.** This microservice is slice-5
+// infra (`ai-doc-sensecheck` wires an SQS consumer here). Nothing
+// upstream currently imports a handler from this file, and
+// `sst.config.ts` does not link a worker Lambda yet — see the
+// commented `workersAPI` block in `infra/api.ts`.
+//
+// The scaffold previously imported `elysia` / `hono` / `@elysiajs/openapi`
+// without declaring them in `package.json`, which made `bun run
+// typecheck` fail in CI. That violates the "we always use typecheck,
+// lint and prettier to stick to a strong guardrail" rule, so we
+// collapsed the surface to a bare stub until slice 5 picks it up and
+// declares the right deps + registers the handler through SST. Matches
+// the "declare when shipped" convention used for `infra/storage.ts`
+// and the WorkOS secret ledger in `infra/secrets.ts`.
+//
+// When slice 5 lands, restore an SQS event handler here — e.g.:
+//   import type { SQSHandler } from "aws-lambda";
+//   export const handler: SQSHandler = async (event) => { ... };
 
-import Elysia from "elysia";
-import { Hono } from "hono";
-import { handle } from "hono/aws-lambda";
-import openapi from "@elysiajs/openapi";
-
-const app = new Elysia().use(openapi()).get("/healthz", () => ({
-  ok: true,
-  service: "workers",
-  // Deliberately terse — this endpoint is never part of the product API.
-}));
-
-export type WorkersApi = typeof app;
-export const handler = handle(new Hono().mount("/", app.fetch));
+export {};

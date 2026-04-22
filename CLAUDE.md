@@ -21,7 +21,7 @@ Spec snapshot lives in `.kiro/specs/ai-data-room/<slice>/` — the `requirements
 
 ## Default stack reminders
 
-- **Infra:** SST v4 (Ion). Never check in `.sst/` or `sst-env.d.ts`.
+- **Infra:** SST v4 (Ion). `.sst/` is ignored. `sst-env.d.ts` (root + per-workspace) **is committed** — SST regenerates it on every `sst dev`/`sst deploy`, and the committed copy is what lets CI `bun run typecheck` catch missing-Resource mistakes without having to run SST first. Matches the funds-distribution-platform convention.
 - **DB:** PlanetScale Postgres + Drizzle. Migrations in `packages/db/migrations/`.
 - **Auth:** WorkOS. Wrappers in `microservices/core/src/infrastructure/workos/`.
 - **AI:** Anthropic SDK via `microservices/core/src/infrastructure/anthropic/`. Prompt versions in a code module, not inline strings — see slice 5 design doc.
@@ -35,9 +35,10 @@ Spec snapshot lives in `.kiro/specs/ai-data-room/<slice>/` — the `requirements
 3. Create the task's feature branch off the current `main`: `git checkout -b feat/<slice>-T-XXX-<short-desc>`. **Never commit to `main` directly.**
 4. One PR per task unless the task explicitly bundles (e.g. "T-003 → T-005 bundle for schema + types + zod"). PR title: `feat(<slice>): T-XXX <short description>`.
 5. PR description mirrors the task: scope, files, DoD, tests run. Tick the task `[x]` in the upstream `tasks.md` (and the mirrored `.kiro/` copy) only when the PR is merged.
-6. Run `bun run typecheck && bun run test && bun run lint` before opening the PR.
-7. After merge, delete the feature branch locally and on GitHub. Pull `main`, branch again for the next task.
-8. `release-please` handles versioning. Tag per slice.
+6. Run `bun run typecheck && bun run test && bun run lint && bun run prettier:check` before opening the PR. `typecheck` chains `tsc -p tsconfig.infra.json` (infra/ + sst.config.ts) before the Turbo per-workspace pass — both must be green, they catch different things.
+7. **Before pushing any infra change, run `bun sst diff --stage <your-dev>`.** Our infra typecheck is backed by `infra/_sst-globals.d.ts` — an ambient shim that types `sst.aws.<Component>` as `any` so we don't drag SST's internal source (which has its own TS errors on modern Node types) onto the typecheck path. That shim will NOT catch hallucinated component names (e.g. `sst.aws.KmsKey` doesn't exist; use Pulumi's `aws.kms.Key` + `sst.Linkable` — see FDP's `infra/kms.ts`). `sst diff` is the one check that resolves real component constructors, so it's the guardrail for SST component typos. See the shim's header for the trade-off + "replace this when SST ships a cleaner type surface" trigger.
+8. After merge, delete the feature branch locally and on GitHub. Pull `main`, branch again for the next task.
+9. `release-please` handles versioning. Tag per slice.
 
 ## Parallelism
 

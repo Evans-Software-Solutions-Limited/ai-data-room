@@ -4,12 +4,23 @@
 // a deployed stack. The integration variant (against a real dev stack)
 // lives in `scripts/check-workos-health.ts` and is run manually after
 // `bun sst secret set` for each stage.
+//
+// Note: there is no "secret literally undefined" case. SST resolves every
+// declared `sst.Secret` at deploy time and fails with `SecretMissingError`
+// if any value is unset — so the handler is never invoked with a missing
+// key in practice. An empty string ("") is the only failure shape we
+// defend against.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let healthWorkosGetHandler: typeof import("../healthWorkosGetHandler").healthWorkosGetHandler;
 
-type SecretBag = Record<string, { value: string } | undefined>;
+type SecretBag = {
+  WORKOS_CLIENT_ID: { value: string };
+  WORKOS_API_KEY: { value: string };
+  WORKOS_WEBHOOK_SECRET: { value: string };
+  WORKOS_COOKIE_PASSWORD: { value: string };
+};
 
 function mockSstResource(secrets: SecretBag) {
   vi.doMock("sst", () => ({ Resource: secrets }));
@@ -76,24 +87,6 @@ describe("GET /_health/workos", () => {
     };
     expect(body.ok).toBe(false);
     expect(body.reason).toBe("missing_secrets");
-    expect(body.missing).toEqual(["WORKOS_API_KEY"]);
-  });
-
-  it("returns 503 missing_secrets when a secret is undefined", async () => {
-    mockSstResource({
-      WORKOS_CLIENT_ID: { value: "client_test" },
-      // WORKOS_API_KEY intentionally omitted
-      WORKOS_WEBHOOK_SECRET: { value: "whsec_test" },
-      WORKOS_COOKIE_PASSWORD: { value: "x".repeat(32) },
-    });
-    await reloadHandler();
-
-    const res = await healthWorkosGetHandler.handle(
-      new Request("http://localhost/_health/workos"),
-    );
-
-    expect(res.status).toBe(503);
-    const body = (await res.json()) as { missing: string[] };
     expect(body.missing).toEqual(["WORKOS_API_KEY"]);
   });
 

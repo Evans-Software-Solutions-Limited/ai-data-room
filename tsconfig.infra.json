@@ -1,0 +1,16 @@
+{
+  "// description": "Typecheck scope for infra/ + sst.config.ts. These files live at the repo root (not inside a workspace), so Turbo's per-package typecheck step would not cover them. Without this config, infra bugs only surface at `sst deploy` time. `bun run typecheck` chains this file after the Turbo run.",
+  "// globals": "SST's shipped type surface (`.sst/platform/config.d.ts`) transitively imports `.sst/platform/src/components/**`, whose internal source has TS2345 errors against modern @types/node (`Buffer<ArrayBufferLike>` vs `BinaryLike`). We can't typecheck that cleanly today. Instead we use our own ambient shim at `infra/_sst-globals.d.ts` — picked up automatically via `include`. Trade-off + trigger to replace it: see the shim's header.",
+  "// deploy-time-guard": "The shim types `sst.aws.<Component>` as `any`, so typos like `sst.aws.KmsKey` (doesn't exist) are NOT caught here. Run `bun sst diff --stage <your-dev>` before pushing an infra change — see `CLAUDE.md` §Workflow.",
+  "extends": "@tsconfig/node22/tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": [],
+    "strict": true
+  },
+  "include": ["sst.config.ts", "infra/**/*.ts"],
+  "exclude": ["node_modules", ".sst", "dist", "build"]
+}
