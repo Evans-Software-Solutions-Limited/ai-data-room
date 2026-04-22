@@ -1,0 +1,14 @@
+{
+  "extends": "@tsconfig/node22/tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    "src/**/*",
+    "../../packages/api-utils/src",
+    "../../packages/db/src"
+  ],
+  "exclude": ["node_modules"]
+}

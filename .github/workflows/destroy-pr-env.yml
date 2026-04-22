@@ -1,0 +1,43 @@
+name: Destroy PR Environment
+
+on:
+  pull_request:
+    types: [closed, unlabeled]
+
+# Same group as PR deploy so deploy and destroy never run at once for the same PR
+concurrency:
+  group: sst-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  PR_PREFIX: pr-${{ github.event.pull_request.number }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  remove:
+    name: Remove PR Environment
+    runs-on: ubuntu-latest
+    environment: PR Environments
+    if: ${{ github.event.action == 'closed' || (github.event.action == 'unlabeled' && github.event.label.name == 'ready-for-test') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PR }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-2' }}
+
+      - name: Unlock SST (clear stale lock before remove)
+        run: bunx sst unlock --stage ${{ env.PR_PREFIX }} || true
+
+      - name: Remove PR Environment
+        run: bunx sst remove --stage ${{ env.PR_PREFIX }}
+        continue-on-error: true

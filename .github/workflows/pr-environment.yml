@@ -1,0 +1,130 @@
+name: Pull Request Environment
+
+on:
+  pull_request:
+    types: [labeled, synchronize]
+
+# Only one deploy/destroy per PR at a time to avoid SST lock conflicts
+concurrency:
+  group: sst-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+env:
+  PR_PREFIX: pr-${{ github.event.pull_request.number }}
+
+jobs:
+  install:
+    name: Install
+    runs-on: ubuntu-latest
+    if: ${{ github.event.label.name == 'ready-for-test' || contains(github.event.pull_request.labels.*.name, 'ready-for-test') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          restore_cache: "false"
+
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    if: ${{ github.event.label.name == 'ready-for-test' || contains(github.event.pull_request.labels.*.name, 'ready-for-test') }}
+    outputs:
+      has-changes: ${{ steps.set-any.outputs.has-changes }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            web:
+              - packages/web/**
+              - packages/api-utils/**
+            core:
+              - microservices/core/**
+              - packages/api-utils/**
+            other-service:
+              - microservices/other-service/**
+              - packages/api-utils/**
+            infra:
+              - infra/**
+              - sst.config.ts
+              - package.json
+              - bun.lock
+              - bun.lockb
+              - .github/workflows/**
+
+      - name: Set has-changes
+        id: set-any
+        run: |
+          if [ "${{ steps.filter.outputs.web }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.core }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.other-service }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.infra }}" == "true" ]; then
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+          fi
+
+  deploy:
+    name: Deploy PR Environment
+    runs-on: ubuntu-latest
+    environment: PR Environments
+    needs: [install, changes]
+    if: ${{ needs.changes.outputs.has-changes == 'true' && (github.event.label.name == 'ready-for-test' || contains(github.event.pull_request.labels.*.name, 'ready-for-test')) && github.actor != 'dependabot[bot]' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Build
+        run: bun run build
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PR }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-2' }}
+
+      - name: Unlock SST (clear stale lock from previous runs)
+        run: bunx sst unlock --stage ${{ env.PR_PREFIX }} || true
+
+      - name: Deploy
+        run: bunx sst deploy --stage ${{ env.PR_PREFIX }}
+
+      - name: Extract outputs
+        id: sst-outputs
+        run: |
+          if [ -f .sst/outputs.json ]; then
+            API_URL=$(jq -r '.. | .api? // empty' .sst/outputs.json 2>/dev/null | head -1)
+            WEB_URL=$(jq -r '.. | .web? // empty' .sst/outputs.json 2>/dev/null | head -1)
+            echo "api_url=${API_URL:-N/A}" >> $GITHUB_OUTPUT
+            echo "web_url=${WEB_URL:-N/A}" >> $GITHUB_OUTPUT
+          else
+            echo "api_url=N/A" >> $GITHUB_OUTPUT
+            echo "web_url=N/A" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment on PR
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ## 🚀 PR Environment Deployed
+
+            | Resource | URL |
+            |----------|-----|
+            | **API** | ${{ steps.sst-outputs.outputs.api_url }} |
+            | **Web** | ${{ steps.sst-outputs.outputs.web_url }} |
+
+            *Stage: `${{ env.PR_PREFIX }}`*

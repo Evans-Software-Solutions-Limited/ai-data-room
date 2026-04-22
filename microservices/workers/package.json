@@ -1,0 +1,29 @@
+{
+  "name": "@ai-data-room/workers",
+  "version": "0.0.0",
+  "description": "Async workers — sense-check SQS consumer, billing reconciliation, activation metrics, audit retention. Wired in when slice 5 (ai-doc-sensecheck) reaches task phase.",
+  "type": "module",
+  "scripts": {
+    "test": "sst shell vitest",
+    "test:unit": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-data-room/api-utils": "*",
+    "@ai-data-room/db": "*",
+    "sst": "*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@tsconfig/node22": "^22",
+    "@types/aws-lambda": "^8",
+    "@types/node": "^22",
+    "@vitest/coverage-v8": "2.1.9",
+    "eslint": "^9.39.1",
+    "typescript-eslint": "^8.48.0",
+    "vitest": "^2"
+  }
+}

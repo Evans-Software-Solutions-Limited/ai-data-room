@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="brand-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#892887" />
+      <stop offset="50%" stop-color="#e94258" />
+      <stop offset="100%" stop-color="#f27224" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#brand-gradient)" />
+  <circle cx="256" cy="256" r="120" fill="white" fill-opacity="0.2" />
+  <circle cx="256" cy="256" r="80" fill="white" fill-opacity="0.4" />
+</svg>

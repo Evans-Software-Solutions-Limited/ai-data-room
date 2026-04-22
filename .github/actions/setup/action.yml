@@ -1,0 +1,34 @@
+name: "Setup"
+description: "Setup the repository for CI/CD workflows"
+inputs:
+  restore_cache:
+    description: "Restore dependency cache"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: "1.3.9"
+
+    - name: Cache dependencies
+      id: cache-deps
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun/install/cache
+          node_modules
+          packages/*/node_modules
+          microservices/*/node_modules
+        key: ${{ runner.os }}-${{ runner.arch }}-bun-${{ hashFiles('bun.lock', 'bun.lockb') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-bun-
+        lookup-only: ${{ inputs.restore_cache != 'true' }}
+
+    - name: Install dependencies
+      if: steps.cache-deps.outputs.cache-hit != 'true'
+      shell: bash
+      run: bun install --frozen-lockfile

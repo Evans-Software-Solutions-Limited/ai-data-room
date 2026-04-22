@@ -1,0 +1,73 @@
+name: Deploy Production
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref to deploy (branch or tag, e.g. v1.0.0). Leave empty to use the branch selected when running."
+        required: false
+
+# Only one production deploy at a time to avoid SST lock conflicts
+concurrency:
+  group: sst-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  install:
+    name: Install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          restore_cache: "false"
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: Production
+    needs: [install]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.event.inputs.ref || github.ref }}
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Prettier
+        run: bun run prettier:check
+
+      - name: Build
+        run: bun run build
+
+      - name: Unit tests
+        run: bun run test:unit
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PRODUCTION }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-2' }}
+
+      - name: Unlock SST (clear stale lock from previous runs)
+        run: bunx sst unlock --stage production || true
+
+      - name: Deploy
+        run: bunx sst deploy --stage production

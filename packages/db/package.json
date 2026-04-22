@@ -1,0 +1,37 @@
+{
+  "name": "@ai-data-room/db",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Drizzle schema + migrations + typed repositories for ai-data-room. Canonical domain store per ADR-002.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./schema/*": "./src/schema/*.ts",
+    "./repos/*": "./src/repos/*.ts"
+  },
+  "scripts": {
+    "generate": "drizzle-kit generate",
+    "migrate": "drizzle-kit migrate",
+    "introspect": "drizzle-kit introspect",
+    "studio": "drizzle-kit studio",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest",
+    "test:unit": "vitest run --coverage",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.36.0",
+    "postgres": "^3.4.5",
+    "sst": "*"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^22",
+    "@vitest/coverage-v8": "^2",
+    "drizzle-kit": "^0.28.0",
+    "eslint": "^9.39.1",
+    "typescript-eslint": "^8.48.0",
+    "vitest": "^2"
+  }
+}

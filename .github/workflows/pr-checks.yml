@@ -1,0 +1,120 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  install:
+    name: Install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          restore_cache: "false"
+
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      has-changes: ${{ steps.set-any.outputs.has-changes }}
+      web: ${{ steps.filter.outputs.web }}
+      core: ${{ steps.filter.outputs.core }}
+      other-service: ${{ steps.filter.outputs.other-service }}
+      api-utils: ${{ steps.filter.outputs.api-utils }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            web:
+              - packages/web/**
+              - packages/api-utils/**
+            core:
+              - microservices/core/**
+              - packages/api-utils/**
+            other-service:
+              - microservices/other-service/**
+              - packages/api-utils/**
+            api-utils:
+              - packages/api-utils/**
+            infra:
+              - infra/**
+              - sst.config.ts
+              - package.json
+              - bun.lock
+              - bun.lockb
+              - .github/workflows/**
+
+      - name: Set has-changes
+        id: set-any
+        run: |
+          if [ "${{ steps.filter.outputs.web }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.core }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.other-service }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.api-utils }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.infra }}" == "true" ]; then
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+          fi
+
+  typecheck-lint-prettier:
+    name: Typecheck, Lint & Prettier
+    runs-on: ubuntu-latest
+    needs: [install, changes]
+    if: needs.changes.outputs.has-changes == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Prettier
+        run: bun run prettier:check
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [install, typecheck-lint-prettier]
+    if: needs.changes.outputs.has-changes == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Build
+        run: bun run build
+
+  unit-tests:
+    name: Unit Tests & Coverage
+    runs-on: ubuntu-latest
+    needs: [install, typecheck-lint-prettier]
+    if: needs.changes.outputs.has-changes == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Unit tests with coverage
+        run: bun run test:unit

@@ -1,0 +1,40 @@
+# dependencies
+node_modules
+
+# sst
+.sst
+sst-env.d.ts
+**/sst-env.d.ts
+
+# tmp files
+.#*
+
+# env
+.env*.local
+.env
+
+# opennext
+.open-next
+
+# next.js (when slice 2 migrates web to next)
+packages/web/.next
+
+# misc
+.DS_Store
+
+**/coverage/**
+
+# turbo cache
+.turbo
+**/.turbo
+
+# build outputs
+**/dist
+**/build
+
+# drizzle-kit
+packages/db/.drizzle
+
+# playwright
+/playwright-report
+/test-results

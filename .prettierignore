@@ -1,0 +1,11 @@
+node_modules
+**/dist
+**/dist/**
+.sst
+*.min.js
+bun.lock
+bun.lockb
+coverage
+CHANGELOG.md
+sst-env.d.ts
+**/sst-env.d.ts

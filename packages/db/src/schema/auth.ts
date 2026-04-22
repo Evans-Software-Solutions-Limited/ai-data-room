@@ -1,0 +1,237 @@
+// Slice 1 — auth-and-orgs schema.
+//
+// Authoritative spec: `specs/ai-data-room/auth-and-orgs/design.md` §Data model.
+// Mirrors WorkOS identity (see ADR-001). Audit trail is append-only-by-
+// convention at v0.1; SOC 2 entry will tighten to trigger-enforced.
+//
+// NOTE — this file is the scaffold. The auth-and-orgs T-002 task will
+// flesh it out with the full column set and generate the first
+// migration. Keeping the table shells here so downstream slices can be
+// sanity-checked against it during design phase.
+
+import {
+  boolean,
+  index,
+  inet,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+
+// ── Enums ──────────────────────────────────────────────────────────────
+export const orgStatus = pgEnum("org_status", [
+  "active",
+  "suspended",
+  "deleted",
+]);
+
+export const userLifecycleState = pgEnum("user_lifecycle_state", [
+  "active",
+  "suspended",
+  "deleted",
+]);
+
+export const orgRole = pgEnum("org_role", ["owner", "admin", "internal"]);
+
+export const externalGrantStatus = pgEnum("external_grant_status", [
+  "active",
+  "revoked",
+]);
+
+export const invitationKind = pgEnum("invitation_kind", [
+  "internal",
+  "external",
+]);
+
+export const invitationRole = pgEnum("invitation_role", ["admin", "internal"]);
+
+export const invitationState = pgEnum("invitation_state", [
+  "pending",
+  "accepted",
+  "revoked",
+  "expired",
+]);
+
+export const auditOutcome = pgEnum("audit_outcome", ["success", "failure"]);
+
+// ── Tables ─────────────────────────────────────────────────────────────
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    workosOrgId: text("workos_org_id").notNull(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    status: orgStatus("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    workosOrgIdx: uniqueIndex("organizations_workos_org_id_key").on(
+      t.workosOrgId,
+    ),
+    slugIdx: uniqueIndex("organizations_slug_key").on(t.slug),
+  }),
+);
+
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    workosUserId: text("workos_user_id").notNull(),
+    email: text("email"), // citext in migration; nullable after lifecycle=deleted PII scrub
+    fullName: text("full_name"),
+    lifecycleState: userLifecycleState("lifecycle_state")
+      .notNull()
+      .default("active"),
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    mfaEnrolledAt: timestamp("mfa_enrolled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    workosUserIdx: uniqueIndex("users_workos_user_id_key").on(t.workosUserId),
+    // Email uniqueness enforced in migration SQL via citext + partial unique
+    // (skip rows where lifecycle_state='deleted'), not representable neatly
+    // in drizzle-kit today.
+  }),
+);
+
+export const orgMemberships = pgTable(
+  "org_memberships",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    role: orgRole("role").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    orgUserIdx: uniqueIndex("org_memberships_org_user_key").on(
+      t.orgId,
+      t.userId,
+    ),
+    // Single-owner-per-org enforced as partial unique in migration SQL.
+  }),
+);
+
+export const externalAccessGrants = pgTable(
+  "external_access_grants",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    opportunitySlug: text("opportunity_slug").notNull(),
+    grantedBy: uuid("granted_by")
+      .notNull()
+      .references(() => users.id),
+    status: externalGrantStatus("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    orgOpportunityIdx: index("eag_org_opportunity_idx").on(
+      t.orgId,
+      t.opportunitySlug,
+    ),
+    userIdx: index("eag_user_idx").on(t.userId),
+  }),
+);
+
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    workosInvitationId: text("workos_invitation_id").notNull(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    email: text("email").notNull(),
+    kind: invitationKind("kind").notNull(),
+    role: invitationRole("role"),
+    opportunitySlug: text("opportunity_slug"),
+    invitedBy: uuid("invited_by")
+      .notNull()
+      .references(() => users.id),
+    state: invitationState("state").notNull().default("pending"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    workosInviteIdx: uniqueIndex("invitations_workos_invitation_id_key").on(
+      t.workosInvitationId,
+    ),
+    orgStateIdx: index("invitations_org_state_idx").on(t.orgId, t.state),
+  }),
+);
+
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    eventType: text("event_type").notNull(),
+    actorUserId: uuid("actor_user_id"),
+    targetUserId: uuid("target_user_id"),
+    orgId: uuid("org_id"),
+    sourceIp: inet("source_ip"),
+    userAgent: text("user_agent"),
+    outcome: auditOutcome("outcome").notNull(),
+    metadata: jsonb("metadata").notNull().default({}),
+  },
+  (t) => ({
+    orgTimeIdx: index("audit_org_time_idx").on(t.orgId, t.occurredAt),
+    actorTimeIdx: index("audit_actor_time_idx").on(
+      t.actorUserId,
+      t.occurredAt,
+    ),
+    targetTimeIdx: index("audit_target_time_idx").on(
+      t.targetUserId,
+      t.occurredAt,
+    ),
+    typeTimeIdx: index("audit_type_time_idx").on(t.eventType, t.occurredAt),
+  }),
+);
+
+// Intentionally unused locally — kept so this barrel imports boolean from
+// drizzle-orm without creating a "declared but not used" warning once we
+// flesh out the lifecycle triggers. Remove when the first trigger lands.
+export const _boolean = boolean;
