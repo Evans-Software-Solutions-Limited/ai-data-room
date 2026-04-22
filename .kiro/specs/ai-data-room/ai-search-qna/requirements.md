@@ -8,6 +8,7 @@
 **Depends on:** `room-and-folders` (+ `access-control` for scoping)
 
 ## Context
+
 Cited Q&A chat grounded in the room's documents. An authenticated user
 asks a natural-language question; the system returns an answer with
 inline citations (document + page / paragraph anchor) drawn **only from
@@ -17,6 +18,7 @@ market — if search + Q&A aren't actually grounded in the room's content
 and respectful of access control, the feature is worthless.
 
 ## Users & roles
+
 - **Primary user:** internal contributor or owner/admin running
   diligence over the room.
 - **Secondary users:** external viewers asking questions scoped to
@@ -45,6 +47,7 @@ and respectful of access control, the feature is worthless.
 ## Functional requirements
 
 ### Indexing pipeline
+
 - **FR1** — On document upload (via `room-and-folders`) **and**
   approval (via `doc-checklist` / `ai-doc-sensecheck`), the system
   shall enqueue the document for indexing into a vector store. Only
@@ -53,7 +56,7 @@ and respectful of access control, the feature is worthless.
 - **FR2** — Indexing shall extract text per page / slide / sheet,
   chunk it into passages bounded at **~1,000 tokens** with ~200-token
   overlap, embed each passage, and persist `{passage_id, doc_id,
-  anchor (page/slide/sheet number + offset), vector, text}`. Anchors
+anchor (page/slide/sheet number + offset), vector, text}`. Anchors
   are what we render as citations.
 - **FR3** — On document deletion (soft or hard) or slot reset to
   `empty` / `rejected`, the system shall delete the corresponding
@@ -64,6 +67,7 @@ and respectful of access control, the feature is worthless.
   not required; scoping happens at query time (FR6).
 
 ### Query flow
+
 - **FR5** — An authenticated user's query shall:
   1. Expand into an embedding vector.
   2. Run approximate-nearest-neighbour search against the vector store.
@@ -85,7 +89,7 @@ and respectful of access control, the feature is worthless.
   recall.
 - **FR8** — The generator shall return a structured response:
   `{ answer: string, citations: Array<{ passage_id, doc_id, anchor,
-  snippet }>, unanswered_reason: string | null }`.
+snippet }>, unanswered_reason: string | null }`.
 - **FR9** — The UI shall render answers with clickable citations that
   open a document preview scrolled/paged to the cited anchor.
 - **FR10** — For queries where the retriever returns nothing in the
@@ -94,6 +98,7 @@ and respectful of access control, the feature is worthless.
   attempting a model-only answer.
 
 ### Admin controls
+
 - **FR11** — Owners/admins shall be able to flag a specific document
   as **excluded from Q&A** (per FR6 of user stories). Excluded docs
   remain visible in listings (subject to `access-control`) but are
@@ -104,6 +109,7 @@ and respectful of access control, the feature is worthless.
   slice exposes the API.
 
 ### Audit & observability
+
 - **FR13** — Every Q&A call shall produce an audit event with:
   asker user id, org id, Opportunity scope (for external users),
   question text, answer id, cited doc ids, unanswered flag, model +
@@ -113,6 +119,7 @@ and respectful of access control, the feature is worthless.
   and p95, retrieval recall proxy (citation click-through).
 
 ### Rate limits & cost guardrails
+
 - **FR15** — Per-user rate limit: **20 questions per minute**.
   Per-org soft monthly quota: **2,000 questions per org per month**
   at v0.1 (enforced by `billing-subscription` where that slice
@@ -177,6 +184,7 @@ and respectful of access control, the feature is worthless.
   pgvector in-VPC only.
 
 ## Open questions
+
 - pgvector vs. dedicated vector store (OpenSearch, AWS Bedrock
   Knowledge Bases): leaning **pgvector** for v0.1 to minimise new
   infra; revisit if recall/latency disappoints.
@@ -193,5 +201,6 @@ and respectful of access control, the feature is worthless.
   **yes** — the question itself is a compliance signal worth logging.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Design phase unblocked

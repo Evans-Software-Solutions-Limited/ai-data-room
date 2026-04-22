@@ -7,6 +7,7 @@
 `doc-checklist`, `billing-subscription`
 
 ## Summary
+
 Owner wizard is a six-step state-machine UI under `/onboarding/owner`.
 Wizard state is persisted in a single `onboarding_progress` row
 per user; every step is fully resumable. Each step is a thin form
@@ -52,20 +53,21 @@ flowchart LR
 ## Data model
 
 ### `onboarding_progress`
+
 One row per user. Drives resumability + dashboard nudges.
 
-| Column | Type | Notes |
-|---|---|---|
-| `user_id` | `uuid` PK FK `users.id` | |
-| `org_id` | `uuid` FK | Denormalised for quick admin queries. |
-| `flow` | `enum('owner','invited_admin','invited_internal','invited_external')` | |
-| `current_step` | `text` | e.g. `welcome`, `company_basics`, `done`. |
-| `completed_steps` | `text[]` default `'{}'` | Idempotent marker per step. |
-| `skipped_steps` | `text[]` default `'{}'` | |
-| `started_at` | `timestamptz` | |
-| `completed_at` | `timestamptz` nullable | Set when wizard finished or explicitly dismissed. |
-| `dismissed_get_started` | `boolean` default false | FR8 dismiss state. |
-| `updated_at` | `timestamptz` | |
+| Column                  | Type                                                                  | Notes                                             |
+| ----------------------- | --------------------------------------------------------------------- | ------------------------------------------------- |
+| `user_id`               | `uuid` PK FK `users.id`                                               |                                                   |
+| `org_id`                | `uuid` FK                                                             | Denormalised for quick admin queries.             |
+| `flow`                  | `enum('owner','invited_admin','invited_internal','invited_external')` |                                                   |
+| `current_step`          | `text`                                                                | e.g. `welcome`, `company_basics`, `done`.         |
+| `completed_steps`       | `text[]` default `'{}'`                                               | Idempotent marker per step.                       |
+| `skipped_steps`         | `text[]` default `'{}'`                                               |                                                   |
+| `started_at`            | `timestamptz`                                                         |                                                   |
+| `completed_at`          | `timestamptz` nullable                                                | Set when wizard finished or explicitly dismissed. |
+| `dismissed_get_started` | `boolean` default false                                               | FR8 dismiss state.                                |
+| `updated_at`            | `timestamptz`                                                         |                                                   |
 
 Index: `(org_id)` for admin metrics queries.
 
@@ -84,16 +86,17 @@ target step id — server validates that the target is reachable
 
 ### Step definitions
 
-| Step | Inputs | Underlying API | Skippable |
-|---|---|---|---|
-| `welcome` | None — read-only | None | Auto-advance on click |
-| `company_basics` | `name`, `logo?`, `description` | `PATCH /orgs/:orgId` | Yes |
-| `upload_first_docs` | Files dragged onto `01_*` / `02_*` slots | `room-and-folders` upload + `doc-checklist` slot assignment | Yes |
-| `nda_template` | NDA markdown body | `access-control` `replaceNdaTemplate` | Yes |
+| Step                | Inputs                                              | Underlying API                                                                  | Skippable                   |
+| ------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------- |
+| `welcome`           | None — read-only                                    | None                                                                            | Auto-advance on click       |
+| `company_basics`    | `name`, `logo?`, `description`                      | `PATCH /orgs/:orgId`                                                            | Yes                         |
+| `upload_first_docs` | Files dragged onto `01_*` / `02_*` slots            | `room-and-folders` upload + `doc-checklist` slot assignment                     | Yes                         |
+| `nda_template`      | NDA markdown body                                   | `access-control` `replaceNdaTemplate`                                           | Yes                         |
 | `first_opportunity` | Opportunity name, expiry, tier, invitee email + msg | `room-and-folders` `createOpportunity` + `access-control` `createExternalGrant` | Yes (with explicit "later") |
-| `done` | None — summary | None | n/a |
+| `done`              | None — summary                                      | None                                                                            | n/a                         |
 
 ### Resumability
+
 - On any wizard route load: if user has `completed_at` → redirect
   to `/dashboard`. Else: GET `/onboarding/progress` and render the
   step matching `current_step`. The `current_step` is the first
@@ -102,8 +105,10 @@ target step id — server validates that the target is reachable
   on every "Continue" or "Skip" press (no separate draft store).
 
 ### Done detection
+
 Auto-fill `completed_steps` on entry to a step where the underlying
 data already exists, e.g.:
+
 - `company_basics` → completed if `org.description` non-empty.
 - `nda_template` → completed if any NDA template version exists.
 - `first_opportunity` → completed if any non-archived Opportunity
@@ -115,12 +120,14 @@ That handles FR5 (don't re-prompt for completed work) and AC-US5
 ## Invited-user orientation
 
 ### `/onboarding/welcome` (admin / internal)
+
 One screen: greeting, role-appropriate tour items (Users, Grants,
 Review queue), a "Got it" button → `/dashboard`.
 
 Marks `flow='invited_admin'` or `'invited_internal'` row complete.
 
 ### `/onboarding/welcome` (external, post-NDA)
+
 One screen: scope (which Opportunity), what's visible/not, expiry
 date, "request extension" affordance (FR7), a "Got it" button →
 `/external/:slug`.
@@ -131,6 +138,7 @@ External users' progress row is created on NDA acceptance to track
 ## Get-started card (FR8, FR9)
 
 Rendered by `admin-dashboard` home (slice 7) by reading:
+
 1. `onboarding_progress.skipped_steps` for explicit todos.
 2. `doc-checklist` completion < 50% for required folders.
 3. `org_subscriptions.status='trialing'` + days remaining (FR9).
@@ -144,6 +152,7 @@ Card hidden after `dismissed_get_started=true`.
 by the web package. No org_id involvement. Content lives in
 `packages/web/app/onboarding/sample-room/_data/sample-room.json`
 — a hand-curated dataset with:
+
 - 6 canonical folders + a sample Opportunity.
 - Slot states (some approved, some uploaded with AI verdicts).
 - A pre-baked Q&A turn ("what's the cash runway?" → cited answer).
@@ -156,16 +165,20 @@ user back to the step they were on. AC-US6.
 ## API additions
 
 ### `GET /onboarding/progress`
+
 Returns the user's current progress row + computed `derived_step`.
 
 ### `POST /onboarding/progress/advance`
+
 Body: `{ to: stepId, action: 'complete' | 'skip' }`. Validates
 reachability; updates row.
 
 ### `POST /onboarding/progress/dismiss-get-started`
+
 Sets `dismissed_get_started=true`.
 
 ### `GET /metrics/activation` (admin-only, used by dashboard)
+
 Returns per-org: time-to-first-invite, time-to-first-green,
 % of owners completed.
 
@@ -174,6 +187,7 @@ Returns per-org: time-to-first-invite, time-to-first-green,
 Wraps PostHog browser SDK + a small server-side capturer.
 
 Events:
+
 - `onboarding.step_viewed { step, flow }`.
 - `onboarding.step_completed { step, durationMs }`.
 - `onboarding.step_skipped { step }`.
@@ -233,6 +247,7 @@ focus jumps to the first input on each step; live region announces
 ## Observability
 
 **Server metrics:**
+
 - `onboarding.step_completed{step}` — count.
 - `onboarding.step_skipped{step}` — count.
 - `onboarding.funnel_dropoff{from,to}` — derived gauge.
@@ -260,5 +275,6 @@ Migration: single `onboarding_progress` table.
   request-intercept-hitl.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Tasks phase unblocked

@@ -8,6 +8,7 @@
 **Depends on:** `auth-and-orgs`
 
 ## Context
+
 Delivers the room itself — a fixed six-folder canonical structure per org,
 plus an `Opportunities/` container that can hold one or more subrooms
 (e.g. `Vendor_A`, `Vendor_B`). Enables uploading, listing, downloading,
@@ -17,6 +18,7 @@ that's `access-control` — and it does not own the checklist metadata
 that sits on top of each folder — that's `doc-checklist`.
 
 ## Users & roles
+
 - **Primary user:** owner/admin uploading or organising documents.
 - **Secondary users:** internal contributors uploading into their slots;
   external viewers listing/downloading within their Opportunity scope.
@@ -50,6 +52,7 @@ that sits on top of each folder — that's `doc-checklist`.
 ## Functional requirements
 
 ### Room provisioning
+
 - **FR1** — On org creation (handled in `auth-and-orgs`), the system
   shall provision a room with the canonical structure:
   - `01_Company_Overview`
@@ -67,6 +70,7 @@ that sits on top of each folder — that's `doc-checklist`.
   canonical folders at v0.1.
 
 ### Opportunity subrooms
+
 - **FR4** — Owners and admins shall be able to create a subroom under
   `Opportunities/` by providing a name. Names shall be unique within
   the org, 1–64 characters, and restricted to `[A-Za-z0-9_\-]+`.
@@ -80,6 +84,7 @@ that sits on top of each folder — that's `doc-checklist`.
   they are flat file containers.
 
 ### Document upload
+
 - **FR8** — Internal users (owner/admin/internal) shall be able to
   upload files into any of the six canonical folders or any
   Opportunity subroom. External users shall not upload at v0.1
@@ -97,6 +102,7 @@ that sits on top of each folder — that's `doc-checklist`.
   the original.
 
 ### Document listing & download
+
 - **FR14** — Authenticated users shall be able to list the contents of
   any folder they have visibility into (scope enforcement lives in
   `access-control`; this slice exposes the primitive and expects the
@@ -109,6 +115,7 @@ that sits on top of each folder — that's `doc-checklist`.
   to the requesting session, with a TTL of **5 minutes**.
 
 ### Document deletion
+
 - **FR17** — Internal users with appropriate role shall be able to
   soft-delete a document. Soft-deleted documents are hidden from
   listings immediately, retained for **30 days**, and hard-deleted
@@ -117,6 +124,7 @@ that sits on top of each folder — that's `doc-checklist`.
   support-only.
 
 ### Audit
+
 - **FR19** — The slice shall emit audit events (via the `auth-and-orgs`
   audit writer) for: room provisioned, folder listed, file uploaded,
   file downloaded, file soft-deleted, file restored, file hard-deleted,
@@ -185,6 +193,7 @@ that sits on top of each folder — that's `doc-checklist`.
 - Office-Online-style collaborative editing → Phase 2.
 
 ## Open questions
+
 - Should video files (MP4/MOV) be supported in v0.1? Leaning **no** —
   unusual in the target vendor-onboarding wedge, inflates storage cost,
   and we can add later without schema change.
@@ -195,5 +204,6 @@ that sits on top of each folder — that's `doc-checklist`.
   `doc-checklist` defaults — defer to that slice.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Design phase unblocked

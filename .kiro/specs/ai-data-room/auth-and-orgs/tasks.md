@@ -11,6 +11,7 @@ test requirements. Hand them off one at a time unless the "Dependencies"
 block at the bottom says they can run in parallel.
 
 ## Conventions
+
 - ID: `T-###`
 - Status: `[ ]` todo / `[~]` in progress / `[x]` done
 - Every task lists: scope, files likely touched, DoD, tests required.
@@ -22,6 +23,7 @@ block at the bottom says they can run in parallel.
 ---
 
 ## T-001 — Scaffold `ai-data-room` repo from `sst-monorepo-template`
+
 Status: `[x]` (2026-04-22, commit `9ba0733`)
 **Scope:** Create `Evans-Software-Solutions-Limited/ai-data-room` by
 copying `sst-monorepo-template`. Update `package.json` name, README,
@@ -30,16 +32,18 @@ sst.config.ts app name. Add CODEOWNERS + LICENSE. Configure CI
 **Files (likely):** `package.json`, `README.md`, `sst.config.ts`,
 `.github/workflows/*.yml`, `CODEOWNERS`, `LICENSE`.
 **Definition of done:**
+
 - Repo exists in GitHub under `Evans-Software-Solutions-Limited`. ✅
 - `bun install && bun run typecheck` passes. ⏳ Bradley to verify locally.
 - CI runs on PR open and pushes to main. ⏳ Inherited from template; not
   yet exercised against the new repo.
-**Tests required:** None yet (scaffold-only).
-**Notes:** PlanetScale Postgres confirmed (matches FDP + ADR-002).
+  **Tests required:** None yet (scaffold-only).
+  **Notes:** PlanetScale Postgres confirmed (matches FDP + ADR-002).
 
 ---
 
 ## T-002 — Provision WorkOS + secrets
+
 Status: `[x]` (closed 2026-04-22 — `/_health/workos` returned 200 with all four secrets present on the `dev` stage at the deployed API URL)
 **Scope:** Create WorkOS project for ai-data-room. Add API key,
 client ID, webhook secret, cookie signing key to AWS Secrets Manager
@@ -47,6 +51,7 @@ via SST. Pattern matches FDP's `infra/secrets.ts`.
 **Files (likely):** `infra/secrets.ts`, `infra/api.ts`, `sst.config.ts`,
 `microservices/core/src/handlers/auth/healthWorkosGetHandler.ts`.
 **Definition of done:**
+
 - `dev` and `staging` stages each reference WorkOS secrets. ⏳ See
   Bradley actions.
 - Secret names follow FDP convention. ✅ snake_case + SCREAMING_SNAKE.
@@ -57,14 +62,15 @@ via SST. Pattern matches FDP's `infra/secrets.ts`.
 - A simple handler `GET /_health/workos` returns 200 when creds are
   wired correctly (internal-only, removed in T-015 before prod). ✅
   handler in `microservices/core/src/handlers/auth/healthWorkosGetHandler.ts`.
-**Tests required:** Integration test hitting `/_health/workos` against
-the dev stack. ⏳ Unit tests landed (`__tests__/healthWorkosGetHandler.test.ts`);
-dev-stack integration via `scripts/check-workos-health.ts <url>`.
+  **Tests required:** Integration test hitting `/_health/workos` against
+  the dev stack. ⏳ Unit tests landed (`__tests__/healthWorkosGetHandler.test.ts`);
+  dev-stack integration via `scripts/check-workos-health.ts <url>`.
 
 **Branch:** `feat/auth-and-orgs-T-002-workos-secrets` (open PR into
 `main`). **Never commit directly to `main`.**
 
 **Bradley actions to close T-002:**
+
 1. Sign up to WorkOS, create the `ai-data-room` project for each stage
    (`dev`, `staging`, `production`).
 2. From each stage's WorkOS dashboard, copy the API key, client ID,
@@ -81,7 +87,7 @@ dev-stack integration via `scripts/check-workos-health.ts <url>`.
    ```
 4. Before deploy: `bun run typecheck && bun run prettier:check`
    (catches infra + workspace regressions). Then `bun sst diff
-   --stage dev` — our infra typecheck runs against an ambient shim
+--stage dev` — our infra typecheck runs against an ambient shim
    so `sst.aws.<Component>` is `any`; `sst diff` is the guard for
    component-name typos (learned the hard way when `sst.aws.KmsKey`
    slipped to deploy, 2026-04-22).
@@ -92,6 +98,7 @@ dev-stack integration via `scripts/check-workos-health.ts <url>`.
 ---
 
 ## T-003 — Provision Postgres + drizzle setup
+
 Status: `[ ]`
 **Scope:** Stand up Postgres (PlanetScale or RDS — match FDP). Wire
 drizzle-kit, connection pool via `DATABASE_URL` secret. Create empty
@@ -100,15 +107,17 @@ no drift.
 **Files (likely):** `packages/db/`, `infra/db.ts`, `sst.config.ts`,
 `drizzle.config.ts`.
 **Definition of done:**
+
 - `bun run db:migrate` applies to dev and staging.
 - `bun run db:studio` works locally.
 - CI fails if schema and migrations are out of sync.
-**Tests required:** Smoke test that a trivial migration applies and
-rolls back cleanly.
+  **Tests required:** Smoke test that a trivial migration applies and
+  rolls back cleanly.
 
 ---
 
 ## T-004 — Domain layer: types + zod schemas
+
 Status: `[ ]`
 **Scope:** Define domain types and zod schemas (no DB, no IO): `Org`,
 `User`, `OrgMembership`, `ExternalAccessGrant`, `Invitation`,
@@ -118,14 +127,16 @@ Status: `[ ]`
 `microservices/core/domain/{org,user,invitation,audit}.ts`,
 `packages/api-utils/schemas/auth-orgs.ts`.
 **Definition of done:**
+
 - All types exported from a single barrel per aggregate.
 - `AuditEventType` enum is exhaustive vs. FR24 (lint rule or test).
-**Tests required:** Vitest unit tests for schema parsing (happy path +
-one failure case per schema).
+  **Tests required:** Vitest unit tests for schema parsing (happy path +
+  one failure case per schema).
 
 ---
 
 ## T-005 — Drizzle migrations: six tables
+
 Status: `[ ]`
 **Scope:** Write migrations for `organizations`, `users`,
 `org_memberships`, `external_access_grants`, `invitations`,
@@ -134,14 +145,16 @@ partial index for single-owner-per-org.
 **Files (likely):** `packages/db/schema/*.ts`,
 `packages/db/migrations/*.sql`.
 **Definition of done:**
+
 - Applying migrations produces the schema described in design.md.
 - Reverse migrations tested manually.
-**Tests required:** Integration test that spins up a test DB,
-applies migrations, inserts a happy-path row per table, and queries it.
+  **Tests required:** Integration test that spins up a test DB,
+  applies migrations, inserts a happy-path row per table, and queries it.
 
 ---
 
 ## T-006 — Infrastructure layer: WorkOS client wrapper
+
 Status: `[ ]`
 **Scope:** Thin wrapper over `@workos-inc/node` exposing the
 operations we actually need: `userManagement.getAuthorizationUrl`,
@@ -151,14 +164,17 @@ Mirror the pattern FDP uses. Webhook signature verification helper.
 **Files (likely):**
 `microservices/core/infrastructure/workos/{client,webhook}.ts`.
 **Definition of done:**
+
 - Wrapper is side-effect free at module load.
 - Webhook signature verification rejects tampered payloads.
-**Tests required:** Vitest unit tests using a mocked `@workos-inc/node`
-+ real signature verification against a known-good fixture.
+  **Tests required:** Vitest unit tests using a mocked `@workos-inc/node`
+
+* real signature verification against a known-good fixture.
 
 ---
 
 ## T-007 — Infrastructure layer: repository for each aggregate
+
 Status: `[ ]`
 **Scope:** Drizzle-backed repositories: `OrgRepo`, `UserRepo`,
 `MembershipRepo`, `ExternalGrantRepo`, `InvitationRepo`, `AuditRepo`.
@@ -166,16 +182,18 @@ Each exposes only the queries the application layer needs. No business
 logic.
 **Files (likely):** `microservices/core/infrastructure/db/*.ts`.
 **Definition of done:**
+
 - Each repo covered by an integration test against a transactional
   test DB.
 - No SQL string interpolation — drizzle query builders or parameterised
   SQL only.
-**Tests required:** One integration test per repo method, committed
-and green.
+  **Tests required:** One integration test per repo method, committed
+  and green.
 
 ---
 
 ## T-008 — Application layer: signup + callback flow
+
 Status: `[ ]`
 **Scope:** `handleSignup`, `handleLoginCallback`. On callback:
 (1) exchange WorkOS code, (2) find-or-create `users` row, (3) if
@@ -186,15 +204,17 @@ returns a user without MFA for any role).
 **Files (likely):** `microservices/core/application/signup.ts`,
 `microservices/core/application/login.ts`.
 **Definition of done:**
+
 - US1 + US4 acceptance criteria reachable via the application layer
   (handlers not yet wired).
-**Tests required:** Vitest unit tests with mocked repos + WorkOS
-client. Cover: fresh signup, returning login, MFA-missing rejection,
-suspended-user rejection.
+  **Tests required:** Vitest unit tests with mocked repos + WorkOS
+  client. Cover: fresh signup, returning login, MFA-missing rejection,
+  suspended-user rejection.
 
 ---
 
 ## T-009 — Application layer: invitations
+
 Status: `[ ]`
 **Scope:** `createInvitation` (internal + external variants),
 `listInvitations`, `revokeInvitation`, `acceptInvitation`. Enforce
@@ -209,6 +229,7 @@ expiry + revoke-after-accept rejection.
 ---
 
 ## T-010 — Application layer: MFA enrolment hook + recovery codes UX contract
+
 Status: `[ ]`
 **Scope:** WorkOS handles MFA. Our job: on `mfa_enrolled` webhook,
 mirror `mfa_enrolled_at`; on recovery code usage webhook, write audit
@@ -225,6 +246,7 @@ enrolment), audit event emission on `recovery_code_used`.
 ---
 
 ## T-011 — Application layer: password reset
+
 Status: `[ ]`
 **Scope:** `requestPasswordReset` delegates to WorkOS's password-reset
 email flow. On `password_reset_completed` webhook, invalidate all
@@ -236,6 +258,7 @@ sessions for the user via WorkOS `session.revoke`, write audit event.
 ---
 
 ## T-012 — Application layer: suspension lifecycle
+
 Status: `[ ]`
 **Scope:** `suspendUser`, `unsuspendUser`. Enforce FR21–FR23 incl.
 sole-owner-cannot-be-suspended and actor-cannot-suspend-self.
@@ -251,6 +274,7 @@ handler returns.
 ---
 
 ## T-013 — Application layer: audit event writer
+
 Status: `[ ]`
 **Scope:** Single `recordAuditEvent(event)` function. Enforces
 canonical shape (design.md §Audit event canonical shape). Strips any
@@ -264,6 +288,7 @@ required fields + strips forbidden fields.
 ---
 
 ## T-014 — Handlers: HTTP routes
+
 Status: `[ ]`
 **Scope:** Wire the application layer into API Gateway handlers per
 §Interfaces. Public routes (`/auth/*`, `/webhooks/workos`) unauth'd;
@@ -281,6 +306,7 @@ dev stack.
 ---
 
 ## T-015 — Session middleware + `/me`
+
 Status: `[ ]`
 **Scope:** Middleware that validates the session cookie with WorkOS
 (LRU cache TTL 60s), hydrates `req.session = { userId, orgId, role,
@@ -295,6 +321,7 @@ within inactivity window stays logged in).
 ---
 
 ## T-016 — WorkOS webhook handler
+
 Status: `[ ]`
 **Scope:** `POST /webhooks/workos`. Verify signature (T-006). Route
 each event type to the appropriate application function (`user.created`
@@ -310,18 +337,20 @@ tampered, duplicate, unknown-type).
 ---
 
 ## T-017 — Minimal web shell: login, signup, MFA enrolment, logout, `/me` page
+
 Status: `[ ]`
 **Scope:** Next.js pages that delegate to WorkOS AuthKit for all auth
 UI. Our `/app` page shows the `/me` payload and a logout button, plus
 the recovery-codes download on MFA enrolment (T-010). Deliberately
 ugly — polish lives in `onboarding-flow`.
 **Files (likely):** `packages/web/app/{login,signup,logout,app,mfa}/page.tsx`.
-**Definition of done:** Every AC-US* reachable end-to-end in a browser.
+**Definition of done:** Every AC-US\* reachable end-to-end in a browser.
 **Tests required:** Playwright coverage for AC-US1 through AC-US11.
 
 ---
 
 ## T-018 — Observability: logs, metrics, alerts
+
 Status: `[ ]`
 **Scope:** Structured logging (pino). CloudWatch EMF metrics per
 design.md §Observability. X-Ray enabled. Terraform/SST alarms created
@@ -336,6 +365,7 @@ at least once in a representative run.
 ---
 
 ## T-019 — GDPR hard-delete path
+
 Status: `[ ]`
 **Scope:** On `user.deleted` webhook: (1) scrub PII from `users` row,
 (2) set `lifecycle_state='deleted'`, (3) preserve `workos_user_id` and
@@ -350,6 +380,7 @@ and asserts PII is gone but audit joins still resolve.
 ---
 
 ## T-020 — Rate limiting + NFR hardening pass
+
 Status: `[ ]`
 **Scope:** Implement NFR4 at API Gateway (IP-based) and handler layer
 (email-based). Verify NFR2, NFR3, NFR5, NFR7, NFR8 via a checklist
@@ -362,17 +393,19 @@ test file. Document the matrix in `docs/security.md`.
 ---
 
 ## T-021 — Playwright acceptance suite
+
 Status: `[ ]`
 **Scope:** One Playwright test per AC (`AC-US1` through `AC-US11`).
 Runs against a dedicated e2e stage. Tagged so they can run on PR +
 nightly.
 **Files (likely):** `tests/e2e/auth-and-orgs/*.spec.ts`.
 **Definition of done:** All 11 specs green on CI against the e2e stage.
-**Tests required:** N/A (this *is* the test layer).
+**Tests required:** N/A (this _is_ the test layer).
 
 ---
 
 ## T-022 — Slice sign-off checklist
+
 Status: `[ ]`
 **Scope:** Final pass: verify every FR, NFR, and AC has at least one
 corresponding test. Run the `engineering:deploy-checklist` skill.
@@ -404,13 +437,16 @@ T-001 ──► T-002 ──► T-003 ──► T-005 ──► T-007 ─┐
 ```
 
 **Parallelisable after T-007:**
+
 - T-008 / T-009 / T-010 / T-011 / T-012 / T-013 / T-016 all depend on
   T-006 + T-007 but not on each other. Hand them to parallel Claude
   Code agents.
 - T-018 / T-019 / T-020 can run in parallel with T-017.
 
 ## Acceptance for the slice
+
 Slice is "done" when:
-1. All AC-US* in `requirements.md` pass in Playwright on the e2e stage.
+
+1. All AC-US\* in `requirements.md` pass in Playwright on the e2e stage.
 2. T-022 traceability matrix is merged.
 3. `v0.1.0-auth-and-orgs` is tagged on `main`.

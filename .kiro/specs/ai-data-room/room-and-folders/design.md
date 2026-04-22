@@ -6,6 +6,7 @@
 **Depends on:** `auth-and-orgs` design
 
 ## Summary
+
 Room structure is **virtual, stored in Postgres**; the six canonical
 folders are implicit (constant enum, no DB rows) and the
 `Opportunities/*` subrooms are DB rows. Document bytes live in **S3**
@@ -44,6 +45,7 @@ flowchart LR
 ```
 
 ### Boundary with earlier slices
+
 - **auth-and-orgs** owns `organizations`, `users`, `org_memberships`,
   `external_access_grants`. We reference by FK.
 - **access-control** owns the middleware that decides whether the
@@ -55,40 +57,46 @@ flowchart LR
 ## Data model
 
 ### `opportunities`
+
 Represents an Opportunity subroom under `Opportunities/`.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK `organizations.id` | |
-| `slug` | `text` | e.g. `Vendor_A`. Unique per org; 1–64 chars; `[A-Za-z0-9_\-]+`. |
-| `name` | `text` | Display name; defaults to slug. |
-| `status` | `enum('active','archived')` | See FR6. |
-| `archived_at` | `timestamptz` nullable | When archived; triggers retention timer. |
-| `created_by` | `uuid` FK `users.id` | |
-| `created_at` / `updated_at` | `timestamptz` | |
+| Column                      | Type                         | Notes                                                           |
+| --------------------------- | ---------------------------- | --------------------------------------------------------------- |
+| `id`                        | `uuid` PK                    |                                                                 |
+| `org_id`                    | `uuid` FK `organizations.id` |                                                                 |
+| `slug`                      | `text`                       | e.g. `Vendor_A`. Unique per org; 1–64 chars; `[A-Za-z0-9_\-]+`. |
+| `name`                      | `text`                       | Display name; defaults to slug.                                 |
+| `status`                    | `enum('active','archived')`  | See FR6.                                                        |
+| `archived_at`               | `timestamptz` nullable       | When archived; triggers retention timer.                        |
+| `created_by`                | `uuid` FK `users.id`         |                                                                 |
+| `created_at` / `updated_at` | `timestamptz`                |                                                                 |
 
 Unique index: `(org_id, slug)`.
 Partial index: `where status='active'` for fast nav queries.
 
 ### Canonical folders — **not a DB table**
+
 The six canonical folders are a **const enum** in code:
+
 ```ts
 export const CANONICAL_FOLDERS = [
-  '01_Company_Overview',
-  '02_Financials',
-  '03_Commercial',
-  '04_Product',
-  '05_Legal',
-  '06_Operations',
+  "01_Company_Overview",
+  "02_Financials",
+  "03_Commercial",
+  "04_Product",
+  "05_Legal",
+  "06_Operations",
 ] as const;
-export type CanonicalFolder = typeof CANONICAL_FOLDERS[number];
+export type CanonicalFolder = (typeof CANONICAL_FOLDERS)[number];
 ```
+
 No per-org rows. Rationale: FR2 says they're immutable and identical
 for every org; a DB row per org per folder buys us nothing.
 
 ### Folder path (conceptual)
+
 A document's folder path is one of:
+
 - a `CanonicalFolder` string (e.g. `02_Financials`), or
 - `Opportunities/<opportunity_slug>` derived from `opportunities.slug`.
 
@@ -96,21 +104,22 @@ Represented in the `documents` table as two columns (see below) — not
 as a flat string — to keep integrity on rename.
 
 ### `documents`
+
 A logical document. Has one or more versions.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | |
-| `folder_kind` | `enum('canonical','opportunity')` | |
-| `canonical_folder` | `text` nullable | One of `CANONICAL_FOLDERS`; null when `folder_kind='opportunity'`. Constraint enforces XOR with `opportunity_id`. |
-| `opportunity_id` | `uuid` nullable FK `opportunities.id` | |
-| `display_name` | `text` | Canonical "filename" seen in UI; initialised from first upload's original filename. |
-| `current_version_id` | `uuid` nullable FK `document_versions.id` | Fast lookup; denormalised for listing speed. |
-| `state` | `enum('active','soft_deleted','hard_deleted')` | |
-| `soft_deleted_at` | `timestamptz` nullable | Starts the 30-day retention clock. |
-| `created_by` | `uuid` FK `users.id` | |
-| `created_at` / `updated_at` | `timestamptz` | |
+| Column                      | Type                                           | Notes                                                                                                             |
+| --------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `id`                        | `uuid` PK                                      |                                                                                                                   |
+| `org_id`                    | `uuid` FK                                      |                                                                                                                   |
+| `folder_kind`               | `enum('canonical','opportunity')`              |                                                                                                                   |
+| `canonical_folder`          | `text` nullable                                | One of `CANONICAL_FOLDERS`; null when `folder_kind='opportunity'`. Constraint enforces XOR with `opportunity_id`. |
+| `opportunity_id`            | `uuid` nullable FK `opportunities.id`          |                                                                                                                   |
+| `display_name`              | `text`                                         | Canonical "filename" seen in UI; initialised from first upload's original filename.                               |
+| `current_version_id`        | `uuid` nullable FK `document_versions.id`      | Fast lookup; denormalised for listing speed.                                                                      |
+| `state`                     | `enum('active','soft_deleted','hard_deleted')` |                                                                                                                   |
+| `soft_deleted_at`           | `timestamptz` nullable                         | Starts the 30-day retention clock.                                                                                |
+| `created_by`                | `uuid` FK `users.id`                           |                                                                                                                   |
+| `created_at` / `updated_at` | `timestamptz`                                  |                                                                                                                   |
 
 CHECK constraint: exactly one of `(canonical_folder, opportunity_id)`
 non-null, matching `folder_kind`.
@@ -118,35 +127,37 @@ Index: `(org_id, folder_kind, canonical_folder, state)` and
 `(org_id, opportunity_id, state)` for listing.
 
 ### `document_versions`
+
 Each upload creates a new version, even for name collisions.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` PK | |
-| `document_id` | `uuid` FK `documents.id` | |
-| `version_number` | `int` | Starts at 1; monotonically increasing per document. |
-| `original_filename` | `text` | As provided by the uploader. |
-| `mime_type` | `text` | |
-| `size_bytes` | `bigint` | |
-| `sha256` | `bytea` | Computed server-side on completion. |
-| `s3_key` | `text` | Full S3 key (see §Storage layout). |
-| `s3_version_id` | `text` nullable | S3 object version id (we also enable S3 versioning — belt and braces for recovery). |
-| `uploaded_by` | `uuid` FK `users.id` | |
-| `uploaded_at` | `timestamptz` | |
+| Column              | Type                     | Notes                                                                               |
+| ------------------- | ------------------------ | ----------------------------------------------------------------------------------- |
+| `id`                | `uuid` PK                |                                                                                     |
+| `document_id`       | `uuid` FK `documents.id` |                                                                                     |
+| `version_number`    | `int`                    | Starts at 1; monotonically increasing per document.                                 |
+| `original_filename` | `text`                   | As provided by the uploader.                                                        |
+| `mime_type`         | `text`                   |                                                                                     |
+| `size_bytes`        | `bigint`                 |                                                                                     |
+| `sha256`            | `bytea`                  | Computed server-side on completion.                                                 |
+| `s3_key`            | `text`                   | Full S3 key (see §Storage layout).                                                  |
+| `s3_version_id`     | `text` nullable          | S3 object version id (we also enable S3 versioning — belt and braces for recovery). |
+| `uploaded_by`       | `uuid` FK `users.id`     |                                                                                     |
+| `uploaded_at`       | `timestamptz`            |                                                                                     |
 
 Unique: `(document_id, version_number)`.
 
 ### `document_deletions`
+
 Audit-adjacent record retained post-hard-delete; enables
 forensic reconstruction without PII leakage (no filenames stored here).
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` PK | |
-| `document_id` | `uuid` | FK no longer valid after hard-delete. |
-| `org_id` | `uuid` | |
-| `soft_deleted_by` | `uuid` FK `users.id` | |
-| `hard_deleted_at` | `timestamptz` | |
+| Column            | Type                 | Notes                                 |
+| ----------------- | -------------------- | ------------------------------------- |
+| `id`              | `uuid` PK            |                                       |
+| `document_id`     | `uuid`               | FK no longer valid after hard-delete. |
+| `org_id`          | `uuid`               |                                       |
+| `soft_deleted_by` | `uuid` FK `users.id` |                                       |
+| `hard_deleted_at` | `timestamptz`        |                                       |
 
 ## Storage layout (S3)
 
@@ -161,6 +172,7 @@ No original filename in the key — prevents accidental leakage if an
 object URL is sniffed; maintains same prefix regardless of rename.
 
 Bucket settings:
+
 - **Blocked** to all public access.
 - **SSE-KMS** with a dedicated customer-managed key for the docs
   bucket.
@@ -238,46 +250,57 @@ All paths under `/orgs/:orgId/`. Every handler runs access-control
 middleware before any domain logic.
 
 ### Rooms
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/rooms` | Returns canonical folders + opportunities list for the org. |
-| `GET` | `/rooms/folders/:canonical` | List documents in a canonical folder. |
+
+| Method | Path                        | Purpose                                                     |
+| ------ | --------------------------- | ----------------------------------------------------------- |
+| `GET`  | `/rooms`                    | Returns canonical folders + opportunities list for the org. |
+| `GET`  | `/rooms/folders/:canonical` | List documents in a canonical folder.                       |
 
 ### Opportunities
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/opportunities` | Create subroom. Body: `{ slug, name? }`. |
-| `GET` | `/opportunities` | List subrooms (scoped by caller). |
-| `GET` | `/opportunities/:id/documents` | List documents in subroom. |
-| `PATCH` | `/opportunities/:id` | Rename (slug + name). |
-| `POST` | `/opportunities/:id/archive` | Archive (triggers retention). |
+
+| Method  | Path                           | Purpose                                  |
+| ------- | ------------------------------ | ---------------------------------------- |
+| `POST`  | `/opportunities`               | Create subroom. Body: `{ slug, name? }`. |
+| `GET`   | `/opportunities`               | List subrooms (scoped by caller).        |
+| `GET`   | `/opportunities/:id/documents` | List documents in subroom.               |
+| `PATCH` | `/opportunities/:id`           | Rename (slug + name).                    |
+| `POST`  | `/opportunities/:id/archive`   | Archive (triggers retention).            |
 
 ### Documents — metadata
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/documents/:id` | Metadata + pre-signed download URL (current version). |
-| `GET` | `/documents/:id/versions` | Version history. |
-| `DELETE` | `/documents/:id` | Soft delete. |
-| `POST` | `/documents/:id/restore` | Restore within 30d window. |
+
+| Method   | Path                      | Purpose                                               |
+| -------- | ------------------------- | ----------------------------------------------------- |
+| `GET`    | `/documents/:id`          | Metadata + pre-signed download URL (current version). |
+| `GET`    | `/documents/:id/versions` | Version history.                                      |
+| `DELETE` | `/documents/:id`          | Soft delete.                                          |
+| `POST`   | `/documents/:id/restore`  | Restore within 30d window.                            |
 
 ### Documents — upload
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/uploads/initiate` | Start multipart; returns `upload_id`, `document_id`, part URLs. |
-| `POST` | `/uploads/:uploadId/complete` | Finalise; body: `{ parts: [{ partNumber, eTag }] }`. |
-| `DELETE` | `/uploads/:uploadId` | Abort (client-cancelled). |
+
+| Method   | Path                          | Purpose                                                         |
+| -------- | ----------------------------- | --------------------------------------------------------------- |
+| `POST`   | `/uploads/initiate`           | Start multipart; returns `upload_id`, `document_id`, part URLs. |
+| `POST`   | `/uploads/:uploadId/complete` | Finalise; body: `{ parts: [{ partNumber, eTag }] }`.            |
+| `DELETE` | `/uploads/:uploadId`          | Abort (client-cancelled).                                       |
 
 ### Zod shapes (abridged)
 
 ```ts
 const UploadInitiate = z.object({
-  target: z.discriminatedUnion('kind', [
-    z.object({ kind: z.literal('canonical'), folder: CanonicalFolderSchema }),
-    z.object({ kind: z.literal('opportunity'), opportunityId: z.string().uuid() }),
+  target: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("canonical"), folder: CanonicalFolderSchema }),
+    z.object({
+      kind: z.literal("opportunity"),
+      opportunityId: z.string().uuid(),
+    }),
   ]),
   filename: z.string().min(1).max(255),
   mimeType: MimeTypeEnum,
-  sizeBytes: z.number().int().positive().max(100 * 1024 * 1024),
+  sizeBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(100 * 1024 * 1024),
 });
 
 const DocumentDTO = z.object({
@@ -285,7 +308,7 @@ const DocumentDTO = z.object({
   displayName: z.string(),
   folder: FolderPathSchema,
   currentVersion: DocumentVersionDTO,
-  state: z.enum(['active','soft_deleted']),
+  state: z.enum(["active", "soft_deleted"]),
   createdAt: z.string(),
 });
 ```
@@ -295,7 +318,7 @@ const DocumentDTO = z.object({
 - **Virtual canonical folders vs. per-org folder rows** — chose
   virtual because FR2 says they're immutable and identical across
   orgs. Simpler data model, zero join cost on listings, no risk of
-  orgs drifting away from the canonical structure. → [ADR-003](../../../adr/003-canonical-folders-as-code.md) *(to be drafted)*
+  orgs drifting away from the canonical structure. → [ADR-003](../../../adr/003-canonical-folders-as-code.md) _(to be drafted)_
 
 - **S3 with SSE-KMS + versioning vs. encrypted blobs in Postgres** —
   chose S3 because document sizes (up to 100 MB) blow Postgres row
@@ -320,22 +343,25 @@ const DocumentDTO = z.object({
 ## Security
 
 ### Threat model (this slice)
-| Threat | Mitigation |
-|---|---|
-| Object URL leakage → unauthorised download | Short-TTL (5 min) pre-signed URLs; access-control revalidator fronts them (see `access-control` design); no public bucket policy |
-| Cross-tenant read via object key guessing | Per-org prefix isolation + IAM bucket policy scoping; orgs cannot enumerate or fetch outside their prefix |
-| Malicious upload content (malware) | **Not mitigated at v0.1 — virus scan deferred (NFR5).** Bucket prefix is not public; docs served via pre-signed URLs to authenticated users; future ClamAV path preserved |
-| Path traversal via folder parameter | Folder parameter validated against the CANONICAL_FOLDERS enum or an opportunity UUID — no free-form paths ever touch S3 keys |
-| Checksum-based deduplication leaking existence of another org's doc | sha256 is only compared within `(org_id, document_id)` — never cross-org |
-| Draft / abandoned uploads consuming KMS calls + storage | 24h janitor + S3 multipart auto-abort at 7d |
+
+| Threat                                                              | Mitigation                                                                                                                                                                |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Object URL leakage → unauthorised download                          | Short-TTL (5 min) pre-signed URLs; access-control revalidator fronts them (see `access-control` design); no public bucket policy                                          |
+| Cross-tenant read via object key guessing                           | Per-org prefix isolation + IAM bucket policy scoping; orgs cannot enumerate or fetch outside their prefix                                                                 |
+| Malicious upload content (malware)                                  | **Not mitigated at v0.1 — virus scan deferred (NFR5).** Bucket prefix is not public; docs served via pre-signed URLs to authenticated users; future ClamAV path preserved |
+| Path traversal via folder parameter                                 | Folder parameter validated against the CANONICAL_FOLDERS enum or an opportunity UUID — no free-form paths ever touch S3 keys                                              |
+| Checksum-based deduplication leaking existence of another org's doc | sha256 is only compared within `(org_id, document_id)` — never cross-org                                                                                                  |
+| Draft / abandoned uploads consuming KMS calls + storage             | 24h janitor + S3 multipart auto-abort at 7d                                                                                                                               |
 
 ### PII in metadata
+
 `display_name` and `original_filename` can be PII — treated as
 user-authored text, redacted from logs (NFR8 in auth-and-orgs). Not
 column-encrypted at v0.1 (same rationale as `auth-and-orgs` —
 deferred to SOC 2 scope).
 
 ### Secrets
+
 - S3 bucket name, KMS key id → SST stage outputs.
 - S3 write/read IAM policies scoped to `orgs/*` prefix; no bucket-wide
   permissions.
@@ -343,10 +369,12 @@ deferred to SOC 2 scope).
 ## Observability
 
 Logs:
+
 - Every upload initiate/complete/abort with `orgId`, `userId`,
   `uploadId`, `documentId`, `sizeBytes`, `mimeType`, `durationMs`.
 
 Metrics:
+
 - `room.upload.initiated` / `completed` / `aborted` — count.
 - `room.upload.sizeBytes` — histogram.
 - `room.download.presigned.issued` — count.
@@ -358,6 +386,7 @@ Metrics:
 Traces: handler → DB repo calls → S3 SDK calls tagged with `orgId`.
 
 Alerts:
+
 - Upload completion failures >2% sustained 5 min — warn.
 - Pre-signed URL issuance failures >0 — page.
 - Janitor job failures — page.
@@ -373,6 +402,7 @@ Migrations order: `opportunities` → `documents` → `document_versions`
 → `document_deletions`. No backfills (greenfield).
 
 Infrastructure additions:
+
 - S3 bucket + KMS key + IAM roles in `infra/storage.ts` (new file).
 - EventBridge rule + lambda for retention sweep in
   `infra/scheduled.ts` (new file).
@@ -382,6 +412,7 @@ be destructive and is out-of-band — we don't expect to roll this slice
 back once live.
 
 ## Open questions
+
 - Single shared docs bucket (per env) vs. bucket-per-org — shared is
   simpler and S3 prefix isolation is sufficient for correctness.
   Leaning **shared**; revisit if a large customer demands their own
@@ -399,5 +430,6 @@ back once live.
   watermarked preview is Phase 2.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Tasks phase unblocked

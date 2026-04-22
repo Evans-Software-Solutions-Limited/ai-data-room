@@ -8,6 +8,7 @@
 **Depends on:** `room-and-folders`, `doc-checklist`
 
 ## Context
+
 When a document is uploaded and assigned to a checklist slot (e.g.
 "Articles of Association" in `05_Legal`), an AI agent reads the document
 and decides whether it plausibly **fits the slot**. The result surfaces
@@ -21,6 +22,7 @@ content-level extraction of fields. It only answers: _"is this the kind
 of document the slot asked for?"_
 
 ## Users & roles
+
 - **Primary user:** internal contributor uploading a document.
 - **Secondary users:** owner/admin reviewing flagged uploads.
 - **Roles:** as defined in `auth-and-orgs`.
@@ -49,6 +51,7 @@ of document the slot asked for?"_
 ## Functional requirements
 
 ### Decision pipeline
+
 - **FR1** — On assignment of an uploaded document to a checklist slot,
   the system shall trigger an async sense-check job. The slot moves
   from `uploaded` directly to a transitional state `ai_checking`
@@ -61,8 +64,8 @@ of document the slot asked for?"_
      for cost/latency; budget to upgrade to Sonnet on ambiguous
      slots if eval shows material gains).
   4. Output a structured decision: `{ decision: 'green'|'yellow'|'red',
-     confidence: 0-1, rationale: string, matched_criteria: string[],
-     missing_criteria: string[] }`.
+confidence: 0-1, rationale: string, matched_criteria: string[],
+missing_criteria: string[] }`.
 - **FR3** — Mapping of decision → checklist state (from
   `doc-checklist` FR5):
   - `green` + `confidence ≥ 0.8` → slot → `approved` (auto-approve).
@@ -78,6 +81,7 @@ of document the slot asked for?"_
   description of "what a good doc for this slot looks like".
 
 ### Admin review queue
+
 - **FR6** — The system shall expose a review queue per org listing
   uploads with state `uploaded` that have an AI decision attached
   (i.e. not auto-approved). Each queue item shows: document, slot,
@@ -90,6 +94,7 @@ of document the slot asked for?"_
   re-check creates a new decision record; the most recent applies.
 
 ### Performance, error, and fallback behaviour
+
 - **FR9** — Sense-check shall complete within **60 seconds p95** for
   documents ≤10 pages / 5,000-token-extracted. Documents larger than
   the extract budget produce a `decision: 'yellow'` with rationale
@@ -107,6 +112,7 @@ of document the slot asked for?"_
   FIFO.
 
 ### Audit & observability
+
 - **FR12** — Each AI decision shall be persisted with: document id,
   slot id, model used, prompt version id, confidence, verdict,
   rationale, matched criteria, missing criteria, input token count,
@@ -118,6 +124,7 @@ of document the slot asked for?"_
   average latency, per-slot accuracy if slot populations allow.
 
 ### Uploader experience
+
 - **FR14** — The UI shall present the AI verdict on the slot
   immediately the job completes, with: traffic light, one-sentence
   summary, expand-for-detail showing matched/missing criteria. If
@@ -189,6 +196,7 @@ of document the slot asked for?"_
   criteria) → Phase 2 (`learned-approve-reject`).
 
 ## Open questions
+
 - Auto-reject on `red` verdict, or always leave the decision to the
   uploader? Leaning **don't auto-reject** — put it in the admin
   queue as flagged-red but don't return the slot to empty without
@@ -209,5 +217,6 @@ of document the slot asked for?"_
   criteria as the starting point. Tracks with `doc-checklist` FR4.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Design phase unblocked

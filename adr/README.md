@@ -9,9 +9,9 @@ One file per non-trivial, hard-to-reverse decision. Numbered, dated, immutable
 
 ## Index
 
-| # | Title | Status | Date |
-|---|---|---|---|
-| [001](./001-workos-as-auth-platform.md) | WorkOS as the auth platform for ai-data-room | accepted | 2026-04-22 |
+| #                                        | Title                                                        | Status   | Date       |
+| ---------------------------------------- | ------------------------------------------------------------ | -------- | ---------- |
+| [001](./001-workos-as-auth-platform.md)  | WorkOS as the auth platform for ai-data-room                 | accepted | 2026-04-22 |
 | [002](./002-postgres-for-auth-domain.md) | Postgres (PlanetScale) + Drizzle for the ai-data-room domain | accepted | 2026-04-22 |
 
 ### Flagged (draft needed when the owning slice reaches task execution)

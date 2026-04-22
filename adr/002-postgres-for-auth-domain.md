@@ -136,7 +136,7 @@ Concretely:
   secondary-index cost blows up quickly.
 - ❌ Audit queries by `(org_id, occurred_at desc)` plus
   `(actor_user_id, occurred_at desc)` plus `(event_type,
-  occurred_at desc)` would force 3 GSIs with duplicated data.
+occurred_at desc)` would force 3 GSIs with duplicated data.
 - ❌ Joins are an application-layer concern — turns every multi-slice
   read into a fan-out.
 - ❌ No `pgvector`-equivalent; slice 6 would need OpenSearch or

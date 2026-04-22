@@ -9,6 +9,7 @@
 **Last updated:** 2026-04-22
 
 ## Problem
+
 The Capital Pay division's monthly **MD Report** (internal + external
 versions) is produced on a grind: on deadline week, Bradley + Kurtis pull
 context from memory, DM contributors piecemeal, and hand-assemble an 8-page
@@ -19,6 +20,7 @@ to the signed-off version — _Rhadika_, _Dontae_), and eats a day+ of
 leadership time every month.
 
 ## User / audience
+
 - **Primary:** Bradley (Product & Engineering owner + report coordinator),
   Kurtis (MD voice — Overview / Focus Areas / Looking Ahead).
 - **Secondary contributors:** Radhika (HR + Ops), Ryan (Commercial — new),
@@ -28,6 +30,7 @@ leadership time every month.
   (external).
 
 ## Hypothesis
+
 If we replace monthly recall with a **rolling weekly Slack capture loop
 feeding a pre-drafted Notion page by the 23rd**, then the MD report cycle
 compresses from ~a full day of leadership effort to an editing pass of a
@@ -36,6 +39,7 @@ away and the narrative is already drafted in-voice before anyone sits
 down to write it.
 
 ## Value
+
 - **Time:** reclaim ~1 leadership day per month, recurring.
 - **Quality:** consistent structure, names spelled correctly, tone
   steady across months; stops typos landing in exec-visible documents.
@@ -46,6 +50,7 @@ down to write it.
   Evans-Software-Solutions-Limited.
 
 ## Success metric
+
 MVP success = **May 25 MD report produced end-to-end by the agent**,
 where Bradley + Kurtis's total editing time is under 2 hours combined
 (vs. current ~1 full day) and the final document passes a proofread
@@ -59,6 +64,7 @@ standing up the weekly capture loop so captures begin week of May 4
 and feed a May 23 synthesis.
 
 ## Constraints
+
 - **Time:** v1 steady-state on SST by May 4 so weekly captures start
   that week. Synthesis runs May 23; Bradley + Kurtis edit and sign
   off for May 25 publication.
@@ -80,6 +86,7 @@ and feed a May 23 synthesis.
 ## Scope (first iteration)
 
 ### In
+
 - Weekly Slack capture loop: single private channel, @-mentions per
   contributor, section-scoped questions, replies in threads, auto-chase
   reminders in-thread if silent.
@@ -94,6 +101,7 @@ and feed a May 23 synthesis.
   spellings), grammar, tone-check vs. prior months.
 
 ### Out (phase 2+)
+
 - External report generation (awaiting the external March reference
   from Bradley; redaction + reformat pass to be specced separately).
 - Finance section / budget-vs-actual tracking — explicitly a separate
@@ -106,6 +114,7 @@ and feed a May 23 synthesis.
   Phase 2.
 
 ## Open questions
+
 - Which Slack workspace + channel name? (assumed: Capital Pay workspace,
   new private channel `#monthly-report-capture` or similar, Bradley
   owns creation + invites.)
@@ -122,6 +131,7 @@ and feed a May 23 synthesis.
   angle points to Capital Pay.)
 
 ## Next step
+
 Brief → **Requirements phase**. Single Kiro-style spec at
 `/specs/monthly-report-agent/`. No code until requirements signed off.
 April's report goes out manually in parallel; the agent's first live

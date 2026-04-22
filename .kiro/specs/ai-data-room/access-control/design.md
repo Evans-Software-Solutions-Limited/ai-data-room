@@ -6,6 +6,7 @@
 **Depends on:** `auth-and-orgs`, `room-and-folders`
 
 ## Summary
+
 Delivers **two things**: (1) a **grant model + lifecycle** for
 external users (invite → NDA acceptance → active → revoked/expired);
 (2) an **enforcement layer** — middleware + a signed-URL revalidator
@@ -42,6 +43,7 @@ flowchart LR
 ```
 
 ### What's shared vs. slice-local
+
 - **Grants** reuse the `external_access_grants` table introduced by
   `auth-and-orgs` (which was forward-compat for this slice). We add
   columns: `permission_tier`, `expires_at`, `status` extended, and
@@ -55,17 +57,18 @@ flowchart LR
 ## Data model
 
 ### Extend `external_access_grants`
+
 Columns added to the existing table (migration in this slice):
 
-| Column | Type | Notes |
-|---|---|---|
-| `permission_tier` | `enum('viewer','downloader')` | For external users only; internal tier is derived from role. |
-| `expires_at` | `timestamptz` | Not null for external grants. 30d default, 1–180d range. |
-| `status` | `enum('pending_nda','active','revoked','expired')` (extended) | Was `active/revoked` in auth-and-orgs v0.1; add `pending_nda`, `expired`. |
-| `nda_template_id` | `uuid` nullable FK `nda_templates.id` | Which NDA version this grant was bound to at acceptance. |
-| `nda_acceptance_id` | `uuid` nullable FK `nda_acceptances.id` | Record of acceptance. |
-| `revoked_at` | `timestamptz` nullable | |
-| `revoked_by` | `uuid` nullable FK `users.id` | |
+| Column              | Type                                                          | Notes                                                                     |
+| ------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `permission_tier`   | `enum('viewer','downloader')`                                 | For external users only; internal tier is derived from role.              |
+| `expires_at`        | `timestamptz`                                                 | Not null for external grants. 30d default, 1–180d range.                  |
+| `status`            | `enum('pending_nda','active','revoked','expired')` (extended) | Was `active/revoked` in auth-and-orgs v0.1; add `pending_nda`, `expired`. |
+| `nda_template_id`   | `uuid` nullable FK `nda_templates.id`                         | Which NDA version this grant was bound to at acceptance.                  |
+| `nda_acceptance_id` | `uuid` nullable FK `nda_acceptances.id`                       | Record of acceptance.                                                     |
+| `revoked_at`        | `timestamptz` nullable                                        |                                                                           |
+| `revoked_by`        | `uuid` nullable FK `users.id`                                 |                                                                           |
 
 Existing columns (`org_id`, `user_id`, `opportunity_slug`,
 `granted_by`) stay. `opportunity_slug` will be migrated to
@@ -73,50 +76,53 @@ Existing columns (`org_id`, `user_id`, `opportunity_slug`,
 slice's tasks.md).
 
 ### `nda_templates`
+
 Immutable once referenced. Edits create a new version.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | |
-| `version` | `int` | Monotonic per org, starts at 1. |
-| `body_markdown` | `text` | Plaintext/markdown (FR7). |
-| `fields_schema` | `jsonb` | Shape of inline fields we let admins edit (e.g. `{ company_name, counterparty_name, effective_date_format }`). |
-| `sha256` | `bytea` | Hash of the rendered-with-defaults body; referenced in acceptance records. |
-| `created_by` | `uuid` FK | |
-| `created_at` | `timestamptz` | |
-| `is_current` | `boolean` | One row per org with `true`; trigger-enforced uniqueness. |
+| Column          | Type          | Notes                                                                                                          |
+| --------------- | ------------- | -------------------------------------------------------------------------------------------------------------- |
+| `id`            | `uuid` PK     |                                                                                                                |
+| `org_id`        | `uuid` FK     |                                                                                                                |
+| `version`       | `int`         | Monotonic per org, starts at 1.                                                                                |
+| `body_markdown` | `text`        | Plaintext/markdown (FR7).                                                                                      |
+| `fields_schema` | `jsonb`       | Shape of inline fields we let admins edit (e.g. `{ company_name, counterparty_name, effective_date_format }`). |
+| `sha256`        | `bytea`       | Hash of the rendered-with-defaults body; referenced in acceptance records.                                     |
+| `created_by`    | `uuid` FK     |                                                                                                                |
+| `created_at`    | `timestamptz` |                                                                                                                |
+| `is_current`    | `boolean`     | One row per org with `true`; trigger-enforced uniqueness.                                                      |
 
 Unique: `(org_id, version)`. Unique partial: `(org_id) where is_current`.
 
 ### `nda_acceptances`
+
 Append-only record of an NDA acceptance.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | |
-| `template_id` | `uuid` FK `nda_templates.id` | |
-| `template_sha256` | `bytea` | Copy at acceptance time — detect tampering. |
-| `user_id` | `uuid` FK | |
-| `grant_id` | `uuid` FK `external_access_grants.id` | |
-| `rendered_body` | `text` | The exact text the user agreed to (with fields filled in). |
-| `accepted_at` | `timestamptz` | |
-| `source_ip` | `inet` | |
-| `user_agent` | `text` | |
+| Column            | Type                                  | Notes                                                      |
+| ----------------- | ------------------------------------- | ---------------------------------------------------------- |
+| `id`              | `uuid` PK                             |                                                            |
+| `org_id`          | `uuid` FK                             |                                                            |
+| `template_id`     | `uuid` FK `nda_templates.id`          |                                                            |
+| `template_sha256` | `bytea`                               | Copy at acceptance time — detect tampering.                |
+| `user_id`         | `uuid` FK                             |                                                            |
+| `grant_id`        | `uuid` FK `external_access_grants.id` |                                                            |
+| `rendered_body`   | `text`                                | The exact text the user agreed to (with fields filled in). |
+| `accepted_at`     | `timestamptz`                         |                                                            |
+| `source_ip`       | `inet`                                |                                                            |
+| `user_agent`      | `text`                                |                                                            |
 
 ### `internal_exclusions`
+
 Targeted exception for internal users excluded from a specific
 Opportunity (FR10).
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | |
-| `user_id` | `uuid` FK | |
-| `opportunity_id` | `uuid` FK | |
-| `excluded_by` | `uuid` FK | |
-| `created_at` | `timestamptz` | |
+| Column           | Type          | Notes |
+| ---------------- | ------------- | ----- |
+| `id`             | `uuid` PK     |       |
+| `org_id`         | `uuid` FK     |       |
+| `user_id`        | `uuid` FK     |       |
+| `opportunity_id` | `uuid` FK     |       |
+| `excluded_by`    | `uuid` FK     |       |
+| `created_at`     | `timestamptz` |       |
 
 Unique: `(org_id, user_id, opportunity_id)`.
 
@@ -153,14 +159,16 @@ function authorize(
 ```
 
 ### Authorisation matrix
-| Role / tier | view canonical | download canonical | upload canonical | view opportunity | download opp. | upload opp. | manage |
-|---|---|---|---|---|---|---|---|
-| owner / admin | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| internal | ✅ | ✅ | ✅ | ✅ (unless excluded) | ✅ (unless excluded) | ✅ (unless excluded) | ❌ |
-| external — `viewer` tier | ❌ | ❌ | ❌ | ✅ (only granted) | ❌ | ❌ | ❌ |
-| external — `downloader` tier | ❌ | ❌ | ❌ | ✅ (only granted) | ✅ (only granted) | ❌ | ❌ |
+
+| Role / tier                  | view canonical | download canonical | upload canonical | view opportunity     | download opp.        | upload opp.          | manage |
+| ---------------------------- | -------------- | ------------------ | ---------------- | -------------------- | -------------------- | -------------------- | ------ |
+| owner / admin                | ✅             | ✅                 | ✅               | ✅                   | ✅                   | ✅                   | ✅     |
+| internal                     | ✅             | ✅                 | ✅               | ✅ (unless excluded) | ✅ (unless excluded) | ✅ (unless excluded) | ❌     |
+| external — `viewer` tier     | ❌             | ❌                 | ❌               | ✅ (only granted)    | ❌                   | ❌                   | ❌     |
+| external — `downloader` tier | ❌             | ❌                 | ❌               | ✅ (only granted)    | ✅ (only granted)    | ❌                   | ❌     |
 
 ### Denial responses
+
 - Internal user hitting something they can't do → `403`.
 - External user hitting something outside their grant scope → `404`
   (absence-as-denial, per NFR2). The canonical-folder resources are
@@ -199,7 +207,7 @@ fronted by a thin lambda that:
 
 1. Parses a short-lived claim token the API added to the URL:
    `?t=<base64url JWT>` — payload `{ grantId, documentId, userId,
-   exp (≤5min) }`, signed with a cookie-signing-key equivalent.
+exp (≤5min) }`, signed with a cookie-signing-key equivalent.
 2. Verifies signature + freshness.
 3. Re-reads the grant from DB (≤5ms); rejects if not `active` or
    `expires_at` passed.
@@ -241,31 +249,31 @@ on iteration N is invisible to iteration N+1.
 All paths under `/orgs/:orgId/` except NDA acceptance which is under
 `/opportunities/:id/nda` for external users who have no org context.
 
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/orgs/:orgId/grants` | Create external grant (invite). Extends `auth-and-orgs`'s invite flow. |
-| `GET` | `/orgs/:orgId/grants` | List grants, filters from FR16. |
-| `DELETE` | `/orgs/:orgId/grants/:id` | Revoke. |
-| `PATCH` | `/orgs/:orgId/grants/:id` | Edit (expiry, tier). |
-| `POST` | `/orgs/:orgId/internal-exclusions` | Add exclusion. |
-| `DELETE` | `/orgs/:orgId/internal-exclusions/:id` | Remove. |
-| `GET` | `/orgs/:orgId/nda-template` | Fetch current. |
-| `PUT` | `/orgs/:orgId/nda-template` | Replace (creates new version). |
-| `GET` | `/opportunities/:id/nda` | External user fetches NDA + required fields. |
-| `POST` | `/opportunities/:id/nda` | External user posts acceptance. |
-| `GET` | `/download/:documentId` | Front-door for download — runs the revalidator. |
+| Method   | Path                                   | Purpose                                                                |
+| -------- | -------------------------------------- | ---------------------------------------------------------------------- |
+| `POST`   | `/orgs/:orgId/grants`                  | Create external grant (invite). Extends `auth-and-orgs`'s invite flow. |
+| `GET`    | `/orgs/:orgId/grants`                  | List grants, filters from FR16.                                        |
+| `DELETE` | `/orgs/:orgId/grants/:id`              | Revoke.                                                                |
+| `PATCH`  | `/orgs/:orgId/grants/:id`              | Edit (expiry, tier).                                                   |
+| `POST`   | `/orgs/:orgId/internal-exclusions`     | Add exclusion.                                                         |
+| `DELETE` | `/orgs/:orgId/internal-exclusions/:id` | Remove.                                                                |
+| `GET`    | `/orgs/:orgId/nda-template`            | Fetch current.                                                         |
+| `PUT`    | `/orgs/:orgId/nda-template`            | Replace (creates new version).                                         |
+| `GET`    | `/opportunities/:id/nda`               | External user fetches NDA + required fields.                           |
+| `POST`   | `/opportunities/:id/nda`               | External user posts acceptance.                                        |
+| `GET`    | `/download/:documentId`                | Front-door for download — runs the revalidator.                        |
 
 ## Key trade-offs
 
 - **Grant table reuse vs. new `access_grants` table** — chose reuse
   because `auth-and-orgs` already wrote the row on invite acceptance;
   splitting the table would add a join on every enforcement check.
-  Cost: one migration touches an existing table. → [ADR-004](../../../adr/004-access-grant-table-extension.md) *(to be drafted)*
+  Cost: one migration touches an existing table. → [ADR-004](../../../adr/004-access-grant-table-extension.md) _(to be drafted)_
 
 - **Middleware enforcement vs. in-handler checks** — chose middleware
   because it's the only way to be sure no handler forgets to check.
   Handlers declare the `(target, capability)` they require via a
-  decorator / wrapper; the middleware evaluates it. → [ADR-005](../../../adr/005-authorization-middleware.md) *(to be drafted)*
+  decorator / wrapper; the middleware evaluates it. → [ADR-005](../../../adr/005-authorization-middleware.md) _(to be drafted)_
 
 - **Download revalidator lambda vs. short-TTL only** — chose
   revalidator. 5-min URL TTL alone gives 5-min-window attack surface
@@ -286,21 +294,24 @@ All paths under `/orgs/:orgId/` except NDA acceptance which is under
 ## Security
 
 ### Threat model (this slice)
-| Threat | Mitigation |
-|---|---|
-| Revoked grant still usable via prior session / URL | 60s cache bust + download revalidator reads grant status on every URL click |
-| NDA template swapped after acceptance | Templates are immutable once referenced; acceptances bind a template_id + sha256 |
-| External user probing for other Opportunities' existence | Absence-as-denial (404) |
-| Privilege escalation via IDOR on grant edit | Handler verifies `grant.org_id === session.orgId` before allowing edit; integration test per endpoint |
-| Token replay on NDA acceptance | Acceptance record includes IP + UA + timestamp; same grant cannot be accepted twice (unique partial index) |
-| Expired grants acting on a stale middleware cache | Cache TTL 60s + revalidator reads DB on download |
-| Malicious NDA body injection (XSS if rendered unsafely) | NDA body is rendered through a safe markdown renderer with allow-list; never eval'd; never rendered as HTML without sanitisation |
+
+| Threat                                                   | Mitigation                                                                                                                       |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Revoked grant still usable via prior session / URL       | 60s cache bust + download revalidator reads grant status on every URL click                                                      |
+| NDA template swapped after acceptance                    | Templates are immutable once referenced; acceptances bind a template_id + sha256                                                 |
+| External user probing for other Opportunities' existence | Absence-as-denial (404)                                                                                                          |
+| Privilege escalation via IDOR on grant edit              | Handler verifies `grant.org_id === session.orgId` before allowing edit; integration test per endpoint                            |
+| Token replay on NDA acceptance                           | Acceptance record includes IP + UA + timestamp; same grant cannot be accepted twice (unique partial index)                       |
+| Expired grants acting on a stale middleware cache        | Cache TTL 60s + revalidator reads DB on download                                                                                 |
+| Malicious NDA body injection (XSS if rendered unsafely)  | NDA body is rendered through a safe markdown renderer with allow-list; never eval'd; never rendered as HTML without sanitisation |
 
 ### Secrets
+
 - Revalidator signing key → Secrets Manager, dedicated key (rotateable
   without affecting main session cookies).
 
 ### Data
+
 - `rendered_body` in `nda_acceptances` is the source of truth for
   what the user agreed to; never editable post-acceptance; retained
   indefinitely.
@@ -308,12 +319,14 @@ All paths under `/orgs/:orgId/` except NDA acceptance which is under
 ## Observability
 
 Logs:
+
 - Every authorisation decision with `userId`, `orgId`, `target.kind`,
   `capability`, `outcome`, `grantId`. Rate-limited to avoid log
   flood (sampled at 10% on successful reads; 100% on denials and
   writes).
 
 Metrics:
+
 - `ac.authz.decision` with dimensions `outcome`, `role`, `capability`
   — count.
 - `ac.grant.created` / `revoked` / `expired` — count.
@@ -323,6 +336,7 @@ Metrics:
 - `ac.grant.expiry_sweep.duration` — histogram.
 
 Alerts:
+
 - Denial rate spike on a single external user — investigate
   (possible probe).
 - Revalidator deny rate > 1% sustained — something's wrong with
@@ -340,6 +354,7 @@ dev initially while we wire handlers, flipped on before staging tests.
 Removed before prod.
 
 Deployment order:
+
 1. Migrations.
 2. Application layer + middleware (inactive without flag).
 3. Handlers + revalidator lambda.
@@ -347,11 +362,13 @@ Deployment order:
 5. Enable in prod alongside v0.3 tag.
 
 Rollback:
+
 - Flag off → middleware allows everything per `role` defaults from
   `auth-and-orgs` only (degraded security but functional).
 - Migrations reversible per drizzle convention.
 
 ## Open questions
+
 - Cache invalidation strategy for `internal_exclusions` — same 60s
   LRU as sessions? Leaning **yes**, same TTL, same bust path.
 - Downloader-tier revalidator also on **list** endpoints? Leaning
@@ -362,5 +379,6 @@ Rollback:
   change or email change.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Tasks phase unblocked

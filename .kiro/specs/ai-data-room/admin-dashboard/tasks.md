@@ -8,11 +8,13 @@ Assumes slices 1–6 and 8 are merged. Runs in the same monorepo.
 This slice is largely UI + a small amount of BFF — no domain logic.
 
 ## Conventions
+
 Same as prior slices.
 
 ---
 
 ## T-001 — Component library scaffolding
+
 Status: `[ ]`
 **Scope:** Create `packages/web/components/dashboard/` with
 primitives: `DataTable`, `Filters`, `InlineActions`, `StatPill`,
@@ -26,6 +28,7 @@ with Storybook story + Axe test.
 ---
 
 ## T-002 — BFF: `GET /dashboard/home` aggregate
+
 Status: `[ ]`
 **Scope:** Compose the five home widgets' data in a single
 endpoint. Cache 30s per orgId via LRU.
@@ -38,6 +41,7 @@ endpoint. Cache 30s per orgId via LRU.
 ---
 
 ## T-003 — BFF: `GET /capabilities` for the current user
+
 Status: `[ ]`
 **Scope:** Returns a map of `{ scope → capabilities }` for the
 session user, suitable for the `useCanWrite()` hook. Does not leak
@@ -51,6 +55,7 @@ info about unrelated orgs.
 ---
 
 ## T-004 — BFF: audit export CSV endpoint
+
 Status: `[ ]`
 **Scope:** Streams audit events per filters; per-row access-control
 during streaming; `text/csv` response.
@@ -64,6 +69,7 @@ access enforcement.
 ---
 
 ## T-005 — BFF: `GET /qna/activity` `expand=turnId`
+
 Status: `[ ]`
 **Scope:** Extends the existing Q&A activity endpoint (slice 6)
 with inline expansion of a turn's citations + passages, gated by
@@ -76,6 +82,7 @@ admin's own document access.
 ---
 
 ## T-006 — Layout + auth gate
+
 Status: `[ ]`
 **Scope:** `/dashboard/layout.tsx` enforces role
 (owner/admin/internal). External users redirected. Internal-user
@@ -87,6 +94,7 @@ variant sets `readOnlyMode=true` in a context.
 ---
 
 ## T-007 — Home page
+
 Status: `[ ]`
 **Scope:** Route `/dashboard` consuming `/dashboard/home`; renders
 five widgets with skeleton states; poll-on-focus.
@@ -98,6 +106,7 @@ five widgets with skeleton states; poll-on-focus.
 ---
 
 ## T-008 — Users page
+
 Status: `[ ]`
 **Scope:** Route `/dashboard/users` with DataTable + Filters +
 InlineActions (suspend, un-suspend, delete, resend invite, resend
@@ -109,6 +118,7 @@ MFA, reset password).
 ---
 
 ## T-009 — Invitations page
+
 Status: `[ ]`
 **Scope:** Route `/dashboard/invitations` with revoke + re-send
 actions.
@@ -120,6 +130,7 @@ actions.
 ---
 
 ## T-010 — Grants page
+
 Status: `[ ]`
 **Scope:** Route `/dashboard/grants` grouped by Opportunity,
 expiring-soon highlighted, inline extend / revoke / tier-change.
@@ -130,6 +141,7 @@ expiring-soon highlighted, inline extend / revoke / tier-change.
 ---
 
 ## T-011 — Review queue page
+
 Status: `[ ]`
 **Scope:** Route `/dashboard/review` consuming sensecheck decisions
 queue; inline approve / reject / re-run.
@@ -140,6 +152,7 @@ queue; inline approve / reject / re-run.
 ---
 
 ## T-012 — Q&A activity page
+
 Status: `[ ]`
 **Scope:** Route `/dashboard/qna-activity` consuming `/qna/activity`
 with expansion on row click.
@@ -151,6 +164,7 @@ with expansion on row click.
 ---
 
 ## T-013 — Audit log page + CSV export
+
 Status: `[ ]`
 **Scope:** Route `/dashboard/audit` with filters; "Export CSV"
 triggers download of the streamed response.
@@ -161,6 +175,7 @@ triggers download of the streamed response.
 ---
 
 ## T-014 — Settings tabs
+
 Status: `[ ]`
 **Scope:** Route `/dashboard/settings/*` — four tabs deep-linked:
 `org`, `nda`, `checklists`, `sensecheck`, `billing`. Each tab is a
@@ -173,6 +188,7 @@ possible (NFR4).
 ---
 
 ## T-015 — Internal-user read-only mode
+
 Status: `[ ]`
 **Scope:** Across all pages, respect `readOnlyMode` context:
 hide/disable action affordances; show a top banner.
@@ -183,6 +199,7 @@ hide/disable action affordances; show a top banner.
 ---
 
 ## T-016 — Performance budgets enforcement
+
 Status: `[ ]`
 **Scope:** CI check: `next-bundle-analyzer` on dashboard route; fail
 if >200KB gzipped. Lighthouse-CI budget on home, users, audit.
@@ -194,6 +211,7 @@ if >200KB gzipped. Lighthouse-CI budget on home, users, audit.
 ---
 
 ## T-017 — Accessibility CI
+
 Status: `[ ]`
 **Scope:** Axe-core run on each dashboard Playwright spec; fail on
 serious or critical violations.
@@ -204,6 +222,7 @@ serious or critical violations.
 ---
 
 ## T-018 — Observability: client + server metrics
+
 Status: `[ ]`
 **Scope:** Emit client-side metrics (fcp, error rates) via
 `@axiom-fe`; server-side metrics per design.md.
@@ -216,6 +235,7 @@ Status: `[ ]`
 ---
 
 ## T-019 — Playwright acceptance suite
+
 Status: `[ ]`
 **Scope:** One spec per AC-US1–AC-US9.
 **Files (likely):** `tests/e2e/dashboard/*.spec.ts`.
@@ -224,6 +244,7 @@ Status: `[ ]`
 ---
 
 ## T-020 — Slice sign-off
+
 Status: `[ ]`
 **Scope:** Traceability matrix. Tag `v0.7.0-admin-dashboard`.
 **Files (likely):** `docs/slices/admin-dashboard.md`.
@@ -246,6 +267,7 @@ T-020 last
 ```
 
 ## Acceptance for the slice
-1. All AC-US* in `requirements.md` pass in Playwright.
+
+1. All AC-US\* in `requirements.md` pass in Playwright.
 2. Bundle + Lighthouse + axe budgets green in CI.
 3. `v0.7.0-admin-dashboard` tagged.

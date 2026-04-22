@@ -9,11 +9,13 @@ Assumes `auth-and-orgs` (v0.1), `room-and-folders` (v0.2),
 (v0.5) are all merged. Runs in the same monorepo.
 
 ## Conventions
+
 Same as prior slices.
 
 ---
 
 ## T-001 — Postgres: enable pgvector + provision HNSW
+
 Status: `[ ]`
 **Scope:** Enable `vector` extension on the Postgres cluster; verify
 version ≥ 0.7 for HNSW. Capacity planning note in
@@ -27,6 +29,7 @@ availability verified.
 ---
 
 ## T-002 — Migrations: passages + conversations + turns + exclusions + counters
+
 Status: `[ ]`
 **Scope:** Drizzle migrations for all five tables per design.md,
 including HNSW index on `qna_passages.embedding`.
@@ -38,6 +41,7 @@ including HNSW index on `qna_passages.embedding`.
 ---
 
 ## T-003 — Domain: types + zod schemas
+
 Status: `[ ]`
 **Scope:** `Passage`, `Anchor`, `Conversation`, `Turn`, `Citation`,
 `AnswerSchema` (strict — enforces `[cN]` markers match
@@ -51,11 +55,11 @@ citation-marker invariant.
 ---
 
 ## T-004 — Infrastructure: embedding client wrapper
+
 Status: `[ ]`
 **Scope:** `embed(text, model)` — default Voyage-3 via Anthropic
 umbrella; fallback config for Bedrock Titan v2. Batching,
-exponential backoff, timeouts. Returns `number[]` of fixed length
-1024.
+exponential backoff, timeouts. Returns `number[]` of fixed length 1024.
 **Files (likely):**
 `microservices/core/infrastructure/embedding/client.ts`.
 **DoD:** Unit tested with mocks; integration test skipped unless
@@ -65,6 +69,7 @@ API keys set.
 ---
 
 ## T-005 — Infrastructure: passage chunker
+
 Status: `[ ]`
 **Scope:** `chunkDocument(extractedPages, opts)` →
 `Array<{anchor, text, tokenCount}>`. Respects ~1000-token target
@@ -77,6 +82,7 @@ pptx, xlsx; edge cases (single-page, huge-page, empty-page).
 ---
 
 ## T-006 — Infrastructure: passage repository
+
 Status: `[ ]`
 **Scope:** `PassageRepo` — `upsertBatch`, `deleteByDocument`,
 `deleteByOrg` (for org offboarding), `searchByEmbedding(query,
@@ -90,6 +96,7 @@ operator with `ef_search` set via GUC.
 ---
 
 ## T-007 — Infrastructure: conversation + turn repos
+
 Status: `[ ]`
 **Scope:** `ConversationRepo` (`create`, `listForUser`, `get`,
 `delete`), `TurnRepo` (`appendUser`, `appendAssistant`,
@@ -103,6 +110,7 @@ Status: `[ ]`
 ---
 
 ## T-008 — Infrastructure: exclusions repo + counters repo
+
 Status: `[ ]`
 **Scope:** `ExclusionRepo`, `UsageCounterRepo` (atomic increment,
 monthly read).
@@ -115,6 +123,7 @@ monthly read).
 ---
 
 ## T-009 — Application: indexer job
+
 Status: `[ ]`
 **Scope:** `indexDocument({orgId, documentVersionId})` — downloads
 from S3, extracts via shared sensecheck extractor, chunks
@@ -129,6 +138,7 @@ re-run.
 ---
 
 ## T-010 — Application: delete passages on doc lifecycle
+
 Status: `[ ]`
 **Scope:** `removeDocument({orgId, documentId})` — called on
 soft-delete, slot reset, slot reject, exclusion add.
@@ -140,6 +150,7 @@ soft-delete, slot reset, slot reject, exclusion add.
 ---
 
 ## T-011 — Application: query flow
+
 Status: `[ ]`
 **Scope:** `ask({session, scope, conversationId, question})` —
 orchestrates full flow per design.md. Handles "no candidates"
@@ -154,6 +165,7 @@ happy path with 500-passage fixture.
 ---
 
 ## T-012 — Application: re-rank + generator prompt invocation
+
 Status: `[ ]`
 **Scope:** `rerank(candidates, question)` → top-10 via Haiku prompt;
 `generateAnswer(passages, question, history)` → Sonnet call with
@@ -169,6 +181,7 @@ enforced.
 ---
 
 ## T-013 — Handlers: EventBridge → SQS → indexer worker
+
 Status: `[ ]`
 **Scope:** SQS queue `qna-index-jobs` + DLQ + EventBridge rules on
 `slot.approved`, `document.softDeleted`, `slot.rejected`,
@@ -184,6 +197,7 @@ indexing happens after an `slot.approved` event.
 ---
 
 ## T-014 — Handlers: HTTP routes
+
 Status: `[ ]`
 **Scope:** All routes per design.md §Interfaces. All behind
 `requires(...)`. External users can only ask in Opportunity scope
@@ -196,6 +210,7 @@ cross-scope attempts → 403.
 ---
 
 ## T-015 — Eval harness CLI + golden set
+
 Status: `[ ]`
 **Scope:** `bun run eval:qna` — loads fixtures, runs full pipeline,
 measures precision/recall/i-don't-know-correctness. Snapshot-gated
@@ -209,6 +224,7 @@ in CI.
 ---
 
 ## T-016 — Web: chat pane in the room view
+
 Status: `[ ]`
 **Scope:** `QnaChat` component — input, thread history, inline
 citation renderers (clickable, open doc preview at anchor).
@@ -221,6 +237,7 @@ Conversation persistence.
 ---
 
 ## T-017 — Web: external-user Opportunity chat
+
 Status: `[ ]`
 **Scope:** Same chat component rendered in `/external/:oppSlug`
 context; retriever scope locked to the Opportunity.
@@ -231,6 +248,7 @@ context; retriever scope locked to the Opportunity.
 ---
 
 ## T-018 — Web: admin Q&A activity feed + exclusions
+
 Status: `[ ]`
 **Scope:** `/admin/qna` — activity feed (asker, question, top
 citations); exclusions list + toggle per document from the
@@ -243,6 +261,7 @@ document detail page.
 ---
 
 ## T-019 — Observability: metrics + alerts
+
 Status: `[ ]`
 **Scope:** Emit metrics per design.md §Observability; wire alarms.
 **Files (likely):**
@@ -254,6 +273,7 @@ Status: `[ ]`
 ---
 
 ## T-020 — NFR hardening pass (security + perf)
+
 Status: `[ ]`
 **Scope:** Verify NFR1 (no third-party egress — net-test),
 NFR2 (p95 ≤ 8s — perf test with 500-passage fixture),
@@ -270,6 +290,7 @@ scope.
 ---
 
 ## T-021 — Playwright acceptance suite
+
 Status: `[ ]`
 **Scope:** One spec per AC-US1–AC-US6.
 **Files (likely):** `tests/e2e/qna/*.spec.ts`.
@@ -278,6 +299,7 @@ Status: `[ ]`
 ---
 
 ## T-022 — Slice sign-off + ADR-009
+
 Status: `[ ]`
 **Scope:** Draft ADR-009 (pgvector choice). Traceability matrix.
 Tag `v0.6.0-ai-search-qna`.
@@ -309,7 +331,8 @@ T-022 last
 ```
 
 ## Acceptance for the slice
-1. All AC-US* in `requirements.md` pass in Playwright.
+
+1. All AC-US\* in `requirements.md` pass in Playwright.
 2. Eval harness baseline ≥75% precision, ≥70% recall, ≥95%
    i-don't-know correctness.
 3. No passage leak between orgs or between Opportunities (property

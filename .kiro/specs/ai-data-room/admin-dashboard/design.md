@@ -6,6 +6,7 @@
 **Depends on:** all prior slices (1–6, 8)
 
 ## Summary
+
 Pure-UI slice in the existing Next.js `web` package. Nine page
 routes under `/dashboard/*` composed from data-layer helpers that
 call **aggregate** endpoints added to earlier slices where NFR3
@@ -58,37 +59,47 @@ flowchart LR
 
 ## Page inventory
 
-| Route | Purpose | Consumes | NFR3 budget |
-|---|---|---|---|
-| `/dashboard` | Home widgets (FR1) | `GET /dashboard/home` | 1 call |
-| `/dashboard/users` | Users + memberships + grants (FR3) | `GET /users`, `GET /grants` | 2 calls |
-| `/dashboard/invitations` | Invites (FR5) | `GET /invitations` | 1 call |
-| `/dashboard/grants` | External grants (FR7) | `GET /grants?groupBy=opportunity` | 1 call |
-| `/dashboard/review` | Sensecheck queue (FR10) | `GET /ai-decisions/queue` | 1 call |
-| `/dashboard/qna-activity` | Q&A activity (FR12) | `GET /qna/activity` | 1 call |
-| `/dashboard/audit` | Audit log (FR14) | `GET /audit/events?filters` | 1 call |
-| `/dashboard/settings` | Settings tabs (FR16) | Multiple — tab-scoped, lazy | ≤3 per tab |
-| `/dashboard/settings/nda` | NDA version editor | `GET /nda/templates` | 1 call |
-| `/dashboard/settings/checklists` | Templates | `GET /templates` | 1 call |
-| `/dashboard/settings/sensecheck` | AI toggle | `GET /settings/sensecheck` | 1 call |
-| `/dashboard/settings/billing` | Billing | embed from slice 8 | 0 new calls |
+| Route                            | Purpose                            | Consumes                          | NFR3 budget |
+| -------------------------------- | ---------------------------------- | --------------------------------- | ----------- |
+| `/dashboard`                     | Home widgets (FR1)                 | `GET /dashboard/home`             | 1 call      |
+| `/dashboard/users`               | Users + memberships + grants (FR3) | `GET /users`, `GET /grants`       | 2 calls     |
+| `/dashboard/invitations`         | Invites (FR5)                      | `GET /invitations`                | 1 call      |
+| `/dashboard/grants`              | External grants (FR7)              | `GET /grants?groupBy=opportunity` | 1 call      |
+| `/dashboard/review`              | Sensecheck queue (FR10)            | `GET /ai-decisions/queue`         | 1 call      |
+| `/dashboard/qna-activity`        | Q&A activity (FR12)                | `GET /qna/activity`               | 1 call      |
+| `/dashboard/audit`               | Audit log (FR14)                   | `GET /audit/events?filters`       | 1 call      |
+| `/dashboard/settings`            | Settings tabs (FR16)               | Multiple — tab-scoped, lazy       | ≤3 per tab  |
+| `/dashboard/settings/nda`        | NDA version editor                 | `GET /nda/templates`              | 1 call      |
+| `/dashboard/settings/checklists` | Templates                          | `GET /templates`                  | 1 call      |
+| `/dashboard/settings/sensecheck` | AI toggle                          | `GET /settings/sensecheck`        | 1 call      |
+| `/dashboard/settings/billing`    | Billing                            | embed from slice 8                | 0 new calls |
 
 ## New BFF endpoints
 
 ### `GET /orgs/:orgId/dashboard/home`
+
 Aggregates the five home-page widgets in one call (FR1, FR2, NFR3).
 
 ```json
 {
   "completionByFolder": [
-    {"folder": "01_Company_Overview", "percent": 85, "required": 12, "approved": 10}
+    {
+      "folder": "01_Company_Overview",
+      "percent": 85,
+      "required": 12,
+      "approved": 10
+    }
   ],
   "roomCompletionPercent": 72,
   "activeGrantsCount": 14,
   "grantsExpiringSoonCount": 3,
   "reviewQueueCount": 6,
   "recentActivity": [
-    {"id": "...", "at": "...", "summary": "Alice approved slot 'Latest audited accounts'"}
+    {
+      "id": "...",
+      "at": "...",
+      "summary": "Alice approved slot 'Latest audited accounts'"
+    }
   ]
 }
 ```
@@ -98,6 +109,7 @@ Runs 3 queries in parallel + in-memory compose. Cached 30s per
 `orgId` via LRU.
 
 ### `GET /orgs/:orgId/audit/export.csv`
+
 Returns a streamed CSV of filtered audit events honouring the same
 query params as the UI. `Content-Type: text/csv; charset=utf-8`,
 `Content-Disposition: attachment; filename="audit-<org>-<from>-<to>.csv"`.
@@ -106,6 +118,7 @@ Pagination swapped for `cursor` + server-side loop; backpressure
 via chunked transfer.
 
 ### `GET /orgs/:orgId/qna/activity` (existing — add `expand` param)
+
 Adds `?turnId=<id>` variant returning the cited passages inline
 per FR13. Gated by admin's own document access.
 
@@ -113,16 +126,16 @@ per FR13. Gated by admin's own document access.
 
 Files under `packages/web/components/dashboard/`:
 
-| Component | Purpose |
-|---|---|
-| `DataTable<T>` | Sortable, filterable, paginated table with slot API for cells. |
-| `Filters` | Declarative filter panel (select / multi-select / date / range). |
-| `InlineActions<T>` | Dropdown of row-level actions gated by `canWrite`. |
-| `StatPill` | Small coloured pill for numbers (e.g. "3 expiring"). |
-| `ActivityRow` | Renders an audit event in human-readable form (FR15). |
-| `LifecycleBadge` | User state badge. |
-| `VerdictBadge` | Traffic-light pill for AI verdicts. |
-| `EmptyState` | Consistent empty-state renderer. |
+| Component          | Purpose                                                          |
+| ------------------ | ---------------------------------------------------------------- |
+| `DataTable<T>`     | Sortable, filterable, paginated table with slot API for cells.   |
+| `Filters`          | Declarative filter panel (select / multi-select / date / range). |
+| `InlineActions<T>` | Dropdown of row-level actions gated by `canWrite`.               |
+| `StatPill`         | Small coloured pill for numbers (e.g. "3 expiring").             |
+| `ActivityRow`      | Renders an audit event in human-readable form (FR15).            |
+| `LifecycleBadge`   | User state badge.                                                |
+| `VerdictBadge`     | Traffic-light pill for AI verdicts.                              |
+| `EmptyState`       | Consistent empty-state renderer.                                 |
 
 All components ship Storybook stories + a11y snapshots.
 
@@ -136,6 +149,7 @@ filters its menu by this helper. Server still enforces
 authorisation; the UI just avoids dead-looking buttons.
 
 ### Internal-user variant (FR17)
+
 Routes render the same pages; action affordances are hidden or
 disabled. A single layout-level banner makes the read-only mode
 explicit.
@@ -176,11 +190,13 @@ explicit.
 ## Observability
 
 **Client metrics** (via `@axiom-fe` or equivalent):
+
 - `dashboard.home.load_ms` — histogram.
 - `dashboard.page.error_rate{page}` — ratio.
 - `dashboard.route.first_contentful_paint_ms` — histogram.
 
 **Server metrics:**
+
 - `bff.dashboard.home.latency_ms` — histogram.
 - `bff.audit.export.rows` — histogram.
 
@@ -232,5 +248,6 @@ incrementally (home first, then users, etc.).
 - **Multi-org switcher** — out of scope v0.1.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Tasks phase unblocked

@@ -8,6 +8,7 @@
 **Depends on:** `room-and-folders`
 
 ## Context
+
 This is the feature that turns a folder into a **self-managing checklist**.
 For each of the six canonical folders (and optionally each Opportunity
 subroom), there is a predefined list of document **slots** — e.g. in
@@ -19,6 +20,7 @@ the templates and tracks state**; it does not decide **whether a doc
 actually fits the slot** — that's `ai-doc-sensecheck`.
 
 ## Users & roles
+
 - **Primary user:** internal contributor filling the checklist for
   their org.
 - **Secondary users:** owner/admin customising the checklist and
@@ -52,6 +54,7 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
 ## Functional requirements
 
 ### Templates
+
 - **FR1** — The system shall ship a **canonical template set** at v0.1,
   one per canonical folder:
   - `01_Company_Overview` — pitch deck, company summary, team bios,
@@ -83,6 +86,7 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
   template serves as the starting point on org creation.
 
 ### Slot state
+
 - **FR5** — Each slot shall be in exactly one of the following states:
   - `empty` — no document uploaded.
   - `uploaded` — document uploaded, awaiting validation (AI or
@@ -100,6 +104,7 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
   slot). Overrides are audit-logged.
 
 ### Completion tracking
+
 - **FR8** — For any folder, the system shall compute:
   - `total_required_slots` — count of `required=true` slots not in
     state `not_applicable`,
@@ -112,6 +117,7 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
   completion.
 
 ### Visibility
+
 - **FR10** — Internal users shall see the checklist state for all
   folders they can see. External users shall see the checklist state
   only for Opportunity subrooms they have a grant for, subject to the
@@ -123,6 +129,7 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
   underlying document is not.
 
 ### Audit
+
 - **FR12** — The slice shall emit audit events for: slot approved,
   slot rejected (with reason), slot reset to empty, slot marked N/A,
   slot N/A cleared, template customised (add / edit / hide / reorder),
@@ -186,6 +193,7 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
 - RFP-mode and M&A-mode template sets → Phase 2.
 
 ## Open questions
+
 - Should `expected_file_types` default to all supported types or only
   a narrow set per slot (e.g. PDF-only for Articles of Association)?
   Leaning **narrow** — feeds better into `ai-doc-sensecheck` and sets
@@ -202,5 +210,6 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
   Leaning **design**, so we're not blocked here on SME availability.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Design phase unblocked

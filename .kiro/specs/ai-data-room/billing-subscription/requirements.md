@@ -8,6 +8,7 @@
 **Depends on:** `auth-and-orgs`
 
 ## Context
+
 Capital Pay is our first paying customer at standard pricing — no
 equity, no free tier. This slice delivers **self-serve billing** via
 Stripe so a new org can sign up, put a card on file, pay monthly, and
@@ -21,6 +22,7 @@ v0.1 plans can be set manually via an admin back-door if Stripe
 integration lands late.
 
 ## Users & roles
+
 - **Primary user:** org owner signing up and managing billing.
 - **Secondary users:** internal Bradley (support operator) — can see
   an org's plan state via the admin back-door.
@@ -50,14 +52,15 @@ integration lands late.
 ## Functional requirements
 
 ### Plan catalogue (v0.1)
+
 - **FR1** — Three plans at v0.1. **Exact pricing TBD** — placeholder
   numbers below, to confirm with Bradley in design phase:
 
-| Plan | Users (internal) | Active external grants | Opportunities | AI sense-checks / mo | Q&A questions / mo | Price / month |
-|---|---|---|---|---|---|---|
-| **Starter** | 3 | 10 | 3 | 100 | 500 | £99 |
-| **Growth** | 10 | 50 | 20 | 500 | 2,000 | £299 |
-| **Scale** | 30 | 200 | 100 | 2,000 | 10,000 | £799 |
+| Plan        | Users (internal) | Active external grants | Opportunities | AI sense-checks / mo | Q&A questions / mo | Price / month |
+| ----------- | ---------------- | ---------------------- | ------------- | -------------------- | ------------------ | ------------- |
+| **Starter** | 3                | 10                     | 3             | 100                  | 500                | £99           |
+| **Growth**  | 10               | 50                     | 20            | 500                  | 2,000              | £299          |
+| **Scale**   | 30               | 200                    | 100           | 2,000                | 10,000             | £799          |
 
 - **FR2** — An **enterprise/custom** plan exists as a row in the
   backing table but is not self-serve; Bradley sets limits via the
@@ -68,6 +71,7 @@ integration lands late.
   `past_due` / `canceled` / `suspended`).
 
 ### Signup + trial
+
 - **FR4** — Signup via `auth-and-orgs` shall create the org in the
   **Starter** plan on a **14-day free trial** by default. No card
   required to start.
@@ -87,6 +91,7 @@ integration lands late.
   - Owner sees a persistent "add payment method" banner.
 
 ### Card, payment, upgrade, downgrade
+
 - **FR8** — Owners shall be able to add a payment method via **Stripe
   Checkout** (hosted) at any time. On success, the card is saved to
   a Stripe Customer keyed to the `organizations.id`.
@@ -97,11 +102,13 @@ integration lands late.
   the grace window, the org continues on the old plan.
 
 ### Invoices & billing history
+
 - **FR11** — The Billing Portal is the source of truth for invoice
   history, PDF download, and payment method management. We embed a
   deep link in the admin dashboard; we do not duplicate Stripe's UI.
 
 ### Limit enforcement
+
 - **FR12** — The system shall enforce plan limits at **write time**:
   - Internal user count — block invite if plan user count is at
     the cap.
@@ -112,9 +119,10 @@ integration lands late.
   - Q&A monthly quota — block further questions once hit.
 - **FR13** — Enforcement responses shall be 402 Payment Required with
   `{ reason: 'plan_limit_reached', metric: <...>, current: N, limit: M,
-  upgrade_url: '/settings/billing' }`.
+upgrade_url: '/settings/billing' }`.
 
 ### Admin back-door
+
 - **FR14** — Bradley-only back-door endpoints (behind a
   staff-only auth check, enforced outside this slice — TBD mechanism)
   shall allow: set plan, grant a temporary override on any limit with
@@ -122,6 +130,7 @@ integration lands late.
   this path until Stripe integration is fully tested.
 
 ### Audit & observability
+
 - **FR15** — Every billing-relevant event shall audit-log: plan
   change, trial ended, card added, card updated, subscription
   canceled, invoice paid, invoice failed, limit override applied,
@@ -195,6 +204,7 @@ integration lands late.
   Stripe Tax enablement in design.
 
 ## Open questions
+
 - Final pricing — the numbers in FR1 are placeholders. Decide with
   Bradley in design phase; compare to Ansarada / Datasite / Intralinks
   on a per-seat / per-GB basis.
@@ -211,5 +221,6 @@ integration lands late.
   Bradley's ops preference.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Design phase unblocked

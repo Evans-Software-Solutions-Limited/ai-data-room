@@ -7,6 +7,7 @@
 `doc-checklist` + `ai-doc-sensecheck`
 
 ## Summary
+
 pgvector in-VPC for storage; a dedicated `indexer` worker fed by
 EventBridge on approval events; a synchronous `query` handler that
 (1) expands the question into an embedding, (2) ANN-searches, (3)
@@ -59,87 +60,94 @@ flowchart LR
 ## Data model
 
 ### `qna_passages`
+
 One row per chunked passage. Source of truth for retrieval.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` PK | Passage id; used as citation token. |
-| `org_id` | `uuid` FK | Scoped retrieval + security. |
-| `document_id` | `uuid` FK `documents.id` | |
-| `document_version_id` | `uuid` FK `document_versions.id` | |
-| `opportunity_id` | `uuid` nullable FK | For Opportunity-scoped docs. |
-| `canonical_folder` | `text` nullable | For canonical-folder docs. |
-| `anchor` | `jsonb` | `{kind: 'page'|'slide'|'sheet', number, offsetStart, offsetEnd}`. |
-| `text` | `text` | The chunk, for the prompt + display snippet. |
-| `token_count` | `int` | Sanity check. |
-| `embedding` | `vector(1024)` | pgvector type; dim from embedding model. |
-| `embedded_model` | `text` | e.g. `voyage-3` or `bedrock-titan-v2`. |
-| `indexed_at` | `timestamptz` | |
+| Column                | Type                             | Notes                                        |
+| --------------------- | -------------------------------- | -------------------------------------------- | ------- | ------------------------------------------ |
+| `id`                  | `uuid` PK                        | Passage id; used as citation token.          |
+| `org_id`              | `uuid` FK                        | Scoped retrieval + security.                 |
+| `document_id`         | `uuid` FK `documents.id`         |                                              |
+| `document_version_id` | `uuid` FK `document_versions.id` |                                              |
+| `opportunity_id`      | `uuid` nullable FK               | For Opportunity-scoped docs.                 |
+| `canonical_folder`    | `text` nullable                  | For canonical-folder docs.                   |
+| `anchor`              | `jsonb`                          | `{kind: 'page'                               | 'slide' | 'sheet', number, offsetStart, offsetEnd}`. |
+| `text`                | `text`                           | The chunk, for the prompt + display snippet. |
+| `token_count`         | `int`                            | Sanity check.                                |
+| `embedding`           | `vector(1024)`                   | pgvector type; dim from embedding model.     |
+| `embedded_model`      | `text`                           | e.g. `voyage-3` or `bedrock-titan-v2`.       |
+| `indexed_at`          | `timestamptz`                    |                                              |
 
 Indexes:
+
 - `HNSW (embedding) WITH (m=16, ef_construction=64)` for ANN.
 - `(document_id)` for cascade delete.
 - `(org_id, opportunity_id, canonical_folder)` for candidate pre-filter.
 
 ### `qna_conversations`
+
 A user's chat thread within a room / Opportunity scope.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | |
-| `owner_user_id` | `uuid` FK `users.id` | |
-| `scope_kind` | `enum('room','opportunity')` | |
-| `opportunity_id` | `uuid` nullable FK | Non-null for external-user scope. |
-| `created_at` / `updated_at` | `timestamptz` | |
+| Column                      | Type                         | Notes                             |
+| --------------------------- | ---------------------------- | --------------------------------- |
+| `id`                        | `uuid` PK                    |                                   |
+| `org_id`                    | `uuid` FK                    |                                   |
+| `owner_user_id`             | `uuid` FK `users.id`         |                                   |
+| `scope_kind`                | `enum('room','opportunity')` |                                   |
+| `opportunity_id`            | `uuid` nullable FK           | Non-null for external-user scope. |
+| `created_at` / `updated_at` | `timestamptz`                |                                   |
 
 ### `qna_turns`
+
 Append-only conversation turns.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` PK | |
-| `conversation_id` | `uuid` FK | |
-| `role` | `enum('user','assistant')` | |
-| `question` | `text` nullable | Only for user turns. |
-| `answer` | `text` nullable | Only for assistant turns. |
-| `citations` | `jsonb` | `Array<{passageId, docId, anchor, snippet}>`. |
-| `unanswered_reason` | `text` nullable | |
-| `model_id` / `prompt_version` | `text` | |
-| `input_tokens` / `output_tokens` | `int` | |
-| `latency_ms` | `int` | |
-| `truncated` | `boolean` | |
-| `created_at` | `timestamptz` | |
+| Column                           | Type                       | Notes                                         |
+| -------------------------------- | -------------------------- | --------------------------------------------- |
+| `id`                             | `uuid` PK                  |                                               |
+| `conversation_id`                | `uuid` FK                  |                                               |
+| `role`                           | `enum('user','assistant')` |                                               |
+| `question`                       | `text` nullable            | Only for user turns.                          |
+| `answer`                         | `text` nullable            | Only for assistant turns.                     |
+| `citations`                      | `jsonb`                    | `Array<{passageId, docId, anchor, snippet}>`. |
+| `unanswered_reason`              | `text` nullable            |                                               |
+| `model_id` / `prompt_version`    | `text`                     |                                               |
+| `input_tokens` / `output_tokens` | `int`                      |                                               |
+| `latency_ms`                     | `int`                      |                                               |
+| `truncated`                      | `boolean`                  |                                               |
+| `created_at`                     | `timestamptz`              |                                               |
 
 Index: `(conversation_id, created_at)` for thread rendering.
 
 ### `qna_exclusions`
+
 Admin-flagged documents excluded from Q&A (FR11).
 
-| Column | Type | Notes |
-|---|---|---|
-| `org_id` | `uuid` FK | |
-| `document_id` | `uuid` PK (part) FK | |
-| `excluded_by` | `uuid` FK `users.id` | |
-| `excluded_at` | `timestamptz` | |
-| `reason` | `text` nullable | |
+| Column        | Type                 | Notes |
+| ------------- | -------------------- | ----- |
+| `org_id`      | `uuid` FK            |       |
+| `document_id` | `uuid` PK (part) FK  |       |
+| `excluded_by` | `uuid` FK `users.id` |       |
+| `excluded_at` | `timestamptz`        |       |
+| `reason`      | `text` nullable      |       |
 
 On insert, trigger a cascade delete of the doc's passages within
 5 minutes (FR3 + AC-US6).
 
 ### `qna_usage_counters`
+
 Per-org monthly counters for FR15.
 
-| Column | Type | Notes |
-|---|---|---|
-| `org_id` | `uuid` PK part | |
-| `year_month` | `char(7)` PK part | |
-| `questions` | `int` default 0 | |
-| `last_updated_at` | `timestamptz` | |
+| Column            | Type              | Notes |
+| ----------------- | ----------------- | ----- |
+| `org_id`          | `uuid` PK part    |       |
+| `year_month`      | `char(7)` PK part |       |
+| `questions`       | `int` default 0   |       |
+| `last_updated_at` | `timestamptz`     |       |
 
 ## Indexing pipeline
 
 ### Triggers (EventBridge → SQS)
+
 - `slot.approved` (from `ai-doc-sensecheck`) → enqueue index.
 - `document.softDeleted` (from `room-and-folders`) → enqueue delete.
 - `slot.rejected` / `slot.reset` → enqueue delete.
@@ -147,6 +155,7 @@ Per-org monthly counters for FR15.
 - `qna.exclusion.removed` → enqueue index.
 
 ### Indexer worker
+
 1. Download document from S3.
 2. Extract text per-page using the same module as `ai-doc-sensecheck`
    (`infrastructure/sensecheck/extract.ts` — shared, not duplicated).
@@ -162,15 +171,19 @@ Per-org monthly counters for FR15.
 6. Emit `qna.indexed` event.
 
 ### Delete path
+
 Simple `DELETE FROM qna_passages WHERE document_id = $1`. Idempotent.
 
 ### Backlog SLA
+
 `indexing.backlog_age_seconds` gauge; alarms on >600s (NFR5).
 
 ## Query flow
 
 ### HTTP contract
+
 `POST /orgs/:orgId/qna/ask`
+
 ```json
 {
   "conversationId": "uuid | null",
@@ -178,7 +191,9 @@ Simple `DELETE FROM qna_passages WHERE document_id = $1`. Idempotent.
   "question": "..."
 }
 ```
+
 Returns:
+
 ```json
 {
   "conversationId": "uuid",
@@ -193,8 +208,9 @@ Returns:
 ```
 
 ### Steps (API handler, sync)
+
 1. Rate-limit check (per-user 20/min; per-org monthly ≤2,000).
-2. Authorise — confirm the user can read *any* document in the
+2. Authorise — confirm the user can read _any_ document in the
    requested scope.
 3. Embed question via the same embedding model; **prepend the
    last 3 user + 3 assistant turns** to the embed input when
@@ -233,16 +249,17 @@ Returns:
     directly.
 
 ### Latency budget (NFR2)
-| Step | Target ms |
-|---|---|
-| Rate + auth | 20 |
-| Embed | 250 |
-| ANN | 150 |
-| Access filter (cached) | 40 |
-| Re-rank (Haiku) | 800 |
-| Generator (Sonnet) | 4,500 |
-| Persist | 100 |
-| **Total p95** | **≤ 6,000** |
+
+| Step                   | Target ms   |
+| ---------------------- | ----------- |
+| Rate + auth            | 20          |
+| Embed                  | 250         |
+| ANN                    | 150         |
+| Access filter (cached) | 40          |
+| Re-rank (Haiku)        | 800         |
+| Generator (Sonnet)     | 4,500       |
+| Persist                | 100         |
+| **Total p95**          | **≤ 6,000** |
 
 Leaves headroom vs. NFR2 p95 ≤ 8s.
 
@@ -250,10 +267,12 @@ Leaves headroom vs. NFR2 p95 ≤ 8s.
 
 Prompts versioned in code at
 `microservices/core/domain/qna/prompts/`:
+
 - `retriever-rerank-v1.ts`
 - `answer-generator-v1.ts`
 
 Answer generator key rules:
+
 - Must output JSON matching `AnswerSchema` (`answer`, `citations`,
   `unanswered_reason`).
 - Every factual claim in `answer` must include an inline `[cN]`
@@ -268,18 +287,18 @@ Answer generator key rules:
 
 All under `/orgs/:orgId/qna/`. All behind `requires(...)`.
 
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/qna/ask` | Single round-trip ask. Returns a turn. |
-| `POST` | `/qna/conversations` | Explicit new conversation (optional). |
-| `GET` | `/qna/conversations` | List a user's own. |
-| `GET` | `/qna/conversations/:id` | Full thread. |
-| `DELETE` | `/qna/conversations/:id` | User deletes their own thread. |
-| `GET` | `/qna/exclusions` | Admin: list excluded docs. |
-| `POST` | `/qna/exclusions` | Admin: flag a doc (body `{documentId, reason?}`). |
-| `DELETE` | `/qna/exclusions/:documentId` | Admin: un-exclude. |
-| `GET` | `/qna/activity` | Admin: activity feed (asker, question, top-3 citations). |
-| `GET` | `/qna/usage` | Monthly counter + remaining. |
+| Method   | Path                          | Purpose                                                  |
+| -------- | ----------------------------- | -------------------------------------------------------- |
+| `POST`   | `/qna/ask`                    | Single round-trip ask. Returns a turn.                   |
+| `POST`   | `/qna/conversations`          | Explicit new conversation (optional).                    |
+| `GET`    | `/qna/conversations`          | List a user's own.                                       |
+| `GET`    | `/qna/conversations/:id`      | Full thread.                                             |
+| `DELETE` | `/qna/conversations/:id`      | User deletes their own thread.                           |
+| `GET`    | `/qna/exclusions`             | Admin: list excluded docs.                               |
+| `POST`   | `/qna/exclusions`             | Admin: flag a doc (body `{documentId, reason?}`).        |
+| `DELETE` | `/qna/exclusions/:documentId` | Admin: un-exclude.                                       |
+| `GET`    | `/qna/activity`               | Admin: activity feed (asker, question, top-3 citations). |
+| `GET`    | `/qna/usage`                  | Monthly counter + remaining.                             |
 
 ## Key trade-offs
 
@@ -287,7 +306,7 @@ All under `/orgs/:orgId/qna/`. All behind `requires(...)`.
   Postgres we already run, simpler per-row access-control scoping
   (just a SQL predicate). Accept the operational ceiling (~10M
   passages on a reasonably-sized db before HNSW build costs bite).
-  → [ADR-009](../../../adr/009-pgvector.md) *(to be drafted)*
+  → [ADR-009](../../../adr/009-pgvector.md) _(to be drafted)_
 
 - **Prompt-based re-ranker (Haiku) over self-hosted cross-encoder**
   — zero hosting + upgradable by model swap. Haiku re-rank adds
@@ -300,7 +319,7 @@ All under `/orgs/:orgId/qna/`. All behind `requires(...)`.
   most important security invariant for the slice.
 
 - **Embeddings via Voyage (Anthropic) rather than OpenAI** — NFR1
-  + vendor consistency with the rest of our AI stack.
+  - vendor consistency with the rest of our AI stack.
 
 - **Sonnet 4.6 for generator, Haiku 4.5 for re-ranker** — quality
   on answer generation matters more than latency; re-ranking is
@@ -339,6 +358,7 @@ numAfterAccessFilter, numInPrompt, answered, unansweredReason, latencyMs,
 model, promptVersion`.
 
 **Metrics:**
+
 - `qna.questions{scope,answered}` — count.
 - `qna.i_dont_know.rate` — ratio (rolling 7d).
 - `qna.citations_per_answer` — histogram.
@@ -349,6 +369,7 @@ model, promptVersion`.
 - `qna.exclusions.count` — gauge.
 
 **Alerts:**
+
 - `qna.i_dont_know.rate > 60% over 24h` — likely missing embeddings
   or broken retrieval.
 - `qna.backlog.indexing_age_seconds > 600` — NFR5.
@@ -357,8 +378,9 @@ model, promptVersion`.
 ## Eval harness (minimal v0.1)
 
 `bun run eval:qna` CLI parallel to sensecheck:
+
 1. Loads a golden set of `(room_fixture, question, expectedDocIds,
-   expectedAnchors, shouldAnswer)`.
+expectedAnchors, shouldAnswer)`.
 2. Runs the full pipeline.
 3. Reports answer precision (correct doc cited), recall (correct
    anchor cited), I-don't-know correctness.
@@ -367,6 +389,7 @@ model, promptVersion`.
 ## Rollout
 
 Feature flag `qna_enabled` per-org. Phased:
+
 1. **Internal Capital Pay pilot** — flag on, light use.
 2. **Early-access** — first 5 orgs, monitor latency + recall.
 3. **GA** — default on.
@@ -390,5 +413,6 @@ Migrations: `qna_passages` (+HNSW index), `qna_conversations`,
   adds per-grant folder overlays.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Tasks phase unblocked

@@ -1,6 +1,6 @@
 # CLAUDE.md — ai-data-room (repo-level)
 
-> Context for any Claude Code / Claude Agent SDK session working *inside this repo*.
+> Context for any Claude Code / Claude Agent SDK session working _inside this repo_.
 > The upstream Cowork session's CLAUDE.md lives in the project workspace (`~/.../Automation, AI Workflows & Revenue Streams/CLAUDE.md`) and carries Bradley-level context.
 > **This file is narrower** — repo conventions, not life story.
 

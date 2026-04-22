@@ -10,11 +10,13 @@ Assumes `auth-and-orgs` (v0.1), `room-and-folders` (v0.2), and
 `requires(...)` decorator will no-op until it lands.
 
 ## Conventions
+
 Same as prior slices.
 
 ---
 
 ## T-001 — Migrations: decisions + prompt registry + counters
+
 Status: `[ ]`
 **Scope:** Drizzle migrations for `ai_decisions`, `prompt_versions`,
 `sensecheck_usage_counters`, `sensecheck_rate_budgets`. Indexes per
@@ -27,6 +29,7 @@ design.md.
 ---
 
 ## T-002 — Domain: types + zod schemas
+
 Status: `[ ]`
 **Scope:** `Verdict` enum, `DecisionRecord`, `DecisionInput`,
 `DecisionSchema` (Zod, strict), `PromptVersion`, `SensecheckInput`
@@ -40,6 +43,7 @@ Status: `[ ]`
 ---
 
 ## T-003 — Domain: prompt v1 module
+
 Status: `[ ]`
 **Scope:** `microservices/core/domain/sensecheck/prompts/sensecheck-v1.ts`
 — system prompt, user template, response schema, model default
@@ -56,6 +60,7 @@ change; edited prompt → new row + `is_current` flipped.
 ---
 
 ## T-004 — Infrastructure: repositories
+
 Status: `[ ]`
 **Scope:** `AiDecisionRepo` (insert, listQueue, getById,
 markSuperseded), `PromptVersionRepo` (getCurrent, upsertBySha),
@@ -70,6 +75,7 @@ markSuperseded), `PromptVersionRepo` (getCurrent, upsertBySha),
 ---
 
 ## T-005 — Infrastructure: text extractor module
+
 Status: `[ ]`
 **Scope:** `extract(mime, bytes)` → `{ text, truncated, estimatedTokens }`.
 Uses `pdf-parse`, `mammoth`, `xlsx`, `pptx` parsers. Budget-truncates
@@ -85,6 +91,7 @@ doc correctly truncates.
 ---
 
 ## T-006 — Infrastructure: Anthropic client wrapper
+
 Status: `[ ]`
 **Scope:** Thin wrapper over `@anthropic-ai/sdk` exposing
 `senseCheck(input, promptVersion) → { decision, usage, latencyMs }`.
@@ -100,6 +107,7 @@ in e2e stage (skipped unless ANTHROPIC_API_KEY set).
 ---
 
 ## T-007 — Application: sense-check job
+
 Status: `[ ]`
 **Scope:** `runSenseCheck({orgId, documentVersionId, slotInstanceId, trigger: 'upload'|'recheck'})` —
 orchestrates: rate-budget → quota → S3 fetch → extract → Anthropic
@@ -115,6 +123,7 @@ oversize, FR10 upstream fail, FR11 rate limit, NFR5 quota).
 ---
 
 ## T-008 — Application: org settings toggle
+
 Status: `[ ]`
 **Scope:** `getSensecheckSettings(orgId)`, `setAutoApproveGreen`.
 Persist on `organizations` (add column `sensecheck_auto_approve_green
@@ -127,6 +136,7 @@ migration), `microservices/core/application/sensecheck/settings.ts`.
 ---
 
 ## T-009 — Handler: SQS worker + EventBridge rule
+
 Status: `[ ]`
 **Scope:** SST Lambda subscribed to `sensecheck-jobs` SQS queue with
 DLQ. EventBridge rule routes `slot.uploaded` events into the queue.
@@ -143,6 +153,7 @@ persisted within 60s.
 ---
 
 ## T-010 — HTTP handlers: queue, decision detail, recheck, settings
+
 Status: `[ ]`
 **Scope:** Wire application layer into HTTP per design.md §Interfaces.
 All routes behind `requires(target, capability)` decorator.
@@ -154,22 +165,25 @@ All routes behind `requires(target, capability)` decorator.
 ---
 
 ## T-011 — Eval harness CLI
+
 Status: `[ ]`
 **Scope:** `bun run eval:sensecheck` — loads golden set from
 `tests/fixtures/sensecheck/eval/*.json`, runs current prompt,
 computes confusion matrix, compares to snapshot, exits non-zero on
->3pp regression.
-**Files (likely):**
-`scripts/eval-sensecheck.ts`,
-`tests/fixtures/sensecheck/eval/snapshot.json`,
-`.github/workflows/sensecheck-eval.yml`.
-**DoD:** CI runs the eval on PRs touching prompts or templates;
-snapshot update requires explicit commit.
-**Tests required:** Script dry-run test.
+
+> 3pp regression.
+> **Files (likely):**
+> `scripts/eval-sensecheck.ts`,
+> `tests/fixtures/sensecheck/eval/snapshot.json`,
+> `.github/workflows/sensecheck-eval.yml`.
+> **DoD:** CI runs the eval on PRs touching prompts or templates;
+> snapshot update requires explicit commit.
+> **Tests required:** Script dry-run test.
 
 ---
 
 ## T-012 — Golden set seeding
+
 Status: `[ ]`
 **Scope:** Collect ≥30 fixtures across the canonical slots (a mix of
 clearly-correct, clearly-wrong, and borderline docs). Track each with
@@ -183,6 +197,7 @@ only — no real customer docs.
 ---
 
 ## T-013 — Web: slot verdict display
+
 Status: `[ ]`
 **Scope:** Extend slot detail panel (`doc-checklist` T-017) to render
 traffic light, rationale, confidence, matched/missing criteria from
@@ -197,6 +212,7 @@ the most recent decision. "AI is thinking…" state while
 ---
 
 ## T-014 — Web: admin review queue
+
 Status: `[ ]`
 **Scope:** `/admin/review` page listing pending decisions; sortable
 by confidence / age / folder. Approve/reject inline; clicking an
@@ -208,6 +224,7 @@ item opens slot detail.
 ---
 
 ## T-015 — Web: sense-check settings page
+
 Status: `[ ]`
 **Scope:** Settings → Sense-check: toggle `auto_approve_green`, show
 current model + prompt version (read-only), show monthly usage
@@ -219,6 +236,7 @@ gauge.
 ---
 
 ## T-016 — Observability: metrics + alerts
+
 Status: `[ ]`
 **Scope:** Emit metrics per design.md §Observability. Wire alarms:
 `bad_model_output > 1%`, `anthropic_unavailable > 5%`,
@@ -232,6 +250,7 @@ Status: `[ ]`
 ---
 
 ## T-017 — Feature flag integration
+
 Status: `[ ]`
 **Scope:** `sensecheck_enabled` per-org. Off → events not consumed;
 slots stay at `uploaded` for admin action.
@@ -244,6 +263,7 @@ jobs, no stale states.
 ---
 
 ## T-018 — NFR hardening pass
+
 Status: `[ ]`
 **Scope:** Verify NFR1 (no non-AWS/Anthropic egress — net-test),
 NFR2 (no full doc text in logs — scrub check), NFR3 (model + prompt
@@ -257,6 +277,7 @@ test), NFR6 (eval snapshot enforcement in CI).
 ---
 
 ## T-019 — Playwright acceptance suite
+
 Status: `[ ]`
 **Scope:** One spec per AC-US1–AC-US6.
 **Files (likely):** `tests/e2e/sensecheck/*.spec.ts`.
@@ -265,6 +286,7 @@ Status: `[ ]`
 ---
 
 ## T-020 — Slice sign-off + ADR-007 + ADR-008
+
 Status: `[ ]`
 **Scope:** Draft ADR-007 (sensecheck async worker) + ADR-008
 (Haiku 4.5 default) linked from design.md. Traceability matrix.
@@ -295,11 +317,13 @@ T-020 last
 ```
 
 Parallelisable after T-002:
+
 - T-005 / T-006 / T-008 — independent infrastructure.
 - Web tasks (T-013–T-015) after T-010.
 
 ## Acceptance for the slice
-1. All AC-US* in `requirements.md` pass in Playwright.
+
+1. All AC-US\* in `requirements.md` pass in Playwright.
 2. Eval harness baseline ≥85% accuracy, committed snapshot.
 3. T-020 traceability + ADRs merged.
 4. `v0.5.0-ai-doc-sensecheck` tagged.
