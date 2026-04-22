@@ -79,7 +79,13 @@ dev-stack integration via `scripts/check-workos-health.ts <url>`.
    bun sst secret set WORKOS_WEBHOOK_SECRET <value> --stage <stage>
    bun sst secret set WORKOS_COOKIE_PASSWORD <value> --stage <stage>
    ```
-4. `bun sst deploy --stage dev`, then run
+4. Before deploy: `bun run typecheck && bun run prettier:check`
+   (catches infra + workspace regressions). Then `bun sst diff
+   --stage dev` — our infra typecheck runs against an ambient shim
+   so `sst.aws.<Component>` is `any`; `sst diff` is the guard for
+   component-name typos (learned the hard way when `sst.aws.KmsKey`
+   slipped to deploy, 2026-04-22).
+5. `bun sst deploy --stage dev`, then run
    `bun run scripts/check-workos-health.ts <api-url>` against the
    `api-core` URL the deploy prints. 200 = T-002 closed.
 
