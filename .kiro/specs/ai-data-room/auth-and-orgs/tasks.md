@@ -40,7 +40,7 @@ sst.config.ts app name. Add CODEOWNERS + LICENSE. Configure CI
 ---
 
 ## T-002 — Provision WorkOS + secrets
-Status: `[~]` (code landed 2026-04-22; pending Bradley actions below)
+Status: `[x]` (closed 2026-04-22 — `/_health/workos` returned 200 with all four secrets present on the `dev` stage at the deployed API URL)
 **Scope:** Create WorkOS project for ai-data-room. Add API key,
 client ID, webhook secret, cookie signing key to AWS Secrets Manager
 via SST. Pattern matches FDP's `infra/secrets.ts`.

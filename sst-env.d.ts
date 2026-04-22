@@ -22,6 +22,14 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "api-core": {
+      "type": "sst.aws.ApiGatewayV2"
+      "url": string
+    }
+    "web": {
+      "type": "sst.aws.StaticSite"
+      "url": string
+    }
   }
 }
 
