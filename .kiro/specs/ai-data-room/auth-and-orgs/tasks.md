@@ -22,7 +22,7 @@ block at the bottom says they can run in parallel.
 ---
 
 ## T-001 — Scaffold `ai-data-room` repo from `sst-monorepo-template`
-Status: `[ ]`
+Status: `[x]` (2026-04-22, commit `9ba0733`)
 **Scope:** Create `Evans-Software-Solutions-Limited/ai-data-room` by
 copying `sst-monorepo-template`. Update `package.json` name, README,
 sst.config.ts app name. Add CODEOWNERS + LICENSE. Configure CI
@@ -30,28 +30,48 @@ sst.config.ts app name. Add CODEOWNERS + LICENSE. Configure CI
 **Files (likely):** `package.json`, `README.md`, `sst.config.ts`,
 `.github/workflows/*.yml`, `CODEOWNERS`, `LICENSE`.
 **Definition of done:**
-- Repo exists in GitHub under `Evans-Software-Solutions-Limited`.
-- `bun install && bun run typecheck` passes.
-- CI runs on PR open and pushes to main.
+- Repo exists in GitHub under `Evans-Software-Solutions-Limited`. ✅
+- `bun install && bun run typecheck` passes. ⏳ Bradley to verify locally.
+- CI runs on PR open and pushes to main. ⏳ Inherited from template; not
+  yet exercised against the new repo.
 **Tests required:** None yet (scaffold-only).
-**Notes:** Confirm PlanetScale vs. RDS Postgres by checking FDP's
-`sst.config.ts` first — match it.
+**Notes:** PlanetScale Postgres confirmed (matches FDP + ADR-002).
 
 ---
 
 ## T-002 — Provision WorkOS + secrets
-Status: `[ ]`
+Status: `[~]` (code landed 2026-04-22; pending Bradley actions below)
 **Scope:** Create WorkOS project for ai-data-room. Add API key,
 client ID, webhook secret, cookie signing key to AWS Secrets Manager
 via SST. Pattern matches FDP's `infra/secrets.ts`.
 **Files (likely):** `infra/secrets.ts`, `sst.config.ts`.
 **Definition of done:**
-- `dev` and `staging` stages each reference WorkOS secrets.
-- Secret names follow FDP convention.
+- `dev` and `staging` stages each reference WorkOS secrets. ⏳ See
+  Bradley actions.
+- Secret names follow FDP convention. ✅ snake_case + SCREAMING_SNAKE.
 - A simple handler `GET /_health/workos` returns 200 when creds are
-  wired correctly (internal-only, removed in T-015 before prod).
+  wired correctly (internal-only, removed in T-015 before prod). ✅
+  handler in `microservices/core/src/handlers/auth/healthWorkosGetHandler.ts`.
 **Tests required:** Integration test hitting `/_health/workos` against
-the dev stack.
+the dev stack. ⏳ Unit tests landed (`__tests__/healthWorkosGetHandler.test.ts`);
+dev-stack integration via `scripts/check-workos-health.ts <url>`.
+
+**Bradley actions to close T-002:**
+1. Sign up to WorkOS, create the `ai-data-room` project for each stage
+   (`dev`, `staging`, `production`).
+2. From each stage's WorkOS dashboard, copy the API key, client ID,
+   and webhook secret. Generate a 32+ char random string for the
+   cookie password.
+3. From the repo root, for each stage:
+   ```
+   bun sst secret set WORKOS_CLIENT_ID <value> --stage <stage>
+   bun sst secret set WORKOS_API_KEY <value> --stage <stage>
+   bun sst secret set WORKOS_WEBHOOK_SECRET <value> --stage <stage>
+   bun sst secret set WORKOS_COOKIE_PASSWORD <value> --stage <stage>
+   ```
+4. `bun sst deploy --stage dev`, then run
+   `bun run scripts/check-workos-health.ts <api-url>` against the
+   `api-core` URL the deploy prints. 200 = T-002 closed.
 
 ---
 

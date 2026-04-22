@@ -16,12 +16,14 @@ import { handle } from "hono/aws-lambda";
 import openapi from "@elysiajs/openapi";
 
 import { getHelloWorldHandler } from "./application/hello-world/get/helloWorldGetHandler";
+import { healthWorkosGetHandler } from "./handlers/auth/healthWorkosGetHandler";
 
 // Slice handlers are mounted here as they land. One line per slice — the
 // handler module owns its own sub-routing.
 const app = new Elysia()
   .use(openapi())
-  .use(getHelloWorldHandler);
+  .use(getHelloWorldHandler)
+  .use(healthWorkosGetHandler); // slice 1 T-002 — REMOVED in T-015
 // .use(authHandler)              // slice 1
 // .use(orgsHandler)              // slice 1
 // .use(roomsHandler)             // slice 2

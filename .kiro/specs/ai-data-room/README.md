@@ -79,3 +79,27 @@ to a feature folder / workspace inside the monorepo, not a separate repo.
   activation metrics). ADRs 009–010 flagged. **All 9 slices now
   spec-complete; ready for Bradley sign-off + scaffold (T-001 of
   auth-and-orgs).**
+- 2026-04-22 — ADR-001 (WorkOS as auth platform) and ADR-002
+  (Postgres + Drizzle for the ai-data-room domain) drafted and
+  marked `accepted`. ADR index updated.
+- 2026-04-22 — Repo scaffolded at
+  `~/Documents/projects/personal/ai-data-room` from
+  `sst-monorepo-template`. Package names migrated to
+  `@ai-data-room/*`, new `packages/db` workspace added (Drizzle +
+  pgvector-ready), `infra/{api,web,storage,secrets,db}.ts` modules
+  authored, `microservices/core/src/{domain,application,handlers,
+  infrastructure,middleware}` skeleton created with one folder per
+  slice, `.kiro/specs/ai-data-room/` snapshot synced, `CLAUDE.md`
+  + `AGENTS.md` + `README.md` written. Auth-and-orgs T-001 is
+  effectively done — task ticking can begin once Bradley confirms
+  the repo location + GitHub destination.
+- 2026-04-22 — Repo pushed to
+  `github.com/Evans-Software-Solutions-Limited/ai-data-room`
+  (commit `9ba0733`). Auth-and-orgs **T-001 closed**.
+- 2026-04-22 — Auth-and-orgs **T-002 in flight**: secrets registry
+  rewritten to FDP convention (snake_case + SCREAMING_SNAKE), WorkOS +
+  PlanetScale secrets linked into the coreAPI `$default` route, and
+  `/_health/workos` smoke-test handler + unit tests landed under
+  `microservices/core/src/handlers/auth/`. Pending Bradley actions:
+  create the WorkOS project, `bun sst secret set ...` for each stage,
+  deploy + run `scripts/check-workos-health.ts`.

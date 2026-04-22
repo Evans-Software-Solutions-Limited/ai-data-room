@@ -2,9 +2,58 @@
 // sense-check, Q&A, admin-dashboard read aggregates, billing, onboarding.
 // Per ADR-001 + ADR-002 the layered architecture lives in
 // microservices/core/src.
-export const coreAPI = new sst.aws.ApiGatewayV2("api-core");
+import {
+  workos_client_id,
+  workos_api_key,
+  workos_webhook_secret,
+  workos_cookie_password,
+  planetscale_database_url,
+} from "./secrets";
 
-coreAPI.route("$default", "microservices/core/src/api.handler");
+export const coreAPI = new sst.aws.ApiGatewayV2("api-core", {
+  transform: {
+    route: {
+      handler: (args) => {
+        args.runtime ??= "nodejs22.x";
+      },
+    },
+  },
+});
+
+// $default route: every HTTP request not matched by a more specific
+// route below lands here. WorkOS + DB secrets are linked at this level
+// so all auth-and-orgs handlers (and any layered handler they call)
+// can read them via `Resource.<NAME>.value`.
+//
+// Per-stage secret values must be provisioned before this stack will
+// deploy successfully:
+//   bun sst secret set <NAME> <VALUE> --stage <stage>
+coreAPI.route("$default", {
+  handler: "microservices/core/src/api.handler",
+  name: `core-api-${$app.stage}`,
+  link: [
+    workos_client_id,
+    workos_api_key,
+    workos_webhook_secret,
+    workos_cookie_password,
+    planetscale_database_url,
+  ],
+  environment: {
+    SST_STAGE: $app.stage,
+  },
+  memory: "512 MB",
+});
+
+// Dedicated webhook handler — sits outside the Hono/Elysia stack so that
+// API Gateway passes the raw body string to the Lambda. Required for
+// WorkOS HMAC-SHA256 signature verification (T-016 / T-006). Lands then:
+// coreAPI.route("POST /webhooks/workos", {
+//   handler: "microservices/core/src/handlers/webhooks/workos.handler",
+//   name: `core-webhook-workos-${$app.stage}`,
+//   link: [workos_api_key, workos_webhook_secret, planetscale_database_url],
+//   environment: { SST_STAGE: $app.stage },
+//   memory: "256 MB",
+// });
 
 // Async workers. Currently a stub — will host:
 //   - sense-check SQS worker (slice 5: ai-doc-sensecheck)

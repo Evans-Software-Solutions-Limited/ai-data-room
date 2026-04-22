@@ -1,50 +1,62 @@
 // Centralised SST secrets registry.
 //
-// Provision via:  bun sst secret set <NAME> <VALUE> --stage <stage>
-// Inspect via:    bun sst secret list --stage <stage>
+// Naming convention (matches FDP `infra/secrets.ts`):
+//   - export name: snake_case
+//   - sst.Secret name string: SCREAMING_SNAKE
 //
-// Secrets are referenced from microservice handlers as
-//   import { Resource } from "sst"; Resource.WorkOSApiKey.value
+// Provision per stage:
+//   bun sst secret set <NAME> <VALUE> --stage <stage>
+//
+// Inspect:
+//   bun sst secret list --stage <stage>
+//
+// Access from handlers (typed via sst-env.d.ts):
+//   import { Resource } from "sst";
+//   Resource.WORKOS_API_KEY.value;
 //
 // New secrets land here as slices reach their first integration point.
 
 // ── auth-and-orgs (slice 1, ADR-001 WorkOS) ────────────────────────────
-export const workOsApiKey = new sst.Secret("WorkOSApiKey");
-export const workOsClientId = new sst.Secret("WorkOSClientId");
-export const workOsWebhookSecret = new sst.Secret("WorkOSWebhookSecret");
-export const cookieSigningKey = new sst.Secret("CookieSigningKey");
+export const workos_client_id = new sst.Secret("WORKOS_CLIENT_ID");
+export const workos_api_key = new sst.Secret("WORKOS_API_KEY");
+export const workos_webhook_secret = new sst.Secret("WORKOS_WEBHOOK_SECRET");
+// AuthKit cookie password (HMAC for session cookie). 32+ chars random.
+export const workos_cookie_password = new sst.Secret("WORKOS_COOKIE_PASSWORD");
 
 // ── access-control (slice 3, NDA + signed S3 URLs) ─────────────────────
-// kmsKeyId for envelope encryption is provisioned in storage.ts; the
-// signing-key for download tokens is here.
-export const downloadTokenKey = new sst.Secret("DownloadTokenKey");
+// Envelope-encryption KMS key id is in storage.ts; the signing key for
+// download tokens lives here.
+export const download_token_key = new sst.Secret("DOWNLOAD_TOKEN_KEY");
 
 // ── ai-doc-sensecheck (slice 5) + ai-search-qna (slice 6) ──────────────
-export const anthropicApiKey = new sst.Secret("AnthropicApiKey");
-export const voyageApiKey = new sst.Secret("VoyageApiKey"); // for embeddings via Anthropic umbrella
+export const anthropic_api_key = new sst.Secret("ANTHROPIC_API_KEY");
+// Voyage embeddings via the Anthropic umbrella (1024-dim).
+export const voyage_api_key = new sst.Secret("VOYAGE_API_KEY");
 
 // ── billing-subscription (slice 8) ─────────────────────────────────────
-export const stripeApiKey = new sst.Secret("StripeApiKey");
-export const stripeWebhookSecret = new sst.Secret("StripeWebhookSecret");
+export const stripe_api_key = new sst.Secret("STRIPE_API_KEY");
+export const stripe_webhook_secret = new sst.Secret("STRIPE_WEBHOOK_SECRET");
 
 // ── onboarding-flow (slice 9) ──────────────────────────────────────────
-export const postHogApiKey = new sst.Secret("PostHogApiKey");
+export const posthog_api_key = new sst.Secret("POSTHOG_API_KEY");
 
 // ── infrastructure ─────────────────────────────────────────────────────
 // PlanetScale Postgres connection string (per ADR-002). Provisioned
 // outside SST; surfaced here so handlers can reach it via Resource.*.
-export const databaseUrl = new sst.Secret("DatabaseUrl");
+export const planetscale_database_url = new sst.Secret(
+  "PLANETSCALE_DATABASE_URL",
+);
 
 export const allSecrets = [
-  workOsApiKey,
-  workOsClientId,
-  workOsWebhookSecret,
-  cookieSigningKey,
-  downloadTokenKey,
-  anthropicApiKey,
-  voyageApiKey,
-  stripeApiKey,
-  stripeWebhookSecret,
-  postHogApiKey,
-  databaseUrl,
+  workos_client_id,
+  workos_api_key,
+  workos_webhook_secret,
+  workos_cookie_password,
+  download_token_key,
+  anthropic_api_key,
+  voyage_api_key,
+  stripe_api_key,
+  stripe_webhook_secret,
+  posthog_api_key,
+  planetscale_database_url,
 ];
