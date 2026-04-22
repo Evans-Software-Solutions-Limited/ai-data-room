@@ -112,4 +112,31 @@ describe("GET /_health/workos", () => {
 
     vi.doUnmock("@workos-inc/node");
   });
+
+  it("reports 'unknown' when the SDK throws a non-Error value", async () => {
+    // Defends the `err instanceof Error ? err.message : "unknown"` branch.
+    // SDKs occasionally throw strings/objects; we don't want to leak those
+    // raw payloads into the response body.
+    mockSstResource(ALL_SET);
+    vi.doMock("@workos-inc/node", () => ({
+      WorkOS: class {
+        constructor() {
+          // Intentionally throw a non-Error value.
+          throw "boom";
+        }
+      },
+    }));
+    await reloadHandler();
+
+    const res = await healthWorkosGetHandler.handle(
+      new Request("http://localhost/_health/workos"),
+    );
+
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as { reason: string; error: string };
+    expect(body.reason).toBe("sdk_init_failed");
+    expect(body.error).toBe("unknown");
+
+    vi.doUnmock("@workos-inc/node");
+  });
 });
