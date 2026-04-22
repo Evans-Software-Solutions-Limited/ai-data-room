@@ -33,12 +33,13 @@ runs:
       shell: bash
       run: bun install --frozen-lockfile
 
-    # Bootstraps `.sst/platform/` so downstream `sst` CLI calls (diff,
-    # deploy, shell) don't pay a cold install on every job. Typecheck
-    # deliberately does NOT depend on `.sst/platform/` — it uses the
-    # ambient shim at `infra/_sst-globals.d.ts` instead, so that SST's
-    # own internal TS errors (on modern @types/node) can't break CI.
-    # Idempotent; cheap; keep here so deploy jobs find a warm cache.
-    - name: Bootstrap SST platform
-      shell: bash
-      run: bun sst install
+    # NB: we deliberately do NOT run `bun sst install` in shared setup.
+    # - The `install` job calls this action with `restore_cache: "false"`
+    #   which makes the cache step lookup-only, so `node_modules` is not
+    #   on disk — `bun sst install` would fail with
+    #   "Script not found 'sst'".
+    # - Typecheck doesn't need `.sst/platform/` thanks to the ambient
+    #   shim at `infra/_sst-globals.d.ts`.
+    # - Deploy jobs (`staging-deploy.yml`, `production-deploy.yml`,
+    #   `pr-environment.yml`) bootstrap `.sst/platform/` implicitly on
+    #   their first `sst` invocation — no manual prime needed.
