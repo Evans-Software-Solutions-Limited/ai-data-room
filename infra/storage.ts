@@ -1,24 +1,24 @@
-// Document storage. Per `specs/ai-data-room/room-and-folders/design.md`:
-//  - One bucket per environment, SSE-KMS at rest.
-//  - Object keys: orgs/<orgId>/rooms/<roomId>/<slotId>/<versionId>/<filename>
-//  - Multipart resumable uploads enabled.
-//  - Lifecycle rules added in slice 2 (room-and-folders) tasks.
+// Document storage.
+//
+// **Status: stub.** Document storage is slice-2 (`room-and-folders`)
+// infra. Nothing in auth-and-orgs reads or writes objects, so declaring
+// a bucket + KMS key here would provision AWS resources that no handler
+// uses and bind the stack to CloudFormation churn every deploy. Matches
+// the same "declare when the slice that needs it ships" convention that
+// `infra/secrets.ts` uses for future-slice secrets.
+//
+// Slice 2 will restore the real declarations via `room-and-folders`
+// tasks. Target shape (per `specs/ai-data-room/room-and-folders/design.md`):
+//   - One bucket per stage, SSE-KMS at rest, public access blocked.
+//   - Object keys: orgs/<orgId>/rooms/<roomId>/<slotId>/<versionId>/<filename>
+//   - Multipart resumable uploads, lifecycle rules for cache tier.
+//   - Customer-managed KMS key via the Pulumi AWS provider:
+//       `new aws.kms.Key(...)` + `new sst.Linkable(...)` wrapper
+//     (mirrors FDP's `infra/kms.ts` — `sst.aws.KmsKey` does NOT exist
+//     in SST v4.10; use `aws.kms.Key` from `@pulumi/aws`).
+//
+// A second, cheaper bucket (`aiCacheBucket`) for Q&A passage cache +
+// sense-check extracted-text staging also lands in slice 2 / slice 5
+// so lifecycle rules stay scoped.
 
-export const documentsKey = new sst.aws.KmsKey("DocumentsKmsKey");
-
-export const documentsBucket = new sst.aws.Bucket("DocumentsBucket", {
-  // Block all public access; downloads happen via signed URLs minted by
-  // the access-control slice (NDA + scope check + permission tier).
-  public: false,
-  // Enable versioning so we never lose a slot's prior version when an
-  // owner replaces a doc — the doc-checklist slice depends on the
-  // version timeline being intact.
-  versioning: true,
-});
-
-// Q&A passage cache + sense-check extracted-text staging bucket. Cheaper
-// to keep these out of the main documents bucket so we can apply
-// different lifecycle rules and avoid name-clash blast-radius.
-export const aiCacheBucket = new sst.aws.Bucket("AiCacheBucket", {
-  public: false,
-});
+export {};

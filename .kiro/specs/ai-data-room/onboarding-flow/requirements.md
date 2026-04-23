@@ -8,6 +8,7 @@
 **Depends on:** `auth-and-orgs`, `room-and-folders`, `access-control`, `doc-checklist`
 
 ## Context
+
 The self-serve signup experience that takes a stranger from landing on
 the site to having a populated room with external access issued. If the
 earlier slices are the engine, this slice is the ignition. It is
@@ -20,6 +21,7 @@ other four to exist, and because we want the wizard to reflect what the
 product really does, not a preview of what we wish it did.
 
 ## Users & roles
+
 - **Primary user:** first-time org owner completing signup for the
   first time.
 - **Secondary users:** teammates joining after being invited (a
@@ -48,6 +50,7 @@ product really does, not a preview of what we wish it did.
 ## Functional requirements
 
 ### Owner wizard
+
 - **FR1** — Immediately after signup + email verification + MFA
   enrolment (from `auth-and-orgs`), new owners shall be directed to
   the wizard at `/onboarding/owner`.
@@ -81,6 +84,7 @@ product really does, not a preview of what we wish it did.
   throughout.
 
 ### Invited-user onboarding
+
 - **FR6** — On first login of an invited `admin` / `internal` user,
   the system shall show a minimal orientation (one screen) pointing
   them at their role's key affordances. No wizard.
@@ -90,6 +94,7 @@ product really does, not a preview of what we wish it did.
   to request extension.
 
 ### Persistent nudges / return prompts
+
 - **FR8** — The dashboard home (from `admin-dashboard`) shall show a
   "get started" card listing incomplete onboarding steps (no NDA
   yet, no Opportunity yet, <50% on `02_Financials`, etc.) until the
@@ -99,6 +104,7 @@ product really does, not a preview of what we wish it did.
   get-started card — not as a separate nagging banner.
 
 ### Sample / demo room
+
 - **FR10** — Owners shall be able to "**Preview a sample room**"
   from the wizard's welcome step. Sample is a read-only,
   pre-populated room showing a filled Starter/SME vendor scenario
@@ -110,6 +116,7 @@ product really does, not a preview of what we wish it did.
   anything.
 
 ### Audit & telemetry
+
 - **FR12** — Every wizard step completion / skip / revisit shall
   emit a product-analytics event tagged with `onboarding_step_id`
   and `user_id`. This is in addition to (not a replacement for)
@@ -173,6 +180,7 @@ product really does, not a preview of what we wish it did.
 - A/B testing of wizard variants — Phase 2.
 
 ## Open questions
+
 - Do we require the owner to complete **every** step before they
   can dismiss the wizard, or is skipping everything fine? Leaning
   **skipping fine** — forced wizards feel patronising. Nudge
@@ -190,5 +198,6 @@ product really does, not a preview of what we wish it did.
   completing their task, not learning the product.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Design phase unblocked

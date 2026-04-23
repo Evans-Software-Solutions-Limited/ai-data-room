@@ -3,8 +3,14 @@ node_modules
 
 # sst
 .sst
-sst-env.d.ts
-**/sst-env.d.ts
+# NOTE: `sst-env.d.ts` (root + per-workspace) is intentionally NOT
+# ignored. SST writes these files on `sst dev`/`sst deploy` to augment
+# the `sst` module's `Resource` interface with the stack's declared
+# secrets + components (e.g. `Resource.WORKOS_API_KEY`,
+# `Resource.api-core`). Committing them means CI typecheck catches
+# missing-Resource mistakes without having to run `sst dev` first,
+# matching the funds-distribution-platform convention. Regenerate by
+# running `bun sst dev` (or any deploy) and commit the diff.
 
 # tmp files
 .#*

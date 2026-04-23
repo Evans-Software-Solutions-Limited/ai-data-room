@@ -8,7 +8,8 @@
   "include": [
     "src/**/*",
     "../../packages/api-utils/src",
-    "../../packages/db/src"
+    "../../packages/db/src",
+    "../../sst-env.d.ts"
   ],
   "exclude": ["node_modules"]
 }

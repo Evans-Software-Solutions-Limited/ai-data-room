@@ -7,6 +7,7 @@
 **Slice index:** [../README.md](../README.md)
 
 ## Context
+
 Foundation slice for `ai-data-room`. Every other slice (rooms, access
 control, checklists, AI, billing, admin) presumes a working identity,
 organisation (tenant), role, and session model. This slice delivers that
@@ -19,11 +20,13 @@ not here.
 ## Users & roles
 
 ### Primary user
+
 A founder / ops lead / compliance owner at a B2B SME who is signing up
 for the product and will invite colleagues + external parties into their
 room.
 
 ### Secondary users
+
 - **Colleagues** of the primary user — admins and internal contributors
   who manage content inside the org's room.
 - **External viewers** — vendors, banks, VCs, M&A buyers, RFP issuers —
@@ -31,6 +34,7 @@ room.
   subrooms but are never members of the host org.
 
 ### Roles (v0.1)
+
 - `owner` — one per org at signup; full control; MFA required.
 - `admin` — invited by owner; manages content, invites, and
   configuration; MFA required.
@@ -42,14 +46,16 @@ room.
   shortest session lifetime.
 
 ### User lifecycle states (v0.1)
+
 Independent of role, every user is in exactly one of:
+
 - `active` — can log in, take actions consistent with their role.
 - `suspended` — cannot log in; existing sessions terminated; data and
   audit attribution preserved; can be reactivated by an admin/owner.
 - `deleted` — hard-deleted for GDPR; user record tombstoned so audit
   trail remains attributable to a stable id but PII is removed.
 
-> Enforcement of what each role can *see* (folder/file access) lives in
+> Enforcement of what each role can _see_ (folder/file access) lives in
 > the `access-control` slice. This slice only establishes identity and
 > role assignment.
 
@@ -82,6 +88,7 @@ Independent of role, every user is in exactly one of:
 ## Functional requirements
 
 ### Identity & org model
+
 - **FR1** — The system shall allow self-serve org creation via a signup
   flow that captures org name, owner email, owner full name, and
   password.
@@ -92,6 +99,7 @@ Independent of role, every user is in exactly one of:
   Multi-org membership is out of scope.
 
 ### Email verification
+
 - **FR4** — The system shall send an email-verification link on signup;
   the link shall be single-use, cryptographically unguessable, and
   valid for 24 hours.
@@ -100,6 +108,7 @@ Independent of role, every user is in exactly one of:
   can re-trigger verification.
 
 ### Invitations
+
 - **FR6** — Owners and admins shall be able to invite internal users
   (`admin`, `internal`) by email, pre-assigning a role.
 - **FR7** — Owners and admins shall be able to invite `external` users
@@ -116,6 +125,7 @@ Independent of role, every user is in exactly one of:
   before it is accepted.
 
 ### Authentication
+
 - **FR11** — Users shall authenticate via email + password. Successful
   password auth that requires MFA shall transition to an MFA challenge
   step before a session is issued.
@@ -126,8 +136,8 @@ Independent of role, every user is in exactly one of:
     minutes; absolute lifetime 12 hours.
   - External (`external`): inactivity timeout 15 minutes; absolute
     lifetime 8 hours.
-  Values are hardcoded at v0.1; per-org overrides are a later-slice
-  concern.
+    Values are hardcoded at v0.1; per-org overrides are a later-slice
+    concern.
 - **FR13** — The system shall provide a logout endpoint that
   invalidates the current session on the server.
 - **FR14** — The system shall expose a "current user" endpoint
@@ -135,6 +145,7 @@ Independent of role, every user is in exactly one of:
   name (if any), MFA enrolment status, email verification status.
 
 ### MFA
+
 - **FR15** — The system shall support TOTP-based MFA at v0.1.
 - **FR16** — MFA shall be mandatory for all user roles at v0.1
   (`owner`, `admin`, `internal`, `external`). No opt-out.
@@ -153,6 +164,7 @@ Independent of role, every user is in exactly one of:
   role that mandates MFA cannot fully remove MFA while in that role.
 
 ### Password reset
+
 - **FR19** — The system shall provide a password-reset flow triggered
   by email. Reset links shall be single-use, cryptographically
   unguessable, and expire 1 hour after issuance.
@@ -160,12 +172,13 @@ Independent of role, every user is in exactly one of:
   sessions for that user.
 
 ### User suspension
+
 - **FR21** — Owners and admins shall be able to suspend any user
   (internal or external) in their org. Suspension shall:
   (a) set the target user's lifecycle state to `suspended`,
   (b) terminate all active sessions for that user server-side,
   (c) reject future login attempts with a clear "account suspended"
-      message,
+  message,
   (d) be recorded as an audit event.
 - **FR22** — Owners and admins shall be able to un-suspend any
   `suspended` user in their org, restoring login ability. Un-suspension
@@ -176,6 +189,7 @@ Independent of role, every user is in exactly one of:
   is enforced now).
 
 ### Audit trail
+
 - **FR24** — The system shall record structured audit events for all
   of: signup, email verification, login success, login failure, MFA
   challenge issued, MFA success, MFA failure, logout, invite sent,
@@ -275,6 +289,7 @@ Independent of role, every user is in exactly one of:
 - Social login (Google/Apple/Microsoft) — Phase 2.
 
 ## Design-phase notes (intended choices — confirm in design.md)
+
 - **Auth platform:** WorkOS (Bradley's preference, 2026-04-21). Gives
   us identity, org modelling, MFA, audit events, verification / invite /
   password-reset email delivery, and a clean path to SSO/SAML in Phase 2.
@@ -289,7 +304,9 @@ Independent of role, every user is in exactly one of:
   slice that introduces it.
 
 ## Open questions
+
 _(all v0.1 open questions resolved by Bradley on 2026-04-21)_
+
 - ~~External viewers MFA-required vs. optional~~ → **required**.
 - ~~Internal session lifetime~~ → **NIST AAL2 baseline** (30-min
   inactivity, 12-hour absolute).
@@ -300,5 +317,6 @@ _(all v0.1 open questions resolved by Bradley on 2026-04-21)_
   as an explicit lifecycle state**.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Design phase unblocked

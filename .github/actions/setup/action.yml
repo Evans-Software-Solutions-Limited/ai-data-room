@@ -32,3 +32,14 @@ runs:
       if: steps.cache-deps.outputs.cache-hit != 'true'
       shell: bash
       run: bun install --frozen-lockfile
+
+    # NB: we deliberately do NOT run `bun sst install` in shared setup.
+    # - The `install` job calls this action with `restore_cache: "false"`
+    #   which makes the cache step lookup-only, so `node_modules` is not
+    #   on disk — `bun sst install` would fail with
+    #   "Script not found 'sst'".
+    # - Typecheck doesn't need `.sst/platform/` thanks to the ambient
+    #   shim at `infra/_sst-globals.d.ts`.
+    # - Deploy jobs (`staging-deploy.yml`, `production-deploy.yml`,
+    #   `pr-environment.yml`) bootstrap `.sst/platform/` implicitly on
+    #   their first `sst` invocation — no manual prime needed.

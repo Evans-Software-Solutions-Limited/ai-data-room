@@ -11,12 +11,14 @@ Executes inside the same monorepo (`ai-data-room`), in the same
 `handlers/rooms`.
 
 ## Conventions
+
 Same as `auth-and-orgs/tasks.md` (Bun + Turborepo, Vitest, Playwright,
 layered architecture, drizzle migrations).
 
 ---
 
 ## T-001 — Storage infra: S3 bucket + KMS key + IAM
+
 Status: `[ ]`
 **Scope:** New SST infra file `infra/storage.ts`. Provisions the docs
 bucket (per stage), dedicated KMS CMK, scoped IAM policies for
@@ -25,16 +27,18 @@ versioning on, lifecycle rule for `state=hard-deleted` tag → delete
 after 7 days.
 **Files (likely):** `infra/storage.ts`, `sst.config.ts`.
 **Definition of done:**
+
 - Stage deploy shows the bucket + KMS key wired.
 - IAM role for `core` can PutObject / GetObject under
   `orgs/*/documents/*` but not outside.
 - Bucket is closed to unauthenticated requests.
-**Tests required:** Integration test that the handler role can
-upload/download in its prefix and is denied outside it.
+  **Tests required:** Integration test that the handler role can
+  upload/download in its prefix and is denied outside it.
 
 ---
 
 ## T-002 — Domain: types + zod schemas
+
 Status: `[ ]`
 **Scope:** `Opportunity`, `Document`, `DocumentVersion`, `FolderPath`
 discriminated union, `CanonicalFolder` enum const, `MimeTypeEnum`,
@@ -48,6 +52,7 @@ fetch.
 ---
 
 ## T-003 — Migrations: four tables
+
 Status: `[ ]`
 **Scope:** Drizzle migrations for `opportunities`, `documents`,
 `document_versions`, `document_deletions`. Include CHECK constraints
@@ -63,6 +68,7 @@ test DB, insert each table's happy-path row, query, roll back.
 ---
 
 ## T-004 — Infrastructure: repositories
+
 Status: `[ ]`
 **Scope:** `OpportunityRepo`, `DocumentRepo`, `DocumentVersionRepo`,
 `DocumentDeletionRepo`. Query methods: list-by-folder, list-by-
@@ -76,6 +82,7 @@ restore, hard-delete (support-only), archive-opportunity.
 ---
 
 ## T-005 — Infrastructure: S3 client wrapper
+
 Status: `[ ]`
 **Scope:** Thin wrapper over `@aws-sdk/client-s3` exposing only what
 we use: `createMultipartUpload`, `presignPartUrls(uploadId, parts)`,
@@ -93,6 +100,7 @@ pre-signed URL format.
 ---
 
 ## T-006 — Application: opportunity CRUD
+
 Status: `[ ]`
 **Scope:** `createOpportunity`, `renameOpportunity`,
 `archiveOpportunity`, `listOpportunities`. Enforce slug regex,
@@ -108,6 +116,7 @@ archive (grants revoked + retention timer started).
 ---
 
 ## T-007 — Application: upload initiate + complete
+
 Status: `[ ]`
 **Scope:** `initiateUpload` — validates target, mime, size; creates
 `documents.state='draft'` + `document_versions.version_number` row;
@@ -125,6 +134,7 @@ aws-sdk-client-mock; unit tests for validation branches.
 ---
 
 ## T-008 — Application: document listing + download
+
 Status: `[ ]`
 **Scope:** `listFolderContents` (canonical or opportunity),
 `getDocument` (with pre-signed GET URL), `listVersions`. Returns
@@ -141,6 +151,7 @@ integration test with 500-row fixture.
 ---
 
 ## T-009 — Application: soft-delete + restore + hard-delete
+
 Status: `[ ]`
 **Scope:** `softDeleteDocument`, `restoreDocument`,
 `hardDeleteDocument` (support-only path — not exposed via handler at
@@ -156,6 +167,7 @@ audit events.
 ---
 
 ## T-010 — Scheduled job: retention sweep
+
 Status: `[ ]`
 **Scope:** EventBridge cron (every 6 hours) invokes a lambda that:
 (a) hard-deletes documents whose `soft_deleted_at > 30d ago`;
@@ -172,6 +184,7 @@ fixtures.
 ---
 
 ## T-011 — Handlers: rooms + opportunities + documents
+
 Status: `[ ]`
 **Scope:** Wire the application layer into HTTP handlers per
 §Interfaces. All routes behind session middleware + access-control
@@ -188,6 +201,7 @@ stack.
 ---
 
 ## T-012 — Handler: abort stale upload (janitor)
+
 Status: `[ ]`
 **Scope:** Hook into the retention sweep (T-010) to call S3
 `abortMultipartUpload` for any upload_id whose `documents.state='draft'`
@@ -201,6 +215,7 @@ production, measured via a weekly audit query.
 ---
 
 ## T-013 — Web: folder navigation + document list
+
 Status: `[ ]`
 **Scope:** Next.js page `/room`: renders the six canonical folders +
 `Opportunities/` list. Clicking a folder → list documents. Uses
@@ -213,6 +228,7 @@ Status: `[ ]`
 ---
 
 ## T-014 — Web: upload UI (dropzone + progress)
+
 Status: `[ ]`
 **Scope:** `UploadDropzone` component using `@aws-sdk/lib-storage` on
 the client against our `/uploads/*` endpoints. Shows progress per
@@ -224,6 +240,7 @@ file; handles resume on tab reload via an in-memory upload registry.
 ---
 
 ## T-015 — Web: opportunity create / rename / archive
+
 Status: `[ ]`
 **Scope:** Pages under `/room/opportunities/*`. Admin-gated via role
 check (enforcement server-side; UI disables accordingly).
@@ -234,6 +251,7 @@ check (enforcement server-side; UI disables accordingly).
 ---
 
 ## T-016 — Web: soft-delete + restore + version history
+
 Status: `[ ]`
 **Scope:** Document-detail page showing version history; soft-delete
 button; restore button within retention window.
@@ -244,6 +262,7 @@ button; restore button within retention window.
 ---
 
 ## T-017 — Observability: metrics, traces, alerts
+
 Status: `[ ]`
 **Scope:** EMF metrics per design.md §Observability, X-Ray enabled,
 CloudWatch alarms wired in `infra/observability.ts`.
@@ -256,6 +275,7 @@ correctly on synthetic incidents.
 ---
 
 ## T-018 — NFR hardening pass
+
 Status: `[ ]`
 **Scope:** Verify NFR1 (SSE-KMS), NFR2 (private bucket), NFR3 (rate
 limit 50/org/min on upload initiate), NFR4 (listing p95 ≤500ms
@@ -269,6 +289,7 @@ with 500 docs), NFR7 (per-org export script exists), NFR8
 ---
 
 ## T-019 — Playwright acceptance suite
+
 Status: `[ ]`
 **Scope:** One spec per AC-US1–AC-US8 against the e2e stage.
 **Files (likely):** `tests/e2e/room-and-folders/*.spec.ts`.
@@ -277,6 +298,7 @@ Status: `[ ]`
 ---
 
 ## T-020 — Slice sign-off + traceability matrix
+
 Status: `[ ]`
 **Scope:** Map each FR, NFR, AC to a specific test. Run
 `engineering:deploy-checklist`. Tag `v0.2.0-room-and-folders`.
@@ -302,6 +324,7 @@ T-020 last
 ```
 
 ## Acceptance for the slice
-1. All AC-US* in `requirements.md` pass in Playwright.
+
+1. All AC-US\* in `requirements.md` pass in Playwright.
 2. T-020 traceability matrix merged.
 3. `v0.2.0-room-and-folders` tagged.

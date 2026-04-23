@@ -8,7 +8,8 @@ describe("cn", () => {
   });
 
   it("should handle conditional class names", () => {
-    const result = cn("foo", false && "bar", "baz");
+    const include: boolean = false;
+    const result = cn("foo", include && "bar", "baz");
 
     expect(result).toBe("foo baz");
   });

@@ -8,6 +8,7 @@
 **Depends on:** `auth-and-orgs`, `room-and-folders`, `access-control`, `doc-checklist`, `ai-doc-sensecheck`, `ai-search-qna`
 
 ## Context
+
 The admin dashboard is where owners and admins manage their room. It
 does **not add new functionality** — every earlier slice's API is
 already shipped by the time this slice begins. This slice is the
@@ -20,6 +21,7 @@ us ship the earlier slices as headless-capable before we invest in the
 admin UX.
 
 ## Users & roles
+
 - **Primary user:** owner or admin.
 - **Secondary users:** internal user (read-only dashboards for their
   org); external users never access this surface.
@@ -58,6 +60,7 @@ admin UX.
 ## Functional requirements
 
 ### Overview / home
+
 - **FR1** — The dashboard home shall render:
   - Room-level completion percentage (from `doc-checklist` FR9).
   - Per-canonical-folder completion.
@@ -68,6 +71,7 @@ admin UX.
   above data populated (cached where sensible).
 
 ### Users
+
 - **FR3** — Users page shall list every user in the org
   (memberships + external grants), showing: email, full name, role,
   lifecycle state, MFA enrolment, last-active-at, active grants
@@ -78,6 +82,7 @@ admin UX.
   delegating to the underlying slice APIs).
 
 ### Invitations
+
 - **FR5** — Invitations page shall list invitations with: email,
   kind (internal/external), role or Opportunity scope, invited-by,
   invited-at, expires-at, status.
@@ -85,6 +90,7 @@ admin UX.
   `pending` — new token, new expiry).
 
 ### Grants
+
 - **FR7** — Grants page shall list external access grants, grouped
   by Opportunity. Shown columns: user, permission tier, status,
   expires-at, granted-by, granted-at, last-activity-at.
@@ -94,6 +100,7 @@ admin UX.
   expiring-within-N-days, by tier.
 
 ### Review queue (AI sensecheck)
+
 - **FR10** — Queue page shall show flagged uploads from
   `ai-doc-sensecheck`. Per-item UI: document preview, slot, AI
   verdict + confidence + rationale, matched/missing criteria,
@@ -103,6 +110,7 @@ admin UX.
   remain searchable.
 
 ### Q&A activity
+
 - **FR12** — Activity page shall show the last 90 days of Q&A
   events (via `ai-search-qna` FR12) with: asker, scope (org or
   Opportunity), question, cited docs, unanswered flag, timestamp.
@@ -112,6 +120,7 @@ admin UX.
   visibility, the expansion is blocked).
 
 ### Audit log
+
 - **FR14** — Audit log page shall expose `auth-and-orgs`'s audit
   store with filters by: event type, actor user, target user,
   outcome, source IP, time range. Paged. CSV export.
@@ -120,6 +129,7 @@ admin UX.
   while keeping the raw event expandable.
 
 ### Settings
+
 - **FR16** — Settings page shall expose (tabbed):
   - **Org** — name, slug (display only), billing contact email.
   - **NDA template** — edit plaintext/markdown; show version history
@@ -133,6 +143,7 @@ admin UX.
   - **Members & roles** — deep link to Users page (FR3).
 
 ### Internal-user read-only view
+
 - **FR17** — Users with role `internal` shall see the dashboard
   Home, Users, Invitations, Grants (read-only), and Review queue
   (read-only on AI verdict, no approve/reject). All write actions
@@ -199,10 +210,11 @@ admin UX.
 - PDF-print-friendly views — Phase 2.
 
 ## Open questions
+
 - Do we build dashboard as its own package or co-locate pages with
   the respective slice's web routes? Leaning **separate
   `/dashboard/*` path inside the `web` package** — single app,
-  single auth session — but the *page components* for users, grants,
+  single auth session — but the _page components_ for users, grants,
   etc. live in the slice that owns the data.
 - Do we offer per-admin **favourites** / pinned entities in this
   slice, or punt? Leaning **punt** — speculative; wait for user
@@ -214,5 +226,6 @@ admin UX.
   audit-export ask. Leaning **CSV only at v0.1**.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Design phase unblocked

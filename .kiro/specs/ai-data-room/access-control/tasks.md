@@ -8,11 +8,13 @@ Assumes `auth-and-orgs` (v0.1) and `room-and-folders` (v0.2) are
 merged. Runs in the same monorepo.
 
 ## Conventions
+
 Same as prior slices.
 
 ---
 
 ## T-001 — Migrations: extend grants + new tables
+
 Status: `[ ]`
 **Scope:** Migration to: add columns to `external_access_grants`
 (`permission_tier`, `expires_at`, `status` enum extension,
@@ -29,6 +31,7 @@ verified against seeded data.
 ---
 
 ## T-002 — Domain: types + zod schemas
+
 Status: `[ ]`
 **Scope:** `PermissionTier`, `GrantStatus` (extended enum),
 `ResourceTarget` discriminated union, `Capability`, `NdaTemplate`,
@@ -41,6 +44,7 @@ Status: `[ ]`
 ---
 
 ## T-003 — Infrastructure: repositories
+
 Status: `[ ]`
 **Scope:** `GrantRepo` (extends auth-and-orgs', adds new methods:
 `listExpiringBefore`, `transitionStatus`, `editTier`, `editExpiry`),
@@ -53,6 +57,7 @@ Status: `[ ]`
 ---
 
 ## T-004 — Application: authorisation engine
+
 Status: `[ ]`
 **Scope:** `authorize(session, target, capability)` returns an
 `AuthorizationResult`. Implements the matrix in design.md with
@@ -67,6 +72,7 @@ tuple.
 ---
 
 ## T-005 — Middleware: hydrate session grants + exclusions
+
 Status: `[ ]`
 **Scope:** Middleware that, after the session middleware from
 auth-and-orgs, hydrates `session.opportunityGrants` and
@@ -80,6 +86,7 @@ pattern; cache is keyed by `userId` for this data.
 ---
 
 ## T-006 — Middleware: authorisation wrapper + handler decorator
+
 Status: `[ ]`
 **Scope:** Provide a `requires(target, capability)` decorator /
 wrapper for handlers. Wrapper extracts target from `params`,
@@ -97,6 +104,7 @@ decorator; a fixture handler without one fails.
 ---
 
 ## T-007 — Application: grant lifecycle
+
 Status: `[ ]`
 **Scope:** `createExternalGrant` (integrates with auth-and-orgs
 invitation flow), `revokeGrant`, `editGrantExpiry`, `editGrantTier`,
@@ -109,6 +117,7 @@ invitation flow), `revokeGrant`, `editGrantExpiry`, `editGrantTier`,
 ---
 
 ## T-008 — Application: NDA template CRUD + immutability
+
 Status: `[ ]`
 **Scope:** `getCurrentNdaTemplate`, `replaceNdaTemplate`. On replace:
 mark previous `is_current=false`, insert new with `version = max+1`.
@@ -122,6 +131,7 @@ original template version.
 ---
 
 ## T-009 — Application: NDA acceptance
+
 Status: `[ ]`
 **Scope:** `acceptNda(grantId, renderedBody, fields)` — server
 re-renders, compares hashes, writes `nda_acceptances`, flips
@@ -135,6 +145,7 @@ already accepted, if grant not `pending_nda`, or if hash mismatches.
 ---
 
 ## T-010 — Application: internal exclusions
+
 Status: `[ ]`
 **Scope:** `addExclusion`, `removeExclusion`, `listExclusions`.
 Enforce FR10 (exclusions don't notify the user).
@@ -147,6 +158,7 @@ cache bust) cannot list or download from that Opportunity.
 ---
 
 ## T-011 — Scheduled job: expiry sweep
+
 Status: `[ ]`
 **Scope:** EventBridge cron every 10 minutes invokes a lambda that
 transitions `active` → `expired` for past `expires_at` grants and
@@ -161,6 +173,7 @@ audit-logs each transition. Idempotent.
 ---
 
 ## T-012 — Download revalidator lambda
+
 Status: `[ ]`
 **Scope:** Minimal lambda (own SST function). Parses signed token,
 looks up grant, checks exclusions, verifies `expires_at` in future,
@@ -175,6 +188,7 @@ with valid + revoked + expired tokens.
 ---
 
 ## T-013 — Integrate revalidator into room-and-folders download
+
 Status: `[ ]`
 **Scope:** Update `microservices/core/application/room/download.ts`
 to issue signed claim tokens alongside the S3 pre-signed URL, point
@@ -189,6 +203,7 @@ within 60s).
 ---
 
 ## T-014 — Handlers: grants, exclusions, NDA
+
 Status: `[ ]`
 **Scope:** Wire application into HTTP per design.md. All routes
 behind `requires(target, capability)` decorator. 404 vs. 403 branch
@@ -202,6 +217,7 @@ applied per role.
 ---
 
 ## T-015 — Apply middleware to room-and-folders handlers
+
 Status: `[ ]`
 **Scope:** Add `requires(...)` to every handler in
 `microservices/core/handlers/rooms`, `opportunities`, `documents`,
@@ -216,6 +232,7 @@ tests verifying denial behaviour per role.
 ---
 
 ## T-016 — Web: grant creation + management UI
+
 Status: `[ ]`
 **Scope:** Pages for admin: create external grant (invite flow, opens
 from `Opportunities/:id` view), list grants, edit (tier + expiry),
@@ -228,6 +245,7 @@ revoke. Includes expiring-soon highlight.
 ---
 
 ## T-017 — Web: external-user NDA + scoped view
+
 Status: `[ ]`
 **Scope:** External-user-only pages: NDA acceptance screen; scoped
 document list (only the granted Opportunity); preview-only UX for
@@ -239,6 +257,7 @@ document list (only the granted Opportunity); preview-only UX for
 ---
 
 ## T-018 — Web: NDA template editing (admin)
+
 Status: `[ ]`
 **Scope:** Settings → NDA template editor. Markdown-aware. Shows
 version history. Save → new version.
@@ -250,6 +269,7 @@ bound to old.
 ---
 
 ## T-019 — Observability: metrics + alerts
+
 Status: `[ ]`
 **Scope:** Emit the metrics named in design.md §Observability; wire
 alarms.
@@ -261,6 +281,7 @@ alarms.
 ---
 
 ## T-020 — NFR hardening pass
+
 Status: `[ ]`
 **Scope:** Verify NFR1 (≤20ms p95 enforcement), NFR2 (no resource
 existence leak — automated corpus test), NFR3 (idempotent expiry),
@@ -274,6 +295,7 @@ revocation — timing test), NFR7 (audit log 90-day query latency).
 ---
 
 ## T-021 — Playwright acceptance suite
+
 Status: `[ ]`
 **Scope:** One spec per AC-US1–AC-US9.
 **Files (likely):** `tests/e2e/access-control/*.spec.ts`.
@@ -282,6 +304,7 @@ Status: `[ ]`
 ---
 
 ## T-022 — Slice sign-off + ADRs
+
 Status: `[ ]`
 **Scope:** Draft ADR-004 (grant table extension) + ADR-005 (authz
 middleware) linked from design.md. Traceability matrix. Tag
@@ -315,10 +338,12 @@ T-022 last
 ```
 
 Parallelisable after T-006:
+
 - T-007 / T-008 / T-009 / T-010 / T-011 / T-012 — independent.
 - Web tasks (T-016 / T-017 / T-018) after T-014.
 
 ## Acceptance for the slice
-1. All AC-US* in `requirements.md` pass in Playwright.
+
+1. All AC-US\* in `requirements.md` pass in Playwright.
 2. T-022 traceability + ADRs merged.
 3. `v0.3.0-access-control` tagged.

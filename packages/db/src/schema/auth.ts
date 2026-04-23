@@ -63,7 +63,9 @@ export const auditOutcome = pgEnum("audit_outcome", ["success", "failure"]);
 export const organizations = pgTable(
   "organizations",
   {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
     workosOrgId: text("workos_org_id").notNull(),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
@@ -86,7 +88,9 @@ export const organizations = pgTable(
 export const users = pgTable(
   "users",
   {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
     workosUserId: text("workos_user_id").notNull(),
     email: text("email"), // citext in migration; nullable after lifecycle=deleted PII scrub
     fullName: text("full_name"),
@@ -113,7 +117,9 @@ export const users = pgTable(
 export const orgMemberships = pgTable(
   "org_memberships",
   {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
     orgId: uuid("org_id")
       .notNull()
       .references(() => organizations.id),
@@ -140,7 +146,9 @@ export const orgMemberships = pgTable(
 export const externalAccessGrants = pgTable(
   "external_access_grants",
   {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
     orgId: uuid("org_id")
       .notNull()
       .references(() => organizations.id),
@@ -171,7 +179,9 @@ export const externalAccessGrants = pgTable(
 export const invitations = pgTable(
   "invitations",
   {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
     workosInvitationId: text("workos_invitation_id").notNull(),
     orgId: uuid("org_id")
       .notNull()
@@ -204,7 +214,9 @@ export const invitations = pgTable(
 export const auditEvents = pgTable(
   "audit_events",
   {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
     occurredAt: timestamp("occurred_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -219,10 +231,7 @@ export const auditEvents = pgTable(
   },
   (t) => ({
     orgTimeIdx: index("audit_org_time_idx").on(t.orgId, t.occurredAt),
-    actorTimeIdx: index("audit_actor_time_idx").on(
-      t.actorUserId,
-      t.occurredAt,
-    ),
+    actorTimeIdx: index("audit_actor_time_idx").on(t.actorUserId, t.occurredAt),
     targetTimeIdx: index("audit_target_time_idx").on(
       t.targetUserId,
       t.occurredAt,

@@ -1,5 +1,4 @@
 import { coreAPI } from "./api";
-import { documentsBucket } from "./storage";
 
 const region = aws.getRegionOutput().name;
 
@@ -8,6 +7,10 @@ const region = aws.getRegionOutput().name;
 // components for the wizard, BFF aggregates for the dashboard). Keep the
 // Vite scaffold while we ship `auth-and-orgs` smoke routes; switch to
 // `sst.aws.Nextjs` in slice 2 when room UX needs SSR.
+//
+// `VITE_DOCUMENTS_BUCKET` is intentionally absent — the bucket is slice-2
+// infra and isn't declared until `room-and-folders`. Re-add here once
+// `infra/storage.ts` exports `documentsBucket`.
 export const frontend = new sst.aws.StaticSite("web", {
   path: "packages/web",
   build: {
@@ -17,6 +20,5 @@ export const frontend = new sst.aws.StaticSite("web", {
   environment: {
     VITE_REGION: region,
     VITE_CORE_API_URL: coreAPI.url,
-    VITE_DOCUMENTS_BUCKET: documentsBucket.name,
   },
 });

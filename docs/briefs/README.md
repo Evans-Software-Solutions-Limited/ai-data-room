@@ -10,6 +10,7 @@ one-page brief before it becomes a spec.
   validated enough to design.
 
 ## Categories
+
 - `/briefs/saas/` — product ideas
 - `/briefs/internal/` — automations for Bradley's fintech team
 - `/briefs/personal/` — Bradley's own workflow automations

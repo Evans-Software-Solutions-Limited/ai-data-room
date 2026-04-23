@@ -12,11 +12,13 @@ middleware body. Safe to ship v0.4 before v0.3 if scheduling demands
 it, but v0.3 is still the recommended order.
 
 ## Conventions
+
 Same as prior slices.
 
 ---
 
 ## T-001 — Migrations: templates + slots + slot_instances + column add
+
 Status: `[ ]`
 **Scope:** Drizzle migrations for `checklist_templates`,
 `checklist_slots`, `checklist_slot_instances`; add
@@ -33,6 +35,7 @@ matches schema file.
 ---
 
 ## T-002 — Domain: canonical template definitions in code
+
 Status: `[ ]`
 **Scope:** Create `microservices/core/domain/checklist/templates/`
 with one file per canonical folder + `opportunity_default.ts` +
@@ -51,6 +54,7 @@ shape (all slot_keys stable + unique within template; all
 ---
 
 ## T-003 — Domain: Curtis-signed canonical content
+
 Status: `[ ]`
 **Scope:** Replace placeholder slot lists in T-002 with the
 Curtis-approved canonical slots for the six folders +
@@ -65,6 +69,7 @@ criteria — future edits must be deliberate.
 ---
 
 ## T-004 — Domain: types + zod schemas
+
 Status: `[ ]`
 **Scope:** `TemplateDefinition`, `SlotDefinition`, `SlotCriteria`,
 `SlotState` enum, `SlotTransition`, `NaReason`. Zod schemas for
@@ -78,6 +83,7 @@ mark-na body, edit-slot body, completion response).
 ---
 
 ## T-005 — Infrastructure: repositories
+
 Status: `[ ]`
 **Scope:** `ChecklistTemplateRepo`, `ChecklistSlotRepo`,
 `ChecklistSlotInstanceRepo`. Query methods: `getTemplatesForOrg`,
@@ -93,6 +99,7 @@ Status: `[ ]`
 ---
 
 ## T-006 — Application: seed-on-org-create
+
 Status: `[ ]`
 **Scope:** `seedChecklistForOrg(orgId, tx)` — iterates code-level
 templates, inserts `checklist_templates`, `checklist_slots`, and
@@ -111,6 +118,7 @@ rolls back the org creation.
 ---
 
 ## T-007 — Application: Opportunity subroom slot cloning
+
 Status: `[ ]`
 **Scope:** Extend `room-and-folders`'s `createOpportunity` to
 additionally clone the org's `opportunity_default` template's slots
@@ -127,6 +135,7 @@ to that subroom; archiving the Opportunity leaves instances intact
 ---
 
 ## T-008 — Application: slot state machine
+
 Status: `[ ]`
 **Scope:** `approveSlot`, `rejectSlot(reason)`, `markSlotNa(reason)`,
 `clearSlotNa`, `resetSlot`. Each validates the current state,
@@ -141,24 +150,27 @@ event. Reject also clears `assigned_document_id`.
 ---
 
 ## T-009 — Application: slot assignment on upload
+
 Status: `[ ]`
 **Scope:** Extend `room-and-folders`'s `completeUpload` to:
+
 - accept optional `slotInstanceId` param on the initiate DTO;
 - on complete, set `document_versions.assigned_slot_instance_id`
   AND `checklist_slot_instances.assigned_document_id` +
   `state='uploaded'`;
 - emit `slot.uploaded` event for `ai-doc-sensecheck`.
-Uncategorised uploads skip this step (`slotInstanceId` null).
-**Files (likely):**
-`microservices/core/application/room/upload.ts` (modify),
-`microservices/core/application/checklist/assign.ts` (new).
-**DoD:** Upload with slot id → slot becomes `uploaded`; upload
-without → document is uncategorised.
-**Tests required:** Integration.
+  Uncategorised uploads skip this step (`slotInstanceId` null).
+  **Files (likely):**
+  `microservices/core/application/room/upload.ts` (modify),
+  `microservices/core/application/checklist/assign.ts` (new).
+  **DoD:** Upload with slot id → slot becomes `uploaded`; upload
+  without → document is uncategorised.
+  **Tests required:** Integration.
 
 ---
 
 ## T-010 — Application: slot revert on document soft-delete
+
 Status: `[ ]`
 **Scope:** Extend `room-and-folders`'s `softDeleteDocument` to: if
 the doc's current version has `assigned_slot_instance_id`, revert
@@ -172,6 +184,7 @@ Audit event: `slot_reset_by_document_delete`.
 ---
 
 ## T-011 — Application: template CRUD (admin)
+
 Status: `[ ]`
 **Scope:** `editSlot(templateId, slotId, patch)`, `addCustomSlot`,
 `hideSlot`, `reorderSlot`. All audit-logged. Admin-gated through the
@@ -184,6 +197,7 @@ Status: `[ ]`
 ---
 
 ## T-012 — Application: completion computation
+
 Status: `[ ]`
 **Scope:** `getFolderCompletion(orgId, canonical)` +
 `getOpportunityCompletion(opportunityId)` +
@@ -198,6 +212,7 @@ measurement.
 ---
 
 ## T-013 — Handlers: checklist + templates + completion
+
 Status: `[ ]`
 **Scope:** Wire application into HTTP per design.md. All routes
 behind `requires(target, capability)` decorator (slice 3's
@@ -212,6 +227,7 @@ middleware — a no-op shim until v0.3 lands).
 ---
 
 ## T-014 — Events: slot lifecycle emission
+
 Status: `[ ]`
 **Scope:** Emit `slot.uploaded`, `slot.approved`, `slot.rejected`,
 `slot.na_set`, `slot.na_cleared`, `slot.reset` to EventBridge so
@@ -225,6 +241,7 @@ Status: `[ ]`
 ---
 
 ## T-015 — Web: folder view with slot list
+
 Status: `[ ]`
 **Scope:** Canonical folder page lists required slots + their state;
 empty slots show an "Upload to this slot" button; filled slots show
@@ -239,6 +256,7 @@ the bottom.
 ---
 
 ## T-016 — Web: Opportunity subroom checklist
+
 Status: `[ ]`
 **Scope:** Opportunity page renders the cloned checklist same as
 folders; completion bar at top.
@@ -251,6 +269,7 @@ v0.2).
 ---
 
 ## T-017 — Web: slot detail + admin actions
+
 Status: `[ ]`
 **Scope:** Clicking a slot opens a side panel with guidance,
 criteria (read-only for non-admins), admin action buttons, upload
@@ -263,6 +282,7 @@ CTA, and history.
 ---
 
 ## T-018 — Web: template admin page
+
 Status: `[ ]`
 **Scope:** Settings → Checklist templates. List per-org templates;
 edit slot title / guidance / criteria / required / display_order;
@@ -274,6 +294,7 @@ add custom slot; hide slot.
 ---
 
 ## T-019 — Web: home-page completion widget
+
 Status: `[ ]`
 **Scope:** Home / room dashboard shows a progress ring per canonical
 folder + per non-archived Opportunity using
@@ -286,6 +307,7 @@ folder + per non-archived Opportunity using
 ---
 
 ## T-020 — Observability: metrics
+
 Status: `[ ]`
 **Scope:** Emit the metrics named in design.md §Observability. No
 alarms at v0.1.
@@ -297,6 +319,7 @@ alarms at v0.1.
 ---
 
 ## T-021 — Feature flag integration
+
 Status: `[ ]`
 **Scope:** Add `checklist_enabled` per-org feature flag. When
 disabled: upload flow skips slot picker; folder pages hide slot
@@ -311,6 +334,7 @@ compatibility). Default ON in prod.
 ---
 
 ## T-022 — NFR hardening pass
+
 Status: `[ ]`
 **Scope:** Verify NFR1 (completion p95 ≤100ms), NFR2 (no
 cross-tenant template reads — property test), NFR3 (template
@@ -322,6 +346,7 @@ customisation is per-org, never touches canonical code), NFR4
 ---
 
 ## T-023 — Playwright acceptance suite
+
 Status: `[ ]`
 **Scope:** One spec per AC-US1–AC-US6.
 **Files (likely):** `tests/e2e/doc-checklist/*.spec.ts`.
@@ -330,6 +355,7 @@ Status: `[ ]`
 ---
 
 ## T-024 — Slice sign-off + ADR-006
+
 Status: `[ ]`
 **Scope:** Draft ADR-006 (template snapshot per-org) linked from
 design.md. Traceability matrix. Tag `v0.4.0-doc-checklist`.
@@ -361,11 +387,13 @@ T-024 last
 ```
 
 Parallelisable after T-005:
+
 - T-008 / T-009 / T-010 / T-011 / T-012 — independent application units.
 - Web tasks (T-015–T-019) after T-013.
 
 ## Acceptance for the slice
-1. All AC-US* in `requirements.md` pass in Playwright.
+
+1. All AC-US\* in `requirements.md` pass in Playwright.
 2. T-024 traceability + ADR-006 merged.
 3. Curtis has signed off on the canonical template content (T-003).
 4. `v0.4.0-doc-checklist` tagged.

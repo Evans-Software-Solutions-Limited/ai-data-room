@@ -8,6 +8,7 @@
 **Depends on:** `auth-and-orgs`, `room-and-folders`
 
 ## Context
+
 `auth-and-orgs` gave us identity + role + Opportunity scope on an
 external grant. `room-and-folders` gave us folders and documents. This
 slice is the **enforcement and grant-management layer** between them:
@@ -17,6 +18,7 @@ viewing → revocation / expiry). This is the slice that makes the product
 safe to send to a real external party.
 
 ## Users & roles
+
 - **Primary user:** owner/admin issuing, monitoring, and revoking
   external access grants.
 - **Secondary users:** external viewers accepting NDAs and viewing
@@ -53,13 +55,14 @@ safe to send to a real external party.
 ## Functional requirements
 
 ### Grant model
+
 - **FR1** — An **access grant** associates one user with one
   resource-scope and one permission tier. Resource-scope is either:
   - the whole org (internal users, implicit from their membership), or
   - a single Opportunity subroom (external users).
-  Folder-level grants (e.g. "external user can see only `02_Financials`")
-  are **not in scope** at v0.1; the Opportunity subroom is the unit of
-  external access.
+    Folder-level grants (e.g. "external user can see only `02_Financials`")
+    are **not in scope** at v0.1; the Opportunity subroom is the unit of
+    external access.
 - **FR2** — Permission tiers at v0.1:
   - `viewer` — can list + open preview, cannot download.
   - `downloader` — `viewer` + can download the original file via
@@ -72,6 +75,7 @@ safe to send to a real external party.
   per-grant within a **1 day – 180 day** range at issuance time.
 
 ### External-user invite lifecycle
+
 - **FR4** — An owner/admin shall be able to invite an external user by
   email to a specific Opportunity subroom with: permission tier
   (`viewer` or `downloader`), `expires_at`, and an optional message.
@@ -97,6 +101,7 @@ safe to send to a real external party.
   user's perspective, and the transition is audit-logged.
 
 ### Internal-user visibility
+
 - **FR9** — Users with an `org_memberships` row in an org shall have
   implicit visibility to all six canonical folders and all
   `Opportunities/` subrooms in that org, subject to the permission
@@ -108,6 +113,7 @@ safe to send to a real external party.
   supported at v0.1.
 
 ### Enforcement
+
 - **FR11** — All endpoints that expose folder/document data from
   `room-and-folders` shall call the access-control enforcement layer
   on every request. Denials return 403; absence-as-denial (returning
@@ -119,6 +125,7 @@ safe to send to a real external party.
   revocation invalidates outstanding URLs within 60 seconds.
 
 ### Auditing
+
 - **FR13** — Every allow/deny decision shall be audit-logged with:
   actor user id, target resource (folder path or document id),
   permission requested (`view`/`download`/`upload`), outcome, and
@@ -131,6 +138,7 @@ safe to send to a real external party.
   accepting user id, source IP.
 
 ### Admin operations
+
 - **FR16** — Owners/admins shall be able to list all active grants in
   their org with filters: by Opportunity, by status
   (`pending_nda`/`active`/`revoked`/`expired`), by expiring-soon
@@ -204,6 +212,7 @@ safe to send to a real external party.
   Phase 2 (`learned-approve-reject`).
 
 ## Open questions
+
 - Do we offer the `viewer` tier at MVP, or ship with `downloader`
   only and add `viewer` later once we have watermarked preview?
   Leaning **ship both** — `viewer` is the safer default for sensitive
@@ -217,5 +226,6 @@ safe to send to a real external party.
   invisible to preserve confidentiality of sensitive Opportunities.
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Design phase unblocked

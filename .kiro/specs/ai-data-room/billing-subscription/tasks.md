@@ -8,11 +8,13 @@ Assumes `auth-and-orgs` (v0.1) is merged. Can run in parallel with
 slices 2–6 once slice 1 is done.
 
 ## Conventions
+
 Same as prior slices.
 
 ---
 
 ## T-001 — Migrations: subscriptions + plan catalogue + overrides + webhook log
+
 Status: `[ ]`
 **Scope:** Drizzle migrations for `org_subscriptions`,
 `plan_catalogue`, `plan_overrides`, `stripe_webhook_events` per
@@ -25,6 +27,7 @@ design.md.
 ---
 
 ## T-002 — Domain: plan module + types
+
 Status: `[ ]`
 **Scope:** `microservices/core/domain/billing/plans.ts` exports
 typed `PLANS` array. Types for `PlanMetric`, `PlanLimitError`,
@@ -38,6 +41,7 @@ schemas.
 ---
 
 ## T-003 — Plan catalogue seed
+
 Status: `[ ]`
 **Scope:** Deploy-time job that idempotently writes each plan to
 `plan_catalogue` from the `PLANS` module; pulls
@@ -50,6 +54,7 @@ Status: `[ ]`
 ---
 
 ## T-004 — Infrastructure: repositories + Stripe client wrapper
+
 Status: `[ ]`
 **Scope:** `OrgSubscriptionRepo`, `PlanCatalogueRepo`,
 `PlanOverrideRepo`, `WebhookEventRepo`. Stripe wrapper exposes
@@ -65,6 +70,7 @@ tested with fixture events.
 ---
 
 ## T-005 — Application: enforcePlanLimit helper
+
 Status: `[ ]`
 **Scope:** `enforcePlanLimit(orgId, metric, opts?)` per design.md.
 LRU cache keyed by `(orgId, metric)` 30s TTL. Throws
@@ -77,6 +83,7 @@ LRU cache keyed by `(orgId, metric)` 30s TTL. Throws
 ---
 
 ## T-006 — Application: lifecycle + state machine
+
 Status: `[ ]`
 **Scope:** `transitionTo(orgId, newStatus, ctx)` — single point
 for status changes. Validates legal transitions; emits audit event;
@@ -90,6 +97,7 @@ flushes LRU caches; emits in-app notifications via existing
 ---
 
 ## T-007 — Handlers: Stripe webhook
+
 Status: `[ ]`
 **Scope:** `POST /webhooks/stripe` — verify signature, idempotency
 log, dispatch by event type to lifecycle methods. Returns 200
@@ -103,6 +111,7 @@ trial_will_end).
 ---
 
 ## T-008 — Handlers: checkout + portal session creators
+
 Status: `[ ]`
 **Scope:** `POST /billing/checkout-session` (body `{planId}`),
 `POST /billing/portal-session`. Owner-only via `requires(...)`.
@@ -117,6 +126,7 @@ Stripe test cards.
 ---
 
 ## T-009 — Handlers: read endpoints
+
 Status: `[ ]`
 **Scope:** `GET /billing/subscription`, `GET /billing/usage`,
 `GET /billing/plans`. Owner/admin only.
@@ -127,6 +137,7 @@ Status: `[ ]`
 ---
 
 ## T-010 — Read-only middleware: requireWritesEnabled
+
 Status: `[ ]`
 **Scope:** Middleware that checks `org_subscriptions.status` ∈
 {active, trialing} on mutation routes. Wired into the existing
@@ -141,6 +152,7 @@ reads pass.
 ---
 
 ## T-011 — Apply enforcePlanLimit + requireWritesEnabled across slices
+
 Status: `[ ]`
 **Scope:** Modify the four call sites listed in design.md
 (invitations, opportunities, sensecheck, qna) to call
@@ -155,6 +167,7 @@ and corresponding handlers.
 ---
 
 ## T-012 — Reconciliation job
+
 Status: `[ ]`
 **Scope:** Daily lambda — recompute true counts vs. cached;
 recompute monthly usage; reconcile mirror against Stripe; emit
@@ -169,6 +182,7 @@ drift metrics + alerts.
 ---
 
 ## T-013 — CLI: billing-admin
+
 Status: `[ ]`
 **Scope:** Bun-based CLI per design.md §CLI. Auth: AWS IAM staff
 role. Audit-logs every action.
@@ -180,6 +194,7 @@ role. Audit-logs every action.
 ---
 
 ## T-014 — Web: pricing + signup plan picker
+
 Status: `[ ]`
 **Scope:** Plan picker component used in onboarding (slice 9) +
 upgrade flow. Shows three plans with limits + price + trial CTA.
@@ -192,6 +207,7 @@ upgrade flow. Shows three plans with limits + price + trial CTA.
 ---
 
 ## T-015 — Web: billing settings page
+
 Status: `[ ]`
 **Scope:** `/dashboard/settings/billing` — current plan, status,
 trial countdown, "manage subscription" button → Billing Portal,
@@ -204,6 +220,7 @@ trial countdown, "manage subscription" button → Billing Portal,
 ---
 
 ## T-016 — Web: read-only banners + 402 handling
+
 Status: `[ ]`
 **Scope:** Global banner shown when status ∈ {past_due, canceled,
 suspended}; toast on 402 responses with upgrade CTA. Specific
@@ -217,6 +234,7 @@ suspended}; toast on 402 responses with upgrade CTA. Specific
 ---
 
 ## T-017 — Observability: metrics + alerts
+
 Status: `[ ]`
 **Scope:** Emit metrics per design.md §Observability. Wire alarms.
 **Files (likely):**
@@ -228,6 +246,7 @@ Status: `[ ]`
 ---
 
 ## T-018 — NFR hardening pass
+
 Status: `[ ]`
 **Scope:** Verify NFR1 (no PAN/CVC in logs — scrub test),
 NFR2 (signature verify + idempotency — integration),
@@ -243,6 +262,7 @@ NFR7 (no payment metadata in logs).
 ---
 
 ## T-019 — Playwright acceptance suite
+
 Status: `[ ]`
 **Scope:** One spec per AC-US1–AC-US8 using Stripe test mode.
 **Files (likely):** `tests/e2e/billing/*.spec.ts`.
@@ -251,6 +271,7 @@ Status: `[ ]`
 ---
 
 ## T-020 — Slice sign-off
+
 Status: `[ ]`
 **Scope:** Confirm final pricing with Bradley; ADR-010 documenting
 plan structure + Stripe-as-SoT. Traceability matrix.
@@ -281,7 +302,8 @@ T-020 last
 ```
 
 ## Acceptance for the slice
-1. All AC-US* in `requirements.md` pass in Playwright (Stripe test
+
+1. All AC-US\* in `requirements.md` pass in Playwright (Stripe test
    mode).
 2. CLI happy-path verified manually against staging.
 3. Pricing confirmed and committed to `plans.ts`.

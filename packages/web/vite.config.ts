@@ -72,6 +72,7 @@ export default defineConfig({
         "**/components/ui/**",
         "src/main.tsx",
         "src/vite-env.d.ts",
+        "src/sst-env.d.ts",
       ],
     },
   },

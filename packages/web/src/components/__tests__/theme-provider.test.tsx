@@ -123,4 +123,17 @@ describe("useTheme", () => {
     // The default theme from initialState is "system"
     expect(screen.getByTestId("theme").textContent).toBe("system");
   });
+
+  it("noop setTheme on initialState does nothing without crashing", () => {
+    // Exercises the default `setTheme: () => {}` so v8 counts it as covered
+    // and confirms the noop is safe to call when no provider wraps the tree.
+    render(<TestConsumer />);
+
+    act(() => {
+      screen.getByText("Set Dark").click();
+    });
+
+    // Theme stays at the initialState default — the noop didn't update it.
+    expect(screen.getByTestId("theme").textContent).toBe("system");
+  });
 });

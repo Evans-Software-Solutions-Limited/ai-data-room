@@ -6,6 +6,7 @@
 **Depends on:** `room-and-folders`, `doc-checklist`
 
 ## Summary
+
 Sense-check runs as an async worker subscribed to `slot.uploaded`
 events. The worker: extracts text (tier-1 PDF/DOCX/XLSX/PPTX
 in-house; images via Anthropic native document blocks), truncates to
@@ -56,68 +57,73 @@ flowchart LR
 ## Data model
 
 ### `ai_decisions`
+
 Persistent record of every AI verdict. Source of truth for the admin
 UI and for eval datasets.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | |
-| `document_version_id` | `uuid` FK `document_versions.id` | |
-| `slot_instance_id` | `uuid` FK `checklist_slot_instances.id` | |
-| `model_id` | `text` | e.g. `claude-haiku-4-5-20251001`. |
-| `prompt_version` | `text` | Refs a row in `prompt_versions`. |
-| `verdict` | `enum('green','yellow','red')` | |
-| `confidence` | `numeric(3,2)` | 0.00–1.00. |
-| `rationale` | `text` | Short human-readable. |
-| `matched_criteria` | `text[]` | Echoed from criteria set. |
-| `missing_criteria` | `text[]` | |
-| `input_tokens` | `int` | |
-| `output_tokens` | `int` | |
-| `latency_ms` | `int` | End-to-end worker time. |
-| `failure_reason` | `text` nullable | Populated when `verdict='yellow'` is from a fallback. |
-| `auto_applied` | `boolean` | True when the verdict drove a state transition automatically. |
-| `superseded_by` | `uuid` nullable FK `ai_decisions.id` | Set when an admin re-checks. |
-| `created_at` | `timestamptz` | |
+| Column                | Type                                    | Notes                                                         |
+| --------------------- | --------------------------------------- | ------------------------------------------------------------- |
+| `id`                  | `uuid` PK                               |                                                               |
+| `org_id`              | `uuid` FK                               |                                                               |
+| `document_version_id` | `uuid` FK `document_versions.id`        |                                                               |
+| `slot_instance_id`    | `uuid` FK `checklist_slot_instances.id` |                                                               |
+| `model_id`            | `text`                                  | e.g. `claude-haiku-4-5-20251001`.                             |
+| `prompt_version`      | `text`                                  | Refs a row in `prompt_versions`.                              |
+| `verdict`             | `enum('green','yellow','red')`          |                                                               |
+| `confidence`          | `numeric(3,2)`                          | 0.00–1.00.                                                    |
+| `rationale`           | `text`                                  | Short human-readable.                                         |
+| `matched_criteria`    | `text[]`                                | Echoed from criteria set.                                     |
+| `missing_criteria`    | `text[]`                                |                                                               |
+| `input_tokens`        | `int`                                   |                                                               |
+| `output_tokens`       | `int`                                   |                                                               |
+| `latency_ms`          | `int`                                   | End-to-end worker time.                                       |
+| `failure_reason`      | `text` nullable                         | Populated when `verdict='yellow'` is from a fallback.         |
+| `auto_applied`        | `boolean`                               | True when the verdict drove a state transition automatically. |
+| `superseded_by`       | `uuid` nullable FK `ai_decisions.id`    | Set when an admin re-checks.                                  |
+| `created_at`          | `timestamptz`                           |                                                               |
 
 Indexes:
+
 - `(org_id, created_at DESC)` for queue + activity views.
 - `(slot_instance_id, created_at DESC)` for per-slot history.
 
 ### `prompt_versions`
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `text` PK | e.g. `sensecheck@2026-04-21.v1`. |
-| `sha256` | `text` | Hash of the prompt template file contents. |
-| `model_default` | `text` | Default model this prompt targets. |
-| `created_at` | `timestamptz` | |
-| `is_current` | `boolean` | Exactly one row where true at a time. |
+
+| Column          | Type          | Notes                                      |
+| --------------- | ------------- | ------------------------------------------ |
+| `id`            | `text` PK     | e.g. `sensecheck@2026-04-21.v1`.           |
+| `sha256`        | `text`        | Hash of the prompt template file contents. |
+| `model_default` | `text`        | Default model this prompt targets.         |
+| `created_at`    | `timestamptz` |                                            |
+| `is_current`    | `boolean`     | Exactly one row where true at a time.      |
 
 Prompts live in code; this table is a registry that pins decisions
 to a specific prompt fingerprint. On deploy, a seed job inserts the
 row if `sha256` is new.
 
 ### `sensecheck_usage_counters`
+
 Per-org monthly running total. Decrementless.
 
-| Column | Type | Notes |
-|---|---|---|
-| `org_id` | `uuid` PK part | |
-| `year_month` | `char(7)` PK part | `2026-04`. |
-| `calls` | `int` default 0 | Incremented atomically on each decision. |
-| `last_updated_at` | `timestamptz` | |
+| Column            | Type              | Notes                                    |
+| ----------------- | ----------------- | ---------------------------------------- |
+| `org_id`          | `uuid` PK part    |                                          |
+| `year_month`      | `char(7)` PK part | `2026-04`.                               |
+| `calls`           | `int` default 0   | Incremented atomically on each decision. |
+| `last_updated_at` | `timestamptz`     |                                          |
 
 Enforces NFR5 (500/org/month hard ceiling at v0.1). Reset implicit
 by `year_month` partitioning.
 
 ### `sensecheck_rate_budgets`
+
 Per-org per-minute token bucket for FR11 (60 calls/org/minute).
 
-| Column | Type | Notes |
-|---|---|---|
-| `org_id` | `uuid` PK | |
-| `window_start` | `timestamptz` | Truncated to minute. |
-| `calls_in_window` | `int` | |
+| Column            | Type          | Notes                |
+| ----------------- | ------------- | -------------------- |
+| `org_id`          | `uuid` PK     |                      |
+| `window_start`    | `timestamptz` | Truncated to minute. |
+| `calls_in_window` | `int`         |                      |
 
 Implemented as a Redis counter with 60s TTL in hot-path (fallback to
 this table if Redis missing in local dev).
@@ -137,18 +143,24 @@ Each file exports:
 
 ```ts
 export const prompt_v1 = {
-  id: 'sensecheck@2026-04-21.v1',
-  modelDefault: 'claude-haiku-4-5-20251001',
+  id: "sensecheck@2026-04-21.v1",
+  modelDefault: "claude-haiku-4-5-20251001",
   system: `You are an assistant that decides whether an uploaded
 document fits the slot it was assigned to. You return STRICT JSON
 matching the schema below. Never include anything outside the JSON.
 …`,
   userTemplate: (input) => [
-    { type: 'text', text: `Slot: ${input.slotTitle}` },
-    { type: 'text', text: `Expected: ${input.criteria.plainLanguage}` },
-    { type: 'text', text: `Must include: ${input.criteria.mustInclude.join(', ')}` },
-    { type: 'text', text: `Must not include: ${input.criteria.mustNotInclude.join(', ')}` },
-    { type: 'text', text: `Document (truncated):\n${input.summary}` },
+    { type: "text", text: `Slot: ${input.slotTitle}` },
+    { type: "text", text: `Expected: ${input.criteria.plainLanguage}` },
+    {
+      type: "text",
+      text: `Must include: ${input.criteria.mustInclude.join(", ")}`,
+    },
+    {
+      type: "text",
+      text: `Must not include: ${input.criteria.mustNotInclude.join(", ")}`,
+    },
+    { type: "text", text: `Document (truncated):\n${input.summary}` },
   ],
   responseSchema: DecisionSchema,
 };
@@ -163,14 +175,14 @@ malformed output, human review needed" rationale.
 Synchronous, in-process inside the worker lambda, gated by file
 type. Fallback order:
 
-| MIME | Primary | Fallback |
-|---|---|---|
-| `application/pdf` | `pdf-parse` | Anthropic PDF native block (for scanned/image-heavy PDFs > 2 pages of pure image) |
-| `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | `mammoth` → markdown | — |
-| `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | `xlsx` → first 5 sheets summarised | — |
-| `application/vnd.openxmlformats-officedocument.presentationml.presentation` | `pptx` text frame extraction | — |
-| `image/png`, `image/jpeg` | Anthropic native image block | — |
-| Other | Skip → `yellow` "unsupported file type for sense-check" | — |
+| MIME                                                                        | Primary                                                 | Fallback                                                                          |
+| --------------------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `application/pdf`                                                           | `pdf-parse`                                             | Anthropic PDF native block (for scanned/image-heavy PDFs > 2 pages of pure image) |
+| `application/vnd.openxmlformats-officedocument.wordprocessingml.document`   | `mammoth` → markdown                                    | —                                                                                 |
+| `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`         | `xlsx` → first 5 sheets summarised                      | —                                                                                 |
+| `application/vnd.openxmlformats-officedocument.presentationml.presentation` | `pptx` text frame extraction                            | —                                                                                 |
+| `image/png`, `image/jpeg`                                                   | Anthropic native image block                            | —                                                                                 |
+| Other                                                                       | Skip → `yellow` "unsupported file type for sense-check" | —                                                                                 |
 
 Extraction budget = **5,000 tokens** (≈3,750 words).
 Over-budget → truncate and note "_truncated at N pages_" in the
@@ -182,6 +194,7 @@ the model.
 ## Lifecycle
 
 ### Happy path
+
 1. `doc-checklist/assignDocument` emits `slot.uploaded`.
 2. EventBridge rule routes to `sensecheck-jobs` SQS queue.
 3. Worker polls queue, pulls message, loads
@@ -201,16 +214,18 @@ the model.
 11. Emit `slot.ai_checked` event carrying the verdict.
 
 ### Failure paths
-| Failure | Handling |
-|---|---|
-| Extraction throws | `yellow` + `failure_reason='extraction_failed'`. |
+
+| Failure                 | Handling                                                                                                 |
+| ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| Extraction throws       | `yellow` + `failure_reason='extraction_failed'`.                                                         |
 | Anthropic 5xx / timeout | SQS retry (up to 3 times, backoff). Final failure → `yellow` + `failure_reason='anthropic_unavailable'`. |
-| Content policy refusal | `yellow` + `failure_reason='content_policy'`. |
-| Zod parse fail | No retry (prompt regression). `yellow` + `failure_reason='bad_model_output'`. Alert fires. |
-| Quota exceeded | No call; `yellow` + `failure_reason='quota_exceeded'`. No auto-approve. |
-| DLQ | Dead-letter queue alarms; engineer follows runbook. |
+| Content policy refusal  | `yellow` + `failure_reason='content_policy'`.                                                            |
+| Zod parse fail          | No retry (prompt regression). `yellow` + `failure_reason='bad_model_output'`. Alert fires.               |
+| Quota exceeded          | No call; `yellow` + `failure_reason='quota_exceeded'`. No auto-approve.                                  |
+| DLQ                     | Dead-letter queue alarms; engineer follows runbook.                                                      |
 
 ### Re-check on demand
+
 Admin triggers `POST /slots/:instanceId/ai-recheck`. Worker is
 invoked directly (not via SQS) to get synchronous-ish UX.
 Previous decision's `superseded_by` is set to the new decision id.
@@ -218,19 +233,22 @@ Previous decision's `superseded_by` is set to the new decision id.
 ## Interfaces
 
 ### HTTP (behind `requires(...)` from `access-control`)
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/orgs/:orgId/ai-decisions/queue` | List non-auto-approved decisions pending admin review (FR6). |
-| `GET` | `/orgs/:orgId/ai-decisions/:decisionId` | Detail: full decision + linked slot + document. |
-| `POST` | `/orgs/:orgId/slots/:instanceId/ai-recheck` | Force a re-check. |
-| `GET` | `/orgs/:orgId/settings/sensecheck` | Read org toggle (`auto_approve_green`, current prompt, current model). |
-| `PATCH` | `/orgs/:orgId/settings/sensecheck` | Admin updates `auto_approve_green`. |
-| `GET` | `/orgs/:orgId/usage/sensecheck` | Monthly counter + remaining. |
+
+| Method  | Path                                        | Purpose                                                                |
+| ------- | ------------------------------------------- | ---------------------------------------------------------------------- |
+| `GET`   | `/orgs/:orgId/ai-decisions/queue`           | List non-auto-approved decisions pending admin review (FR6).           |
+| `GET`   | `/orgs/:orgId/ai-decisions/:decisionId`     | Detail: full decision + linked slot + document.                        |
+| `POST`  | `/orgs/:orgId/slots/:instanceId/ai-recheck` | Force a re-check.                                                      |
+| `GET`   | `/orgs/:orgId/settings/sensecheck`          | Read org toggle (`auto_approve_green`, current prompt, current model). |
+| `PATCH` | `/orgs/:orgId/settings/sensecheck`          | Admin updates `auto_approve_green`.                                    |
+| `GET`   | `/orgs/:orgId/usage/sensecheck`             | Monthly counter + remaining.                                           |
 
 ### Events emitted
+
 - `slot.ai_checked` — payload `{ orgId, slotInstanceId, decisionId, verdict, confidence, autoApplied }`.
 
 ### Events consumed
+
 - `slot.uploaded` — from `doc-checklist`.
 
 ## Key trade-offs
@@ -241,20 +259,20 @@ Previous decision's `superseded_by` is set to the new decision id.
   for free; (c) the `ai_checking` transitional state gives the
   uploader immediate feedback while they wait. The cost is latency
   to first verdict (but UX-wise, "AI is thinking…" is acceptable).
-  → [ADR-007](../../../adr/007-sensecheck-async.md) *(to be drafted)*
+  → [ADR-007](../../../adr/007-sensecheck-async.md) _(to be drafted)_
 
 - **Anthropic-only, no third-party OCR** — NFR1 dictates this.
   Scanned PDFs handled by Anthropic's native PDF block, not AWS
   Textract, keeping document content inside a single vendor boundary
-  + our own AWS. This is cheaper than Textract per page for
-  light/moderate volumes at v0.1.
+  - our own AWS. This is cheaper than Textract per page for
+    light/moderate volumes at v0.1.
 
 - **Haiku 4.5 as v0.1 default** — chose Haiku over Sonnet because the
   fit/don't-fit decision is coarse; offline eval in the design phase
   showed Haiku matches Sonnet on this task within 3pp while being
   ~5x cheaper and 3x faster. `model` is a per-prompt config so
   upgrading is a one-line change (NFR4). ADR-008 planned.
-  → [ADR-008](../../../adr/008-sensecheck-model-default.md) *(to be drafted)*
+  → [ADR-008](../../../adr/008-sensecheck-model-default.md) _(to be drafted)_
 
 - **Prompt versions in DB registry vs. pure code** — chose a tiny DB
   registry so decisions can reference a stable id (text FK) even if
@@ -294,6 +312,7 @@ Previous decision's `superseded_by` is set to the new decision id.
 confidence, inputTokens, outputTokens, latencyMs, failureReason?`.
 
 **Metrics:**
+
 - `sensecheck.decisions{verdict}` — count.
 - `sensecheck.latency_ms` — histogram.
 - `sensecheck.auto_approval_rate` — ratio (rolling 7d).
@@ -305,6 +324,7 @@ confidence, inputTokens, outputTokens, latencyMs, failureReason?`.
 - `sensecheck.quota.reaches_ceiling` — count per org per month.
 
 **Alerts:**
+
 - `decisions.bad_model_output > 1% over 15min` — likely prompt
   regression. Page engineer.
 - `decisions.anthropic_unavailable > 5% over 15min` — upstream
@@ -314,6 +334,7 @@ confidence, inputTokens, outputTokens, latencyMs, failureReason?`.
 ## Eval harness (minimal v0.1)
 
 `bun run eval:sensecheck` CLI:
+
 1. Loads a golden set (`tests/fixtures/sensecheck/*.json`) —
    each entry: `{ docPath, slotKey, expectedVerdict }`.
 2. Runs the current prompt against each.
@@ -333,6 +354,7 @@ consumed, slots stay at `uploaded` until admin action. Default ON
 in prod.
 
 Phased launch:
+
 1. **Internal only** — feature flag on for Capital Pay pilot org
    only. Run the eval harness nightly.
 2. **Early-access** — flag on for the first 10 customer orgs.
@@ -358,5 +380,6 @@ Migrations: add `ai_decisions`, `prompt_versions`,
   (`ai_decisions.model_id`).
 
 ## Sign-off
+
 - [ ] Bradley reviewed
 - [ ] Tasks phase unblocked

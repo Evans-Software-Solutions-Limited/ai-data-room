@@ -1,4 +1,3 @@
-import { vi } from "vitest";
 import { getEnv, getEnvRaw, getEnvOrDefault } from "../getEnv";
 
 describe("getEnvRaw", () => {
