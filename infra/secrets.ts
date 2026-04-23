@@ -26,6 +26,19 @@ export const workos_webhook_secret = new sst.Secret("WORKOS_WEBHOOK_SECRET");
 // WorkOS dashboard; you mint it yourself. Don't reuse across stages.
 export const workos_cookie_password = new sst.Secret("WORKOS_COOKIE_PASSWORD");
 
+// ── auth-and-orgs T-003 (DB setup, ADR-002 Postgres + Drizzle) ─────────
+// PlanetScale Postgres connection string for the canonical domain DB.
+// Format: postgres://user:pass@host:5432/db?sslmode=require
+// Provision per stage out-of-band (PlanetScale dashboard) and:
+//   bun sst secret set PLANETSCALE_DATABASE_URL <url> --stage <stage>
+// Consumed by `packages/db/src/index.ts#getDb()` from
+// `Resource.PLANETSCALE_DATABASE_URL.value` at handler entry. Bound to
+// the core API Lambda in infra/api.ts and to drizzle-kit at migration
+// time via the same env var (see packages/db/drizzle.config.ts).
+export const planetscale_database_url = new sst.Secret(
+  "PLANETSCALE_DATABASE_URL",
+);
+
 // ── DEFERRED — declare in the slice that first needs them ──────────────
 // Each comment marks the slice + task that should add the declaration.
 //
@@ -34,4 +47,3 @@ export const workos_cookie_password = new sst.Secret("WORKOS_COOKIE_PASSWORD");
 // ai-search-qna (slice 6 T-???):        VOYAGE_API_KEY
 // billing-subscription (slice 8 T-???): STRIPE_API_KEY, STRIPE_WEBHOOK_SECRET
 // onboarding-flow (slice 9 T-???):      POSTHOG_API_KEY
-// auth-and-orgs T-003 (db setup):       PLANETSCALE_DATABASE_URL
