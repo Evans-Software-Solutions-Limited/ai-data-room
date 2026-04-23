@@ -13,9 +13,14 @@ type ThemeProviderState = {
   setTheme: (theme: Theme) => void;
 };
 
+// `setTheme` is a no-op in the default state — it's only meaningful once a
+// `ThemeProvider` wraps the consumer. The ThemeProvider tests exercise this
+// noop via a `<TestConsumer />` rendered without a provider.
 const initialState: ThemeProviderState = {
   theme: "system",
-  setTheme: () => null,
+  setTheme: () => {
+    /* noop until a ThemeProvider supplies the real setter */
+  },
 };
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
@@ -63,11 +68,8 @@ export function ThemeProvider({
   );
 }
 
-export const useTheme = () => {
-  const context = useContext(ThemeProviderContext);
-
-  if (context === undefined)
-    throw new Error("useTheme must be used within a ThemeProvider");
-
-  return context;
-};
+// `createContext(initialState)` guarantees `useContext` always returns a
+// `ThemeProviderState` (never `undefined`), so there's no defensive throw
+// here — using `useTheme` outside a `ThemeProvider` simply returns the
+// noop default.
+export const useTheme = () => useContext(ThemeProviderContext);
