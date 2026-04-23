@@ -146,10 +146,28 @@ jobs:
     name: DB Migration Smoke Test
     runs-on: ubuntu-latest
     needs: [install, changes]
-    # Only runs when packages/db changes. Spins up a Postgres testcontainer
-    # via @testcontainers/postgresql; ubuntu-latest runners have docker
-    # pre-installed.
+    # Only runs when packages/db changes. Stands up a Postgres native
+    # GitHub Actions service container — same shape as FDP's
+    # integration job (mysql there, postgres here). Mirrors the local
+    # docker-compose at packages/db/test/integration/docker-compose.yml
+    # so "works locally, fails in CI" is unlikely.
     if: needs.changes.outputs.db == 'true'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ai_data_room
+          POSTGRES_PASSWORD: ai_data_room
+          POSTGRES_DB: ai_data_room_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_data_room -d ai_data_room_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      INTEGRATION_DATABASE_URL: postgres://ai_data_room:ai_data_room@localhost:5433/ai_data_room_test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -157,5 +175,5 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
-      - name: Migration smoke test (testcontainers)
+      - name: Migration smoke test
         run: bun run db:test:integration

@@ -1,26 +1,25 @@
 import { defineConfig } from "vitest/config";
 
-// Integration suite. Spins up a Postgres testcontainer per file, applies
-// the committed migrations against it, and asserts schema-level
-// invariants. Requires a running docker daemon — locally and in CI. The
-// PR-checks workflow gates this behind the `db` path filter so web-only
-// PRs aren't paying the container start-up cost.
+// Integration suite. Talks to a real Postgres — locally via
+// `docker compose -f packages/db/test/integration/docker-compose.yml
+// up -d`, in CI via the `db-integration` workflow's
+// `services: postgres:` block. See `test/integration/README.md` for
+// the full devx walkthrough.
 //
-// Coverage is intentionally NOT measured here — these tests assert that
-// the migration wiring works end-to-end, not that any TS branch is
+// Coverage is intentionally NOT measured here — these tests assert
+// that migration wiring works end-to-end, not that any TS branch is
 // reached. The unit suite (vitest.config.ts) owns the 90% gate.
 export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["src/__tests__/integration/**/*.test.ts"],
-    // Container start-up + migrate is slow; give each test plenty of room
-    // before vitest forces a timeout.
-    testTimeout: 120_000,
-    hookTimeout: 120_000,
-    // One container per test file is enough; running them in parallel
-    // would multiply RAM + Docker socket pressure for no real benefit at
-    // current size.
+    include: ["test/integration/**/*.integration.test.ts"],
+    // Migration apply + container readiness can be slow on cold runs;
+    // mirror FDP's 60s test / 30s hook budget.
+    testTimeout: 60_000,
+    hookTimeout: 30_000,
+    // One file at a time keeps the truncate-between-tests pattern
+    // safe even if a future test file forgets `beforeEach`.
     fileParallelism: false,
   },
 });
