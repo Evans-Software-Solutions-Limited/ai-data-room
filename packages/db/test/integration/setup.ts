@@ -50,6 +50,14 @@ export function getTestPool(): ReturnType<typeof postgres> {
       // Lambda-style settings don't apply here (no cold-start churn);
       // we just want predictable test behaviour.
       prepare: false,
+      // Drizzle's migrator runs `CREATE SCHEMA IF NOT EXISTS drizzle`
+      // and `CREATE TABLE IF NOT EXISTS __drizzle_migrations` on every
+      // call, which Postgres responds to with NOTICE messages that
+      // postgres.js logs to stdout. Silence them to keep CI output
+      // readable; if a test fails we still get the real error.
+      onnotice: () => {
+        /* swallowed — see comment above */
+      },
     });
   }
   return pool;
@@ -57,9 +65,11 @@ export function getTestPool(): ReturnType<typeof postgres> {
 
 /**
  * Apply every committed migration against the test DB. Idempotent —
- * Drizzle's migrator records applied migrations in
- * `__drizzle_migrations` and skips ones it has already run, so calling
- * this in `beforeAll` of every test file is safe and cheap.
+ * Drizzle's migrator records applied migrations in its own
+ * `drizzle.__drizzle_migrations` bookkeeping table (note: separate
+ * `drizzle` schema as of drizzle-orm 0.30+) and skips ones it has
+ * already run, so calling this in `beforeAll` of every test file is
+ * safe and cheap.
  */
 export async function applyMigrations(): Promise<void> {
   const sql = getTestPool();
@@ -69,13 +79,15 @@ export async function applyMigrations(): Promise<void> {
 
 /**
  * Wipe every table the migrations created, leaving the schema (and
- * Drizzle's bookkeeping table) intact. Use in `beforeEach` to keep
- * cases hermetic without paying the cost of dropping + re-applying the
- * migration set.
+ * Drizzle's bookkeeping in the separate `drizzle` schema) intact. Use
+ * in `beforeEach` to keep cases hermetic without paying the cost of
+ * dropping + re-applying the migration set.
  *
  * Discovery is by query against `information_schema` rather than a
  * hard-coded list — adding a table in T-005 (or any future slice) does
- * not require a touch here.
+ * not require a touch here. The `table_schema = 'public'` clause
+ * naturally excludes drizzle's `__drizzle_migrations` (which lives
+ * under `drizzle.*` since drizzle-orm 0.30+).
  */
 export async function truncateAllTables(): Promise<void> {
   const sql = getTestPool();
@@ -84,7 +96,6 @@ export async function truncateAllTables(): Promise<void> {
     FROM information_schema.tables
     WHERE table_schema = 'public'
       AND table_type = 'BASE TABLE'
-      AND table_name <> '__drizzle_migrations'
   `;
   if (rows.length === 0) return;
   const list = rows.map((r) => `"${r.table_name}"`).join(", ");

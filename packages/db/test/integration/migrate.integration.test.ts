@@ -73,11 +73,13 @@ describe("drizzle migrations smoke test", () => {
 
   it("creates every table defined in src/schema/auth.ts", async () => {
     const sql = getTestPool();
+    // No need to filter `__drizzle_migrations` — it lives in the
+    // separate `drizzle` schema (drizzle-orm 0.30+), so the
+    // `table_schema = 'public'` clause already excludes it.
     const rows = await sql<{ table_name: string }[]>`
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-        AND table_name <> '__drizzle_migrations'
       ORDER BY table_name
     `;
     expect(rows.map((r) => r.table_name)).toEqual(EXPECTED_TABLES);
@@ -94,13 +96,23 @@ describe("drizzle migrations smoke test", () => {
     expect(rows.map((r) => r.typname)).toEqual(EXPECTED_ENUMS);
   });
 
-  it("rolls back cleanly when the public schema is dropped + recreated", async () => {
+  it("rolls back cleanly when public + drizzle schemas are dropped", async () => {
     const sql = getTestPool();
 
-    // Drop the schema (catastrophic-rollback floor) and re-apply.
-    // Proves nothing in the migration depends on side state outside
-    // the public schema.
-    await sql.unsafe("DROP SCHEMA public CASCADE");
+    // Drop both schemas (catastrophic-rollback floor) and re-apply.
+    // Why both:
+    //   - `public` holds the domain tables (organizations, users, …).
+    //   - `drizzle` holds drizzle's own `__drizzle_migrations`
+    //     bookkeeping table. Drizzle moved it out of `public` into
+    //     its own schema in drizzle-orm 0.30+. If we only drop
+    //     `public`, the bookkeeping survives, the migrator sees
+    //     `0000_init_auth_and_orgs` already recorded as applied,
+    //     and skips it — leaving `public` empty.
+    //
+    // Dropping both proves migrations re-apply cleanly from zero,
+    // which is the actual rollback contract we care about.
+    await sql.unsafe("DROP SCHEMA IF EXISTS public CASCADE");
+    await sql.unsafe("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await sql.unsafe("CREATE SCHEMA public");
 
     const tablesAfterDrop = await sql<{ count: string }[]>`
@@ -121,7 +133,6 @@ describe("drizzle migrations smoke test", () => {
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-        AND table_name <> '__drizzle_migrations'
       ORDER BY table_name
     `;
     expect(rowsAfterReapply.map((r) => r.table_name)).toEqual(EXPECTED_TABLES);
