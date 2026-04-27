@@ -14,3 +14,6 @@ packages/db/migrations/**/*.sql
 packages/db/migrations/meta/**
 # Bash scripts — not in prettier's parser set.
 scripts/*.sh
+# Local Claude Code state (gitignored; here so `prettier --check` on a
+# fresh clone with `.claude/settings.local.json` doesn't fail).
+.claude
