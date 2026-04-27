@@ -31,6 +31,7 @@ jobs:
       other-service: ${{ steps.filter.outputs.other-service }}
       api-utils: ${{ steps.filter.outputs.api-utils }}
       infra: ${{ steps.filter.outputs.infra }}
+      db: ${{ steps.filter.outputs.db }}
     steps:
       - uses: dorny/paths-filter@v3
         id: filter
@@ -54,6 +55,10 @@ jobs:
               - bun.lock
               - bun.lockb
               - .github/workflows/**
+            db:
+              - packages/db/**
+              - scripts/db-drift-check.sh
+              - .github/workflows/pr-checks.yml
 
       - name: Set has-changes
         id: set-any
@@ -62,7 +67,8 @@ jobs:
              [ "${{ steps.filter.outputs.core }}" == "true" ] || \
              [ "${{ steps.filter.outputs.other-service }}" == "true" ] || \
              [ "${{ steps.filter.outputs.api-utils }}" == "true" ] || \
-             [ "${{ steps.filter.outputs.infra }}" == "true" ]; then
+             [ "${{ steps.filter.outputs.infra }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.db }}" == "true" ]; then
             echo "has-changes=true" >> $GITHUB_OUTPUT
           else
             echo "has-changes=false" >> $GITHUB_OUTPUT
@@ -118,3 +124,56 @@ jobs:
 
       - name: Unit tests with coverage
         run: bun run test:unit
+
+  db-checks:
+    name: DB Drift Check
+    runs-on: ubuntu-latest
+    needs: [install, changes]
+    # Only runs when something in the filter set changed — saves a minute on
+    # web-only / infra-only PRs. The drift check itself is fast (<10s).
+    if: needs.changes.outputs.db == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Drizzle schema drift check
+        run: bun run db:check
+
+  db-integration:
+    name: DB Migration Smoke Test
+    runs-on: ubuntu-latest
+    needs: [install, changes]
+    # Only runs when packages/db changes. Stands up a Postgres native
+    # GitHub Actions service container — same shape as FDP's
+    # integration job (mysql there, postgres here). Mirrors the local
+    # docker-compose at packages/db/test/integration/docker-compose.yml
+    # so "works locally, fails in CI" is unlikely.
+    if: needs.changes.outputs.db == 'true'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ai_data_room
+          POSTGRES_PASSWORD: ai_data_room
+          POSTGRES_DB: ai_data_room_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_data_room -d ai_data_room_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      INTEGRATION_DATABASE_URL: postgres://ai_data_room:ai_data_room@localhost:5433/ai_data_room_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Migration smoke test
+        run: bun run db:test:integration

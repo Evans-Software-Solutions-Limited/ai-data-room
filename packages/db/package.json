@@ -18,6 +18,7 @@
     "lint": "eslint .",
     "test": "vitest",
     "test:unit": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "build": "tsc --noEmit"
   },
   "dependencies": {

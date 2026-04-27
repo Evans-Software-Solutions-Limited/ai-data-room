@@ -1,26 +1,39 @@
-# .kiro — checked-in spec snapshot
+# .kiro — feature specs
 
-Kiro-style spec-driven development: **Requirements → Design → Tasks → Implementation**.
+Kiro-style spec-driven development:
+**Requirements → Design → Tasks → Implementation**.
 
-## Canonical vs. snapshot
+Mirrors the layout of `funds-distribution-platform`'s `.kiro/specs/`.
 
-The canonical specs live in the **upstream project workspace** (not this repo):
+## Layout
 
 ```
-~/.../Automation, AI Workflows & Revenue Streams/specs/ai-data-room/<slice>/
-  requirements.md
-  design.md
-  tasks.md
+.kiro/specs/ai-data-room/<slice>/
+  requirements.md   user stories + acceptance criteria + NFRs
+  design.md         architecture, data model, API contracts, errors,
+                    observability, deployment, security
+  tasks.md          numbered T-001…T-NNN; each task references the
+                    requirements it satisfies
 ```
-
-`.kiro/specs/ai-data-room/` here is a **snapshot** of those specs, checked in so PRs have something to point at and Claude Code agents running inside the repo have the full context without needing to mount the Cowork workspace.
 
 ## Rules
 
-1. **Don't edit under `.kiro/specs/` from inside the repo.** Propose edits in the upstream workspace, get sign-off, then sync the snapshot down.
-2. **Sync cadence:** snapshot is updated whenever a slice's spec reaches a phase checkpoint (reqs signed off, design signed off, tasks drafted).
-3. **One slice per PR.** The snapshot and any code implementing the spec land together.
+1. **Specs are the contract.** Read all three files for a slice before
+   writing any code in that slice. Acceptance criteria (`AC-US*`) and
+   non-functional requirements (`NFR*`) are testable; generated code
+   must satisfy them.
+2. **Edit specs in place.** This is the canonical home — there is no
+   "upstream" copy to keep in sync. If you update a spec mid-slice,
+   either bundle it into the same PR as the implementation change, or
+   land a `chore(specs):` PR first.
+3. **One slice per PR's scope.** Code touching slice 5 doesn't edit
+   slice 6's spec.
+4. **Status fields matter.** Each `requirements.md` and `design.md`
+   has a status header (`draft` / `signed off`). Don't execute tasks
+   from a slice whose `design.md` isn't `signed off` yet — flag it in
+   the PR and surface the design question instead.
 
-## Per-slice status
+## Per-slice index
 
-See upstream `specs/ai-data-room/README.md` for the current sign-off state of each slice. As of the last snapshot: all 9 slices are **requirements + design + tasks drafted**, pending Bradley sign-off on design to unblock task execution for slice 1.
+See `.kiro/specs/ai-data-room/README.md` for the slice list and
+dependency order.

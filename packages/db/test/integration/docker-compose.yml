@@ -1,0 +1,61 @@
+# Local Postgres for integration tests + ad-hoc dev. Mirrors the
+# pattern used in funds-distribution-platform's
+# microservices/core/test/integration/docker-compose.yml — manually
+# started, ephemeral, separate from anything SST stands up.
+#
+# Names are explicitly project-scoped (`ai-data-room-*`) so this stack
+# can run alongside FDP's compose without colliding on Compose's
+# auto-generated project name (the parent dir for both files is
+# `integration/`, which would otherwise produce identical
+# project / network / container names).
+#
+# Start:    docker compose -f packages/db/test/integration/docker-compose.yml up -d
+# Stop:     docker compose -f packages/db/test/integration/docker-compose.yml down
+# Reset:    docker compose -f packages/db/test/integration/docker-compose.yml down -v
+# Inspect:  open http://localhost:8081 (Adminer) — System=PostgreSQL,
+#           Server=postgres, User=ai_data_room, Password=ai_data_room,
+#           Database=ai_data_room_test
+#           OR run `bun run db:studio` from the repo root for the
+#           schema-aware Drizzle Studio UI (separate dev server, not
+#           part of this compose).
+#
+# Connection string used by the integration suite when
+# INTEGRATION_DATABASE_URL is unset:
+#   postgres://ai_data_room:ai_data_room@localhost:5433/ai_data_room_test
+#
+# Port 5433 (not 5432) so a system-installed Postgres on the dev box
+# doesn't clash. Adminer on 8081 (not 8080) leaves room for FDP's
+# Adminer to keep using the standard 8080.
+
+name: ai-data-room-test-db
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ai-data-room-test-postgres
+    environment:
+      POSTGRES_USER: ai_data_room
+      POSTGRES_PASSWORD: ai_data_room
+      POSTGRES_DB: ai_data_room_test
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_data_room -d ai_data_room_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    tmpfs:
+      # RAM disk — fast, disposable between runs. Acceptable because
+      # the database exists only for tests; persistence is a non-goal.
+      - /var/lib/postgresql/data
+
+  adminer:
+    image: adminer:latest
+    container_name: ai-data-room-test-adminer
+    ports:
+      - "8081:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
