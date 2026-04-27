@@ -2,17 +2,18 @@
 
 AI-native secure data room. First revenue-stream SaaS from Evans Software Solutions Limited.
 
-> Spec-driven development using Kiro-style Requirements → Design → Tasks → Implementation.
-> Product context, briefs, and per-slice specs live in the upstream project workspace
-> (`~/.../Automation, AI Workflows & Revenue Streams/`): `briefs/`, `specs/`, `adr/`.
-> This repo is the implementation target. `.kiro/` contains the spec snapshot each PR lands against.
+> Spec-driven development, Kiro-style: Requirements → Design → Tasks → Implementation.
+>
+> All context lives in this repo. Start with [`AGENTS.md`](./AGENTS.md) (or [`CLAUDE.md`](./CLAUDE.md) if you're a Claude-family agent), then read the brief at [`docs/briefs/ai-data-room.md`](./docs/briefs/ai-data-room.md), then dive into the slice you're picking up at [`.kiro/specs/ai-data-room/<slice>/`](./.kiro/specs/ai-data-room/). Architecture decisions live in [`adr/`](./adr/).
+>
+> If you're a fresh agent walking in cold, read [`HANDOFF.md`](./HANDOFF.md) too — it covers what's currently in flight.
 
 ## Stack
 
 - **Infra:** AWS SST v4 (Ion), TypeScript end-to-end.
 - **Backend:** Elysia + Hono (Lambda adapter), layered domain / application / infrastructure / handlers.
-- **Database:** PlanetScale Postgres + Drizzle ORM + `drizzle-kit` (per ADR-002 in the upstream workspace).
-- **Auth:** WorkOS AuthKit + User Management (per ADR-001 in the upstream workspace).
+- **Database:** PlanetScale Postgres + Drizzle ORM + `drizzle-kit` (per [ADR-002](./adr/002-postgres-for-auth-domain.md)).
+- **Auth:** WorkOS AuthKit + User Management (per [ADR-001](./adr/001-workos-as-auth-platform.md)).
 - **Vector search:** `pgvector` in-VPC (slice 6).
 - **AI:** Claude Haiku 4.5 (sense-check), Claude Sonnet 4.6 (Q&A generator), Claude Haiku 4.5 (Q&A re-ranker).
 - **Payments:** Stripe Checkout + Billing Portal + signed webhooks.

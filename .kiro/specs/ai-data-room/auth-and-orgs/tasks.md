@@ -99,7 +99,7 @@ via SST. Pattern matches FDP's `infra/secrets.ts`.
 
 ## T-003 — Provision Postgres + drizzle setup
 
-Status: `[ ]`
+Status: `[x]` — closed 2026-04-23 on PR #2
 **Scope:** Stand up Postgres (PlanetScale or RDS — match FDP). Wire
 drizzle-kit, connection pool via `DATABASE_URL` secret. Create empty
 migrations directory and a CI check that `drizzle-kit generate` emits
@@ -113,6 +113,32 @@ no drift.
 - CI fails if schema and migrations are out of sync.
   **Tests required:** Smoke test that a trivial migration applies and
   rolls back cleanly.
+
+**Outcome notes (2026-04-23):**
+
+- Adopted PlanetScale Postgres per ADR-002. Connection string sourced
+  from `Resource.PLANETSCALE_DATABASE_URL.value`; secret declared in
+  `infra/secrets.ts` and linked to the `core-api` Lambda in
+  `infra/api.ts`. Same env var feeds `drizzle.config.ts` for migrate /
+  introspect / studio (all three CLI subcommands use it).
+- T-005 carve-out: T-003 absorbs the first auth migration (the schema
+  was already authored in T-001 for downstream design work). T-005
+  retains the augment-with-`citext`, partial-unique-index, manual
+  reverse, and per-repo integration-test deliverables.
+- Drift check is a tiny shell script (`scripts/db-drift-check.sh`)
+  exposed as `bun run db:check` and gated in CI under the `db` paths
+  filter — only fires on PRs that touch `packages/db/**`. Exits 1 on
+  drift with a one-liner remediation message.
+- Smoke test runs against a Postgres 16 testcontainer
+  (`@testcontainers/postgresql`) — applies `migrations/0000_*`,
+  asserts the 6 tables + 8 enums exist, drops `public` schema, re-
+  applies, asserts tables again. Lives at
+  `packages/db/src/__tests__/integration/migrate.test.ts` under a
+  separate vitest config so unit-test cycles stay docker-free.
+- `bun run db:migrate` against dev/staging is gated on Bradley
+  provisioning the PlanetScale database + setting
+  `PLANETSCALE_DATABASE_URL` per stage — captured in the PR description
+  as a post-merge action.
 
 ---
 
