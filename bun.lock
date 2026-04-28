@@ -22,6 +22,7 @@
         "@ai-data-room/db": "*",
         "@elysiajs/openapi": "^1.4.14",
         "@workos-inc/node": "^8.5.0",
+        "drizzle-orm": "^0.36.0",
         "elysia": "^1.4.23",
         "hono": "^4.11.9",
         "jwt-decode": "^4.0.0",

@@ -181,7 +181,7 @@ partial index for single-owner-per-org.
 
 ## T-006 — Infrastructure layer: WorkOS client wrapper
 
-Status: `[~]` (in PR review)
+Status: `[x]` — closed 2026-04-28 on PR #6
 **Scope:** Thin wrapper over `@workos-inc/node` exposing the
 operations we actually need: `userManagement.getAuthorizationUrl`,
 `authenticateWithCode`, `getUser`, `deleteUser`, `createInvitation`,
@@ -201,7 +201,7 @@ Mirror the pattern FDP uses. Webhook signature verification helper.
 
 ## T-007 — Infrastructure layer: repository for each aggregate
 
-Status: `[ ]`
+Status: `[~]` (in PR review)
 **Scope:** Drizzle-backed repositories: `OrgRepo`, `UserRepo`,
 `MembershipRepo`, `ExternalGrantRepo`, `InvitationRepo`, `AuditRepo`.
 Each exposes only the queries the application layer needs. No business

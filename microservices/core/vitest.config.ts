@@ -3,6 +3,11 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     globals: true,
+    // Unit suite scopes to `src/`. The integration suite under
+    // `test/integration/` is run by `vitest.integration.config.ts`
+    // — keep it out of the unit run so we don't try to talk to a
+    // real Postgres from the coverage suite.
+    include: ["src/**/__tests__/**/*.test.ts", "src/**/*.test.ts"],
     coverage: {
       provider: "v8",
       // Layered architecture (matches FDP + microservices/core/src/README.md):
@@ -31,6 +36,14 @@ export default defineConfig({
         // schemas themselves are covered in the api-utils workspace.
         // FDP precedent: same treatment for `domain/types/*.ts`.
         "src/domain/**/*.ts",
+        // T-007 typed repositories — exercised by the integration
+        // suite (`vitest run --config vitest.integration.config.ts`
+        // against a real Postgres) rather than the unit suite. A
+        // unit-level mock would just assert drizzle is called with
+        // the right query-builder shape, which is exactly what the
+        // integration test already proves end-to-end. Excluded from
+        // the unit gate so coverage isn't artificially deflated.
+        "src/infrastructure/db/**/*.ts",
       ],
       thresholds: {
         lines: 90,
