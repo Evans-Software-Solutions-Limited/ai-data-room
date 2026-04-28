@@ -10,7 +10,7 @@
 // query that the admin dashboard wants lands in slice 7 once the BFF
 // layer is designed. v0.1 needs only a recent-events-by-org listing.
 
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, lt, or } from "drizzle-orm";
 import type { Db } from "@ai-data-room/db";
 import { schema } from "@ai-data-room/db";
 import type {
@@ -78,6 +78,15 @@ export class AuditRepo {
    * desc, id desc)` — the existing `(org_id, occurred_at desc)` btree
    * (T-003) covers the predicate ordering. Defaulted limit, hard cap;
    * callers control page size but can't ask for the world.
+   *
+   * Cursor predicate is the composite
+   * `(occurredAt, id) < (cursor.occurredAt, cursor.id)` — encoded
+   * here as `occurredAt < cursor.occurredAt OR (occurredAt =
+   * cursor.occurredAt AND id < cursor.id)`. The id tiebreaker is
+   * load-bearing: two events written within the same millisecond
+   * (Postgres `now()` is microsecond-resolution but JS `Date` isn't)
+   * would otherwise be silently dropped between pages on the
+   * cursor-row's timestamp.
    */
   async listByOrg(
     orgId: string,
@@ -85,15 +94,24 @@ export class AuditRepo {
   ): Promise<AuditEvent[]> {
     const limit = Math.min(options.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
 
-    const predicates = [eq(auditEvents.orgId, orgId)];
-    if (options.before) {
-      predicates.push(lt(auditEvents.occurredAt, options.before.occurredAt));
-    }
+    const cursorPredicate = options.before
+      ? or(
+          lt(auditEvents.occurredAt, options.before.occurredAt),
+          and(
+            eq(auditEvents.occurredAt, options.before.occurredAt),
+            lt(auditEvents.id, options.before.id),
+          ),
+        )
+      : undefined;
+
+    const where = cursorPredicate
+      ? and(eq(auditEvents.orgId, orgId), cursorPredicate)
+      : eq(auditEvents.orgId, orgId);
 
     const rows = await this.db
       .select()
       .from(auditEvents)
-      .where(and(...predicates))
+      .where(where)
       .orderBy(desc(auditEvents.occurredAt), desc(auditEvents.id))
       .limit(limit);
     return rows as AuditEvent[];

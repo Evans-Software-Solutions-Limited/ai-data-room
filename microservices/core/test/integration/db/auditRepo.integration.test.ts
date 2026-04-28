@@ -130,6 +130,49 @@ describe("AuditRepo (integration)", () => {
     expect(seenIds.size).toBe(4);
   });
 
+  it("listByOrg() pagination respects the (occurredAt, id) tiebreaker", async () => {
+    // Pagination correctness when events share a timestamp. JS `Date`
+    // resolution is millisecond, so a busy second can produce many
+    // rows with the same `occurredAt`; without the id tiebreaker, the
+    // page boundary would silently drop events on the cursor's
+    // timestamp.
+    const { org, actor } = await seedOrgAndActor("tiebreak");
+    const t0 = new Date("2026-04-29T10:00:00Z");
+    const t1 = new Date("2026-04-29T10:00:01Z");
+    // Six events: two pairs share `t0`, two pairs share `t1`. The
+    // cursor will land mid-cluster on the first walk.
+    await seedAuditEvents(
+      db,
+      [t0, t0, t0, t1, t1, t1].map((occurredAt, idx) => ({
+        eventType: "login_success" as const,
+        outcome: "success" as const,
+        actorUserId: actor.id,
+        orgId: org.id,
+        metadata: { idx },
+        occurredAt,
+      })),
+    );
+
+    const all = await audit.listByOrg(org.id);
+    expect(all).toHaveLength(6);
+
+    // Walk the events in pages of 2 via the cursor and assert no
+    // event is dropped or duplicated. Page boundaries land on the
+    // shared-timestamp clusters, so this is the behaviour the
+    // tiebreaker has to defend.
+    const seen: string[] = [];
+    let cursor: { occurredAt: Date; id: string } | undefined;
+    for (let page = 0; page < 3; page++) {
+      const rows = await audit.listByOrg(org.id, { limit: 2, before: cursor });
+      expect(rows).toHaveLength(2);
+      seen.push(...rows.map((r) => r.id));
+      const last = rows[rows.length - 1];
+      cursor = { occurredAt: last!.occurredAt, id: last!.id };
+    }
+    expect(new Set(seen).size).toBe(6);
+    expect(seen).toEqual(all.map((e) => e.id));
+  });
+
   it("listByOrg() does not return events from other orgs", async () => {
     const { org: orgA, actor: actorA } = await seedOrgAndActor("scopea");
     const { org: orgB } = await seedOrgAndActor("scopeb");
