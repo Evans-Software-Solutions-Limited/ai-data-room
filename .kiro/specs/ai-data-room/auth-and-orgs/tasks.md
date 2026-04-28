@@ -144,7 +144,7 @@ no drift.
 
 ## T-004 — Domain layer: types + zod schemas
 
-Status: `[ ]`
+Status: `[~]` (in PR review)
 **Scope:** Define domain types and zod schemas (no DB, no IO): `Org`,
 `User`, `OrgMembership`, `ExternalAccessGrant`, `Invitation`,
 `AuditEvent`, `Role`, `LifecycleState`, `AuditEventType` (enum of the

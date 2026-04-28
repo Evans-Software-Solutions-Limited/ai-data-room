@@ -24,6 +24,13 @@ export default defineConfig({
         "**/sst-env.d.ts",
         "src/api.ts",
         "src/index.ts",
+        // Domain barrels (T-004) — pure `export type` re-exports from
+        // `@ai-data-room/api-utils/schemas/auth-orgs`. v8 can't measure
+        // coverage on type-only output (it compiles away), so these
+        // would skew the gate without exercising any logic. The
+        // schemas themselves are covered in the api-utils workspace.
+        // FDP precedent: same treatment for `domain/types/*.ts`.
+        "src/domain/**/*.ts",
       ],
       thresholds: {
         lines: 90,
