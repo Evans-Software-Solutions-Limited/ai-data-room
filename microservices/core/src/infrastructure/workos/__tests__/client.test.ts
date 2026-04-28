@@ -176,8 +176,18 @@ describe("createWorkOSClient", () => {
   });
 
   it("does not construct the SDK at module load", async () => {
-    // Re-importing the module should not call the SDK constructor —
     // T-006 DoD: "Wrapper is side-effect free at module load".
+    //
+    // The static `import` at the top of this file already evaluated
+    // `../client`, so a plain dynamic `import("../client")` would hit
+    // the module cache and never re-execute the source. We have to
+    // `resetModules()` first — that clears the cache, and the next
+    // dynamic import re-runs the module body, which would invoke the
+    // mocked WorkOS constructor if anything at top level constructed
+    // an SDK instance. The hoisted `vi.mock` factory survives
+    // `resetModules`, so the WorkOS reference still points at our
+    // mock after the reset.
+    vi.resetModules();
     workosCtor.mockClear();
     await import("../client");
     expect(workosCtor).not.toHaveBeenCalled();
