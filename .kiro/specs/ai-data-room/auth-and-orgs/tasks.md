@@ -144,7 +144,7 @@ no drift.
 
 ## T-004 — Domain layer: types + zod schemas
 
-Status: `[~]` (in PR review)
+Status: `[x]` — closed 2026-04-28 on PR #4
 **Scope:** Define domain types and zod schemas (no DB, no IO): `Org`,
 `User`, `OrgMembership`, `ExternalAccessGrant`, `Invitation`,
 `AuditEvent`, `Role`, `LifecycleState`, `AuditEventType` (enum of the
@@ -163,7 +163,7 @@ Status: `[~]` (in PR review)
 
 ## T-005 — Drizzle migrations: six tables
 
-Status: `[ ]`
+Status: `[~]` (in PR review)
 **Scope:** Write migrations for `organizations`, `users`,
 `org_memberships`, `external_access_grants`, `invitations`,
 `audit_events` per §Data model. Include indexes. Include the unique

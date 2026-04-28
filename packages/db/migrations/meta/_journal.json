@@ -8,6 +8,13 @@
       "when": 1776937579217,
       "tag": "0000_init_auth_and_orgs",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777390712150,
+      "tag": "0001_postgres_specific_constraints",
+      "breakpoints": true
     }
   ]
 }

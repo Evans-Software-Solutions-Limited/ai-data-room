@@ -7,6 +7,8 @@ would produce a new file given the current schema, the build fails. Run
 `bun --filter @ai-data-room/db generate` to materialise the missing
 migration before pushing.
 
+Migration filenames are renamed from drizzle-kit's auto-generated noun-pair (`0001_premium_serpent_society.sql`) to a slice/intent-bearing slug (`0001_postgres_specific_constraints.sql`). After renaming the SQL file, update the matching `tag` field in `meta/_journal.json` so drizzle's migrator can still locate it. The snapshot file under `meta/<idx>_snapshot.json` is keyed by index, not tag — leave it alone.
+
 Hand-written SQL is allowed for Postgres-specific DDL that Drizzle's generator doesn't emit cleanly:
 
 - `pgvector` extension creation (slice 6 T-001).
