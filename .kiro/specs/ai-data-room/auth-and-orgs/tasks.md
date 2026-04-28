@@ -163,7 +163,7 @@ Status: `[x]` — closed 2026-04-28 on PR #4
 
 ## T-005 — Drizzle migrations: six tables
 
-Status: `[~]` (in PR review)
+Status: `[x]` — closed 2026-04-28 on PR #5
 **Scope:** Write migrations for `organizations`, `users`,
 `org_memberships`, `external_access_grants`, `invitations`,
 `audit_events` per §Data model. Include indexes. Include the unique
@@ -181,7 +181,7 @@ partial index for single-owner-per-org.
 
 ## T-006 — Infrastructure layer: WorkOS client wrapper
 
-Status: `[ ]`
+Status: `[~]` (in PR review)
 **Scope:** Thin wrapper over `@workos-inc/node` exposing the
 operations we actually need: `userManagement.getAuthorizationUrl`,
 `authenticateWithCode`, `getUser`, `deleteUser`, `createInvitation`,
