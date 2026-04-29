@@ -23,6 +23,7 @@
     "db:studio": "bun run --filter @ai-data-room/db studio",
     "db:check": "bash scripts/db-drift-check.sh",
     "db:test:integration": "bun run --filter @ai-data-room/db test:integration",
+    "core:test:integration": "bun run --filter @ai-data-room/core test:integration",
     "tear-down": "sst remove"
   },
   "devDependencies": {
