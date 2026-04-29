@@ -201,7 +201,7 @@ Mirror the pattern FDP uses. Webhook signature verification helper.
 
 ## T-007 — Infrastructure layer: repository for each aggregate
 
-Status: `[~]` (in PR review)
+Status: `[x]` — closed 2026-04-29 on PR #7
 **Scope:** Drizzle-backed repositories: `OrgRepo`, `UserRepo`,
 `MembershipRepo`, `ExternalGrantRepo`, `InvitationRepo`, `AuditRepo`.
 Each exposes only the queries the application layer needs. No business
@@ -301,7 +301,7 @@ handler returns.
 
 ## T-013 — Application layer: audit event writer
 
-Status: `[ ]`
+Status: `[~]` (in PR review)
 **Scope:** Single `recordAuditEvent(event)` function. Enforces
 canonical shape (design.md §Audit event canonical shape). Strips any
 field listed in NFR8. Writes to `audit_events` repo.
