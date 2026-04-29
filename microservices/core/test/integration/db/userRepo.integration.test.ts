@@ -134,4 +134,33 @@ describe("UserRepo (integration)", () => {
     // audit_events.target_user_id joins still resolve.
     expect(tombstone.workosUserId).toBe("user_workos_gdpr");
   });
+
+  // The four setters share the same "throw if WHERE matches no rows"
+  // contract from `firstOrThrow` — pre-fix they silently returned
+  // `undefined as User`, leaving callers to crash far from the
+  // source. One parameterised test per setter keeps the contract
+  // honest without per-test boilerplate.
+  describe.each([
+    {
+      method: "setLifecycleState",
+      run: (id: string) => repo.setLifecycleState(id, "suspended"),
+    },
+    {
+      method: "setMfaEnrolledAt",
+      run: (id: string) => repo.setMfaEnrolledAt(id, new Date()),
+    },
+    {
+      method: "setEmailVerifiedAt",
+      run: (id: string) => repo.setEmailVerifiedAt(id, new Date()),
+    },
+    {
+      method: "scrubPii",
+      run: (id: string) => repo.scrubPii(id),
+    },
+  ])("$method() on a missing id", ({ run }) => {
+    it("throws RepoNotFoundError instead of silently returning undefined", async () => {
+      const missingId = "00000000-0000-4000-8000-000000000000";
+      await expect(run(missingId)).rejects.toThrow(/User .* not found/);
+    });
+  });
 });

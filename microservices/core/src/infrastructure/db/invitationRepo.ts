@@ -14,7 +14,7 @@ import type {
   InvitationState,
 } from "@ai-data-room/api-utils/schemas/auth-orgs";
 
-import { firstOrNull } from "./_helpers";
+import { firstOrNull, firstOrThrow } from "./_helpers";
 
 const { invitations } = schema;
 
@@ -88,7 +88,7 @@ export class InvitationRepo {
    */
   async setState(id: string, state: InvitationState): Promise<Invitation> {
     const now = new Date();
-    const [row] = await this.db
+    const rows = await this.db
       .update(invitations)
       .set({
         state,
@@ -97,6 +97,6 @@ export class InvitationRepo {
       })
       .where(eq(invitations.id, id))
       .returning();
-    return row as Invitation;
+    return firstOrThrow(rows as Invitation[], "Invitation", id);
   }
 }

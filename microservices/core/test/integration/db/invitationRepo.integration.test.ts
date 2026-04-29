@@ -148,6 +148,15 @@ describe("InvitationRepo (integration)", () => {
     expect(list[0]?.id).toBe(pending.id);
   });
 
+  it("setState() throws RepoNotFoundError for a missing invitation id", async () => {
+    // Pre-fix this resolved with `undefined as Invitation`, leaving
+    // downstream callers to NPE on a property access. The throw
+    // surfaces the bug at the right layer.
+    await expect(
+      invitations.setState("00000000-0000-4000-8000-000000000000", "accepted"),
+    ).rejects.toThrow(/Invitation .* not found/);
+  });
+
   it("setState() flips pending→accepted and stamps acceptedAt", async () => {
     const { org, inviter } = await seedOrgAndInviter("setstate");
     const inv = await invitations.create({

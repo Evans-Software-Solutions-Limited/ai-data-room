@@ -29,7 +29,7 @@ import type {
   User,
 } from "@ai-data-room/api-utils/schemas/auth-orgs";
 
-import { firstOrNull } from "./_helpers";
+import { firstOrNull, firstOrThrow } from "./_helpers";
 
 const { users } = schema;
 
@@ -94,30 +94,30 @@ export class UserRepo {
   }
 
   async setLifecycleState(id: string, state: LifecycleState): Promise<User> {
-    const [row] = await this.db
+    const rows = await this.db
       .update(users)
       .set({ lifecycleState: state, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
-    return row as User;
+    return firstOrThrow(rows as User[], "User", id);
   }
 
   async setMfaEnrolledAt(id: string, when: Date): Promise<User> {
-    const [row] = await this.db
+    const rows = await this.db
       .update(users)
       .set({ mfaEnrolledAt: when, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
-    return row as User;
+    return firstOrThrow(rows as User[], "User", id);
   }
 
   async setEmailVerifiedAt(id: string, when: Date): Promise<User> {
-    const [row] = await this.db
+    const rows = await this.db
       .update(users)
       .set({ emailVerifiedAt: when, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
-    return row as User;
+    return firstOrThrow(rows as User[], "User", id);
   }
 
   /**
@@ -128,7 +128,7 @@ export class UserRepo {
    * reuse the address without colliding with the tombstone.
    */
   async scrubPii(id: string): Promise<User> {
-    const [row] = await this.db
+    const rows = await this.db
       .update(users)
       .set({
         email: null,
@@ -138,6 +138,6 @@ export class UserRepo {
       })
       .where(eq(users.id, id))
       .returning();
-    return row as User;
+    return firstOrThrow(rows as User[], "User", id);
   }
 }
