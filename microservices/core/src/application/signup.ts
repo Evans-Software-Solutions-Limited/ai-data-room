@@ -130,10 +130,22 @@ export async function handleSignup(
     throw new SignupError("mfa_required");
   }
 
+  // Stamp `mfaEnrolledAt` and (conditionally) `emailVerifiedAt` at
+  // create-time so the user can log in immediately after signup —
+  // without this, every login that runs before the T-010 webhook
+  // backfills these mirror columns would fail the
+  // `mfaEnrolledAt === null → mfa_required` gate in `login.ts`.
+  // AuthKit guarantees MFA was enrolled before issuing the code
+  // (FR16 + per-org config), so stamping `now()` is correct at
+  // this layer — the webhook will idempotently re-stamp the same
+  // value when it arrives.
+  const now = new Date();
   const user = await deps.userRepo.create({
     workosUserId: session.user.id,
     email: session.user.email,
     fullName: composeFullName(session.user),
+    mfaEnrolledAt: now,
+    emailVerifiedAt: session.user.emailVerified ? now : null,
   });
 
   // KNOWN FOLLOW-UP: this sequence (user → org → membership) is not

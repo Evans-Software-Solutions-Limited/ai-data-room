@@ -137,11 +137,13 @@ describe("handleSignup", () => {
         code: "code_test",
         clientId: "client_test_id",
       });
-      expect(deps.userCreate).toHaveBeenCalledWith({
-        workosUserId: FRESH_USER.id,
-        email: FRESH_USER.email,
-        fullName: "Alice Example",
-      });
+      expect(deps.userCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workosUserId: FRESH_USER.id,
+          email: FRESH_USER.email,
+          fullName: "Alice Example",
+        }),
+      );
       expect(deps.orgCreate).toHaveBeenCalledWith({
         workosOrgId: FRESH_SESSION.organizationId,
         name: "Capital Pay",
@@ -161,6 +163,32 @@ describe("handleSignup", () => {
         targetUserId: result.user.id,
         orgId: result.org.id,
       });
+    });
+
+    it("stamps mfaEnrolledAt on the new user so the next login passes the FR16 gate", async () => {
+      // Pre-fix this was missing — fresh signups left
+      // `mfaEnrolledAt = null` and the next login rejected with
+      // mfa_required until the (not-yet-built) T-010 webhook
+      // backfilled the mirror.
+      await handleSignup(VALID_INPUT, deps);
+      const createCall = deps.userCreate.mock.calls[0]?.[0];
+      expect(createCall.mfaEnrolledAt).toBeInstanceOf(Date);
+    });
+
+    it("stamps emailVerifiedAt when WorkOS reports the email as verified", async () => {
+      await handleSignup(VALID_INPUT, deps);
+      const createCall = deps.userCreate.mock.calls[0]?.[0];
+      expect(createCall.emailVerifiedAt).toBeInstanceOf(Date);
+    });
+
+    it("leaves emailVerifiedAt null when WorkOS hasn't yet verified the email", async () => {
+      deps.authenticateWithCode.mockResolvedValue({
+        ...FRESH_SESSION,
+        user: { ...FRESH_USER, emailVerified: false },
+      });
+      await handleSignup(VALID_INPUT, deps);
+      const createCall = deps.userCreate.mock.calls[0]?.[0];
+      expect(createCall.emailVerifiedAt).toBeNull();
     });
 
     it("synthesises workosOrgId for solo signups when AuthKit returns no organizationId", async () => {

@@ -35,6 +35,7 @@ import type {
 } from "../infrastructure/workos/client";
 import type { AuditRepo } from "../infrastructure/db/auditRepo";
 import type { MembershipRepo } from "../infrastructure/db/membershipRepo";
+import type { OrgRepo } from "../infrastructure/db/orgRepo";
 import type { UserRepo } from "../infrastructure/db/userRepo";
 import type {
   OrgMembership,
@@ -52,6 +53,7 @@ export interface HandleLoginCallbackInput {
 export interface HandleLoginCallbackDeps {
   workos: WorkOSClient;
   userRepo: UserRepo;
+  orgRepo: OrgRepo;
   membershipRepo: MembershipRepo;
   auditRepo: AuditRepo;
   /** See `signup.ts#HandleSignupDeps.isMfaPresent` for rationale. */
@@ -136,14 +138,32 @@ export async function handleLoginCallback(
     throw new LoginError("mfa_required");
   }
 
-  // Membership lookup is per-org. WorkOS's session.organizationId
-  // tells us which org the user authenticated against — slice 1
-  // assumes one org per internal user, so any membership for this
-  // user is the right one to surface. External users have no
-  // membership; the handler resolves their grants in T-014.
-  const membership = session.organizationId
-    ? await deps.membershipRepo.findByOrgUser(session.organizationId, user.id)
-    : null;
+  // Membership lookup is per-org. `session.organizationId` is the
+  // WorkOS-side text id (e.g. `org_01E...`) — NOT our local UUID.
+  // We resolve it through `orgRepo.findByWorkosOrgId` first because
+  // `org_memberships.org_id` is `uuid REFERENCES organizations.id`;
+  // passing the WorkOS id directly would either throw "invalid input
+  // syntax for type uuid" at the db driver or (worse) silently
+  // return null and make every returning user look external.
+  //
+  // If WorkOS attached an org id we don't mirror locally, the
+  // membership lookup yields null and the user logs in without an
+  // org context. That's correct for external users (slice 3
+  // expands their grant resolution) and a graceful fail for any
+  // org-mirror lag (the user can still see /me; admin tooling
+  // surfaces the inconsistency separately).
+  let membership = null;
+  if (session.organizationId) {
+    const localOrg = await deps.orgRepo.findByWorkosOrgId(
+      session.organizationId,
+    );
+    if (localOrg) {
+      membership = await deps.membershipRepo.findByOrgUser(
+        localOrg.id,
+        user.id,
+      );
+    }
+  }
 
   await safeAudit(deps, {
     eventType: "login_success",

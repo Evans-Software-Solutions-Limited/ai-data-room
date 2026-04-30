@@ -12,12 +12,19 @@ import type {
 } from "../../infrastructure/workos/client";
 import type { AuditRepo } from "../../infrastructure/db/auditRepo";
 import type { MembershipRepo } from "../../infrastructure/db/membershipRepo";
+import type { OrgRepo } from "../../infrastructure/db/orgRepo";
 import type { UserRepo } from "../../infrastructure/db/userRepo";
-import type { User } from "@ai-data-room/api-utils/schemas/auth-orgs";
+import type { Org, User } from "@ai-data-room/api-utils/schemas/auth-orgs";
 
 import { handleLoginCallback, LoginError } from "../login";
 
 const NOW = new Date("2026-04-30T10:00:00Z");
+
+// WorkOS-style id (text, prefixed) — NOT a UUID. The local
+// `organizations.id` UUID is something else (`LOCAL_ORG.id` below);
+// the `findByWorkosOrgId` lookup is what bridges the two.
+const WORKOS_ORG_ID = "org_01EXAMPLE_RETURNING";
+const LOCAL_ORG_ID = "22222222-2222-4222-8222-222222222222";
 
 const RETURNING_SESSION: AuthenticationResponse = {
   user: {
@@ -35,7 +42,7 @@ const RETURNING_SESSION: AuthenticationResponse = {
     externalId: null,
     metadata: {},
   },
-  organizationId: "22222222-2222-4222-8222-222222222222",
+  organizationId: WORKOS_ORG_ID,
   accessToken: "at_test",
   refreshToken: "rt_test",
 };
@@ -52,6 +59,16 @@ const ACTIVE_USER: User = {
   updatedAt: NOW,
 };
 
+const LOCAL_ORG: Org = {
+  id: LOCAL_ORG_ID,
+  workosOrgId: WORKOS_ORG_ID,
+  name: "Capital Pay",
+  slug: "capital-pay",
+  status: "active",
+  createdAt: NOW,
+  updatedAt: NOW,
+};
+
 const VALID_INPUT = {
   workosCode: "code_test",
   workosClientId: "client_test_id",
@@ -63,6 +80,8 @@ interface MockDeps {
   authenticateWithCode: ReturnType<typeof vi.fn>;
   userRepo: UserRepo;
   findByWorkosUserId: ReturnType<typeof vi.fn>;
+  orgRepo: OrgRepo;
+  findByWorkosOrgId: ReturnType<typeof vi.fn>;
   membershipRepo: MembershipRepo;
   findByOrgUser: ReturnType<typeof vi.fn>;
   auditRepo: AuditRepo;
@@ -72,6 +91,7 @@ interface MockDeps {
 function makeDeps(): MockDeps {
   const authenticateWithCode = vi.fn().mockResolvedValue(RETURNING_SESSION);
   const findByWorkosUserId = vi.fn();
+  const findByWorkosOrgId = vi.fn();
   const findByOrgUser = vi.fn();
   const auditWrite = vi
     .fn()
@@ -82,6 +102,8 @@ function makeDeps(): MockDeps {
     authenticateWithCode,
     userRepo: { findByWorkosUserId } as unknown as UserRepo,
     findByWorkosUserId,
+    orgRepo: { findByWorkosOrgId } as unknown as OrgRepo,
+    findByWorkosOrgId,
     membershipRepo: { findByOrgUser } as unknown as MembershipRepo,
     findByOrgUser,
     auditRepo: { write: auditWrite } as unknown as AuditRepo,
@@ -101,11 +123,12 @@ describe("handleLoginCallback", () => {
   });
 
   describe("happy path — returning login (US1)", () => {
-    it("looks up user by workosUserId, resolves membership, emits login_success audit", async () => {
+    it("looks up user by workosUserId, resolves WorkOS org id → local UUID, then membership; emits login_success", async () => {
       deps.findByWorkosUserId.mockResolvedValue(ACTIVE_USER);
+      deps.findByWorkosOrgId.mockResolvedValue(LOCAL_ORG);
       deps.findByOrgUser.mockResolvedValue({
         id: "33333333-3333-4333-8333-333333333333",
-        orgId: RETURNING_SESSION.organizationId!,
+        orgId: LOCAL_ORG.id,
         userId: ACTIVE_USER.id,
         role: "owner",
         createdAt: NOW,
@@ -117,8 +140,14 @@ describe("handleLoginCallback", () => {
       expect(deps.findByWorkosUserId).toHaveBeenCalledWith(
         RETURNING_SESSION.user.id,
       );
+      // The bug Cursor caught: passing session.organizationId (a
+      // WorkOS text id) directly to findByOrgUser would either
+      // throw "invalid input syntax for type uuid" in production or
+      // silently miss every membership. The fix routes through
+      // orgRepo.findByWorkosOrgId first.
+      expect(deps.findByWorkosOrgId).toHaveBeenCalledWith(WORKOS_ORG_ID);
       expect(deps.findByOrgUser).toHaveBeenCalledWith(
-        RETURNING_SESSION.organizationId,
+        LOCAL_ORG.id,
         ACTIVE_USER.id,
       );
       expect(result.user.id).toBe(ACTIVE_USER.id);
@@ -129,13 +158,28 @@ describe("handleLoginCallback", () => {
           eventType: "login_success",
           outcome: "success",
           actorUserId: ACTIVE_USER.id,
-          orgId: RETURNING_SESSION.organizationId,
+          orgId: LOCAL_ORG.id,
         }),
       );
     });
 
-    it("returns null membership for users with no row in the org (external)", async () => {
+    it("returns null membership when the local org mirror is missing for a known WorkOS org id", async () => {
+      // Webhook lag / data inconsistency — the WorkOS session has
+      // an org id we don't yet mirror locally. Login still succeeds
+      // (the user can see /me); admin tooling surfaces the
+      // inconsistency separately.
       deps.findByWorkosUserId.mockResolvedValue(ACTIVE_USER);
+      deps.findByWorkosOrgId.mockResolvedValue(null);
+
+      const result = await handleLoginCallback(VALID_INPUT, deps);
+
+      expect(deps.findByOrgUser).not.toHaveBeenCalled();
+      expect(result.membership).toBeNull();
+    });
+
+    it("returns null membership for users with no row in the local org (external)", async () => {
+      deps.findByWorkosUserId.mockResolvedValue(ACTIVE_USER);
+      deps.findByWorkosOrgId.mockResolvedValue(LOCAL_ORG);
       deps.findByOrgUser.mockResolvedValue(null);
 
       const result = await handleLoginCallback(VALID_INPUT, deps);
@@ -143,7 +187,7 @@ describe("handleLoginCallback", () => {
       expect(result.membership).toBeNull();
     });
 
-    it("skips membership lookup entirely when WorkOS returns no organizationId", async () => {
+    it("skips both org and membership lookups when WorkOS returns no organizationId", async () => {
       deps.authenticateWithCode.mockResolvedValue({
         ...RETURNING_SESSION,
         organizationId: undefined,
@@ -152,6 +196,7 @@ describe("handleLoginCallback", () => {
 
       const result = await handleLoginCallback(VALID_INPUT, deps);
 
+      expect(deps.findByWorkosOrgId).not.toHaveBeenCalled();
       expect(deps.findByOrgUser).not.toHaveBeenCalled();
       expect(result.membership).toBeNull();
     });
@@ -249,6 +294,7 @@ describe("handleLoginCallback", () => {
   describe("audit-write failure does not mask the path", () => {
     it("returns the login result even if recordAuditEvent throws", async () => {
       deps.findByWorkosUserId.mockResolvedValue(ACTIVE_USER);
+      deps.findByWorkosOrgId.mockResolvedValue(LOCAL_ORG);
       deps.findByOrgUser.mockResolvedValue(null);
       deps.auditWrite.mockRejectedValue(new Error("audit table down"));
       const result = await handleLoginCallback(VALID_INPUT, deps);
