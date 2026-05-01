@@ -187,6 +187,27 @@ describe("handleLoginCallback", () => {
       expect(result.membership).toBeNull();
     });
 
+    it("preserves the local org id in the login_success audit even when membership is null (external user)", async () => {
+      // Pre-fix this audit recorded `orgId: null` because the audit
+      // call read `membership?.orgId` rather than the resolved
+      // local org. External logins through a known org would have
+      // been invisible to per-org audit queries.
+      deps.findByWorkosUserId.mockResolvedValue(ACTIVE_USER);
+      deps.findByWorkosOrgId.mockResolvedValue(LOCAL_ORG);
+      deps.findByOrgUser.mockResolvedValue(null);
+
+      await handleLoginCallback(VALID_INPUT, deps);
+
+      expect(deps.auditWrite).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: "login_success",
+          outcome: "success",
+          actorUserId: ACTIVE_USER.id,
+          orgId: LOCAL_ORG.id,
+        }),
+      );
+    });
+
     it("skips both org and membership lookups when WorkOS returns no organizationId", async () => {
       deps.authenticateWithCode.mockResolvedValue({
         ...RETURNING_SESSION,

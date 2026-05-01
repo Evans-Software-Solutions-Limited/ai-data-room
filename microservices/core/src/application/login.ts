@@ -152,11 +152,19 @@ export async function handleLoginCallback(
   // expands their grant resolution) and a graceful fail for any
   // org-mirror lag (the user can still see /me; admin tooling
   // surfaces the inconsistency separately).
+  // `localOrg` is hoisted out of the `if` block because the audit
+  // event below needs the resolved local org id even when the user
+  // has no membership in it (external users logging in through a
+  // known org). Using `membership?.orgId` alone would record those
+  // events with `orgId: null` and they'd be invisible to per-org
+  // audit queries (`AuditRepo.listByOrg`). The membership lookup
+  // is gated on the local org existing — if mirror-lag means we
+  // don't yet have the org, we still log with `orgId: null` (the
+  // best we can do) and admin tooling surfaces the inconsistency.
+  let localOrg = null;
   let membership = null;
   if (session.organizationId) {
-    const localOrg = await deps.orgRepo.findByWorkosOrgId(
-      session.organizationId,
-    );
+    localOrg = await deps.orgRepo.findByWorkosOrgId(session.organizationId);
     if (localOrg) {
       membership = await deps.membershipRepo.findByOrgUser(
         localOrg.id,
@@ -170,7 +178,7 @@ export async function handleLoginCallback(
     outcome: "success",
     actorUserId: user.id,
     targetUserId: user.id,
-    orgId: membership?.orgId ?? null,
+    orgId: localOrg?.id ?? null,
     sourceIp: input.audit.sourceIp,
     userAgent: input.audit.userAgent,
     metadata: { workosUserId: session.user.id },
