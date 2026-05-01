@@ -220,7 +220,7 @@ logic.
 
 ## T-008 — Application layer: signup + callback flow
 
-Status: `[ ]`
+Status: `[~]` (in PR review)
 **Scope:** `handleSignup`, `handleLoginCallback`. On callback:
 (1) exchange WorkOS code, (2) find-or-create `users` row, (3) if
 signup-kind, create `organizations` + owner `org_memberships` row,
@@ -301,7 +301,7 @@ handler returns.
 
 ## T-013 — Application layer: audit event writer
 
-Status: `[~]` (in PR review)
+Status: `[x]` — closed 2026-04-29 on PR #8
 **Scope:** Single `recordAuditEvent(event)` function. Enforces
 canonical shape (design.md §Audit event canonical shape). Strips any
 field listed in NFR8. Writes to `audit_events` repo.

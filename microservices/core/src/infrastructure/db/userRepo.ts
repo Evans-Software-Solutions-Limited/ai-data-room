@@ -37,6 +37,18 @@ export interface CreateUserInput {
   workosUserId: string;
   email: string;
   fullName?: string | null;
+  /**
+   * Both fields below are optional and primarily seeded by the
+   * signup flow (T-008): the WorkOS auth response carries the
+   * `emailVerified` flag, and AuthKit gates signup on MFA enrolment
+   * so MFA is provably enrolled at the moment we get here. Without
+   * stamping these at create-time, fresh users would fail the
+   * login-time MFA gate (`mfaEnrolledAt === null` →
+   * `mfa_required`) until the T-010 webhook backfills — which is
+   * a startup-state lockout we want to avoid.
+   */
+  emailVerifiedAt?: Date | null;
+  mfaEnrolledAt?: Date | null;
 }
 
 export class UserRepo {
@@ -57,6 +69,8 @@ export class UserRepo {
         workosUserId: input.workosUserId,
         email: input.email,
         fullName: input.fullName ?? null,
+        emailVerifiedAt: input.emailVerifiedAt ?? null,
+        mfaEnrolledAt: input.mfaEnrolledAt ?? null,
       })
       .returning();
     return row as User;
