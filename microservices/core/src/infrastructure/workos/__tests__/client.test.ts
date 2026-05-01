@@ -15,6 +15,7 @@ const {
   deleteUser,
   getAuthorizationUrl,
   getUser,
+  listSessions,
   revokeInvitation,
   revokeSession,
   sendInvitation,
@@ -25,6 +26,7 @@ const {
   deleteUser: vi.fn(),
   getAuthorizationUrl: vi.fn(),
   getUser: vi.fn(),
+  listSessions: vi.fn(),
   revokeInvitation: vi.fn(),
   revokeSession: vi.fn(),
   sendInvitation: vi.fn(),
@@ -39,6 +41,7 @@ vi.mock("@workos-inc/node", () => ({
       deleteUser,
       getAuthorizationUrl,
       getUser,
+      listSessions,
       revokeInvitation,
       revokeSession,
       sendInvitation,
@@ -61,6 +64,7 @@ describe("createWorkOSClient", () => {
     deleteUser.mockReset();
     getAuthorizationUrl.mockReset();
     getUser.mockReset();
+    listSessions.mockReset();
     revokeInvitation.mockReset();
     revokeSession.mockReset();
     sendInvitation.mockReset();
@@ -173,6 +177,22 @@ describe("createWorkOSClient", () => {
     const client = createWorkOSClient(CONFIG);
     await client.revokeSession({ sessionId: "session_xyz" });
     expect(revokeSession).toHaveBeenCalledWith({ sessionId: "session_xyz" });
+  });
+
+  it("listSessions walks the SDK's AutoPaginatable to a flat array", async () => {
+    const sessions = [
+      { object: "session", id: "session_1", status: "active" },
+      { object: "session", id: "session_2", status: "expired" },
+    ];
+    // Mimic the SDK's AutoPaginatable contract: an object with
+    // `autoPagination()` resolving to the full list across pages.
+    listSessions.mockResolvedValue({
+      autoPagination: vi.fn().mockResolvedValue(sessions),
+    });
+    const client = createWorkOSClient(CONFIG);
+    const result = await client.listSessions("user_xyz");
+    expect(listSessions).toHaveBeenCalledWith("user_xyz");
+    expect(result).toBe(sessions);
   });
 
   it("does not construct the SDK at module load", async () => {

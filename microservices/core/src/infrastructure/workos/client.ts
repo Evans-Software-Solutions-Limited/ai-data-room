@@ -35,6 +35,7 @@ import type {
   PasswordReset,
   RevokeSessionOptions,
   SendInvitationOptions,
+  Session,
   User,
   UserManagementAuthorizationURLOptions,
 } from "@workos-inc/node";
@@ -50,6 +51,7 @@ export type {
   PasswordReset,
   RevokeSessionOptions,
   SendInvitationOptions,
+  Session,
   User,
   UserManagementAuthorizationURLOptions,
 };
@@ -85,6 +87,15 @@ export interface WorkOSClient {
     options: CreatePasswordResetOptions,
   ): Promise<PasswordReset>;
   revokeSession(payload: RevokeSessionOptions): Promise<void>;
+  /**
+   * List every session WorkOS has on file for a user, walking the
+   * SDK's `AutoPaginatable` so the caller gets a flat array rather
+   * than a paginator handle. Added in T-012 because the suspension
+   * flow needs to revoke every active session before flipping our
+   * local `lifecycle_state` (FR21(b)). T-011 (password reset on
+   * `password_reset_completed`) reuses the same shape.
+   */
+  listSessions(userId: string): Promise<Session[]>;
 }
 
 /**
@@ -118,5 +129,9 @@ export function createWorkOSClient(config: WorkOSClientConfig): WorkOSClient {
     // rename rationale.
     sendPasswordResetEmail: (options) => um.createPasswordReset(options),
     revokeSession: (payload) => um.revokeSession(payload),
+    listSessions: async (userId) => {
+      const result = await um.listSessions(userId);
+      return result.autoPagination();
+    },
   };
 }
