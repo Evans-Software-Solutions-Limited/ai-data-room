@@ -285,7 +285,7 @@ sessions for the user via WorkOS `session.revoke`, write audit event.
 
 ## T-012 — Application layer: suspension lifecycle
 
-Status: `[~]` (in PR review)
+Status: `[x]` — closed 2026-05-01 on PR #10
 **Scope:** `suspendUser`, `unsuspendUser`. Enforce FR21–FR23 incl.
 sole-owner-cannot-be-suspended and actor-cannot-suspend-self.
 Suspension path: (1) flip `lifecycle_state` in a transaction, (2) call
