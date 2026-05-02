@@ -220,7 +220,7 @@ logic.
 
 ## T-008 — Application layer: signup + callback flow
 
-Status: `[~]` (in PR review)
+Status: `[x]` — closed 2026-04-30 on PR #9
 **Scope:** `handleSignup`, `handleLoginCallback`. On callback:
 (1) exchange WorkOS code, (2) find-or-create `users` row, (3) if
 signup-kind, create `organizations` + owner `org_memberships` row,
@@ -285,7 +285,7 @@ sessions for the user via WorkOS `session.revoke`, write audit event.
 
 ## T-012 — Application layer: suspension lifecycle
 
-Status: `[ ]`
+Status: `[~]` (in PR review)
 **Scope:** `suspendUser`, `unsuspendUser`. Enforce FR21–FR23 incl.
 sole-owner-cannot-be-suspended and actor-cannot-suspend-self.
 Suspension path: (1) flip `lifecycle_state` in a transaction, (2) call

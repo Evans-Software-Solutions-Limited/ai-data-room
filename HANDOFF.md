@@ -4,146 +4,124 @@
 > task transition; delete once steady state ("look at `tasks.md`") is
 > safe to assume.
 
-**Last updated:** 2026-04-30 by Claude Code (T-008 mid-PR; possibly
-running concurrently with a parallel agent on a different
-application-layer task — see "Parallel-PR window" below).
+**Last updated:** 2026-05-01 by Claude Code (T-012 mid-PR; T-008
+merged earlier today).
 
 ## Where we are in slice 1 (auth-and-orgs)
 
-| Task   | Status    | Notes                                                                                                   |
-| ------ | --------- | ------------------------------------------------------------------------------------------------------- |
-| T-001  | ✅        | Repo scaffold.                                                                                          |
-| T-002  | ✅        | WorkOS + secrets wiring (PR #1).                                                                        |
-| T-003  | ✅        | Postgres + Drizzle setup (PR #3).                                                                       |
-| T-004  | ✅        | Domain types + zod schemas (PR #4).                                                                     |
-| T-005  | ✅        | Postgres-specific DDL augments (PR #5).                                                                 |
-| T-006  | ✅        | WorkOS client wrapper + webhook verifier (PR #6).                                                       |
-| T-007  | ✅        | Typed Drizzle repositories (PR #7).                                                                     |
-| T-013  | ✅        | Application-layer audit event writer (PR #8).                                                           |
-| T-008  | 🚧        | Application layer: signup + callback flow. **Branch `feat/auth-and-orgs-T-008-signup-login-callback`.** |
-| T-009… | ⏳ / 🚧\* | T-009 / T-010 / T-011 / T-012 / T-016 / T-019 — parallelisable. \*One may also be in flight.            |
+| Task  | Status | Notes                                                                                                |
+| ----- | ------ | ---------------------------------------------------------------------------------------------------- |
+| T-001 | ✅     | Repo scaffold.                                                                                       |
+| T-002 | ✅     | WorkOS + secrets wiring (PR #1).                                                                     |
+| T-003 | ✅     | Postgres + Drizzle setup (PR #3).                                                                    |
+| T-004 | ✅     | Domain types + zod schemas (PR #4).                                                                  |
+| T-005 | ✅     | Postgres-specific DDL augments (PR #5).                                                              |
+| T-006 | ✅     | WorkOS client wrapper + webhook verifier (PR #6).                                                    |
+| T-007 | ✅     | Typed Drizzle repositories (PR #7).                                                                  |
+| T-013 | ✅     | Application-layer audit event writer (PR #8).                                                        |
+| T-008 | ✅     | Signup + login callback flows (PR #9).                                                               |
+| T-009 | ⏳     | Application layer: invitations.                                                                      |
+| T-010 | ⏳     | Application layer: MFA enrolment hook + recovery codes.                                              |
+| T-011 | ⏳     | Application layer: password reset.                                                                   |
+| T-012 | 🚧     | Application layer: suspension lifecycle. **Branch `feat/auth-and-orgs-T-012-suspension-lifecycle`.** |
+| T-014 | ⏳     | Handlers: HTTP routes (depends on the application-layer fan-out below).                              |
+| T-016 | ⏳     | WorkOS webhook handler routing — best landed AFTER T-008/T-009/T-010/T-011/T-012/T-019.              |
+| T-019 | ⏳     | GDPR hard-delete.                                                                                    |
 
-## Parallel-PR window — coordination notes
+## In flight: T-012 — suspension lifecycle
 
-T-007 + T-013 unblocked the entire application-layer fan-out
-(T-008 / T-009 / T-010 / T-011 / T-012 / T-016 / T-019). With several
-branches potentially mid-flight at once, a few coordination rules:
+`microservices/core/src/application/suspension.ts` ships
+`suspendUser` and `unsuspendUser`. Handlers (T-014) wire to HTTP later.
 
-- **Each PR owns its own `application/<task>.ts` file** — zero file
-  overlap between application-layer PRs. Conflict surface: the
-  shared `_audit-context.ts` (T-008 added it; future tasks should
-  treat it as read-only and import).
-- **`HANDOFF.md` ownership** — only the most-recently-started branch
-  refreshes this file. Other parallel branches leave it alone and
-  carry their state in the PR description. Whichever PR merges last
-  refreshes `HANDOFF.md` to point at the next active branch.
-- **`tasks.md` ticks** — each PR ticks its own task `[~]` / `[x]`.
-  Parallel branches won't conflict if they tick different lines.
+`suspendUser` enforces FR21–FR23:
 
-## In flight: T-008 — signup + callback flow
+- **FR23 self-prevention** — actor cannot suspend themselves.
+- **FR23 sole-owner protection** — the (single) owner of an org
+  cannot be suspended. The T-005 partial unique guarantees at most
+  one owner; if target IS the owner, they're sole by definition.
+- **FR21(a) lifecycle flip** — `users.lifecycle_state = 'suspended'`
+  via `UserRepo.setLifecycleState`.
+- **FR21(b) session termination** — every active WorkOS session is
+  revoked via `WorkOSClient.listSessions` + parallel
+  `revokeSession`. Revocations complete BEFORE the lifecycle flip
+  (the spec's timing-test requirement); a revoke failure leaves our
+  DB consistent (target stays `active`).
+- **FR21(c) future-login rejection** — handled by `login.ts`
+  rejecting non-active users.
+- **FR21(d) audit** — `user_suspended` (success or failure with
+  reason in metadata).
 
-`microservices/core/src/application/signup.ts` and `login.ts` ship
-the application-layer entry points behind the WorkOS auth callback.
-Handlers (T-014) wire these to HTTP later.
+`unsuspendUser` reverses (a) + (d). WorkOS sessions are NOT
+re-touched — the suspension already revoked them; the user has to
+re-authenticate.
 
-`signup.ts#handleSignup`:
+Authorization (only owner / admin can suspend) is intentionally a
+handler-layer concern (T-014). The application function only
+enforces data invariants.
 
-1. Exchange WorkOS code via `workos.authenticateWithCode`.
-2. Sanity-check MFA via a pluggable `isMfaPresent` predicate
-   (default: trust AuthKit; T-010 can swap in a stricter
-   `listAuthFactors`-backed check).
-3. Create `users` row mirroring the WorkOS user.
-4. Create `organizations` row using the form-supplied name + slug.
-   `workosOrgId` mirrors `session.organizationId` if AuthKit
-   attached one; otherwise falls back to `synth_<uuid>` so a
-   re-signup of a previously-deleted user doesn't collide on the
-   unique index.
-5. Create the owner `org_memberships` row.
-6. Audit `signup` event (success or failure).
+The T-006 WorkOS wrapper gained a new operation:
+`listSessions(userId): Promise<Session[]>` — auto-paginates the
+SDK's `AutoPaginatable` so callers get a flat array. T-011 (password
+reset on `password_reset_completed`) will reuse it.
 
-`login.ts#handleLoginCallback`:
+### Tests — 13 unit tests + 1 wrapper test
 
-1. Exchange WorkOS code.
-2. Look up local user by `workos_user_id`. Reject `user_not_found`
-   if missing.
-3. Reject `user_suspended` if `lifecycleState !== 'active'`
-   (FR21(c)).
-4. Reject `mfa_required` if pluggable predicate says no, or local
-   `mfaEnrolledAt` is null.
-5. Resolve org membership for context (null for external users).
-6. Audit `login_success` or `login_failure` (with `reason` in
-   metadata).
+13 cases at `microservices/core/src/application/__tests__/suspension.test.ts`
+(mocked WorkOSClient + repos, real `recordAuditEvent`):
 
-Both flows use a shared `_audit-context.ts` helper (`safeAudit` —
-swallows `recordAuditEvent` errors so a failed audit write doesn't
-mask the real outcome; the dropped event is detectable via the
-`auth.audit.write_failure` metric T-018 will add).
+- **Happy path** (2): full flow with active + expired sessions
+  filtered correctly, success with zero revocations.
+- **FR21(b) timing** (2): `mock.invocationCallOrder` asserts every
+  `revokeSession` call precedes `setLifecycleState` (the timing
+  test the spec calls out); revoke-failure does not flip lifecycle.
+- **FR23 self-suspension** (2): throws + emits failure audit.
+- **FR23 sole-owner protection** (2): rejects when target is the
+  org's only owner; permits otherwise.
+- **`user_not_found`** (1): rejects + audits.
+- **`unsuspendUser`** (3): success, no session-revoke, missing
+  target throws + audits.
 
-### Tests
+One new test in `infrastructure/workos/__tests__/client.test.ts`
+covers the `listSessions` auto-paginate behavior.
 
-19 unit tests at `microservices/core/src/application/__tests__/{signup,login}.test.ts`:
-
-- **Signup** (9): happy path, synth-orgId format, synth-orgId
-  uniqueness across re-signups, fullName composition (both halves
-  / first-only / null), MFA-rejected throw + audit + skip-writes,
-  audit-write failure doesn't mask success.
-- **Login** (10): returning-login happy path, null-membership
-  external path, no-organizationId path, user-not-found / suspended
-  / deleted / MFA-missing rejections (each with login_failure
-  audit), audit-write failure doesn't mask result.
-
-Workspace coverage: 100 / 97.56 / 100 / 100 (gate 90 %).
-
-### Known follow-up flagged in this PR
-
-`handleSignup` does **user → org → membership** as three sequential
-non-transactional writes. If `membershipRepo.create` fails after
-user + org are persisted, we leave an orphaned org with no owner.
-The fix is a small T-007 refactor — repos need to accept
-`Db | PgTransaction` so application functions can call
-`deps.db.transaction(async tx => …)` and instantiate
-transaction-scoped repos. Tracked for the multi-write follow-up
-that also covers T-009 (membership + grant insert pair) and T-019
-(scrub + audit pair). PR description has a checkbox.
+Workspace coverage: 100 / 98.05 / 100 / 100 (gate 90 %).
+`suspension.ts`, `client.ts` both at 100 % all-around.
 
 ### Guard set status (last run on this branch)
 
 ```
 bun run typecheck                 ✅
-bun run test                      ✅ — 74 unit tests in core (T-008 adds 19)
+bun run test                      ✅ — 92 unit tests in core (T-012 adds 14)
 bun run lint                      ✅
 bun run prettier:check            ✅
 ```
 
-`sst diff` not run for T-008 — no infra changes on this branch.
+`sst diff` not run for T-012 — no infra changes on this branch.
 
-### What you need to do to ship T-008
+### What you need to do to ship T-012
 
 1. Stage + commit. Suggested:
    ```
-   feat(auth-and-orgs): T-008 — signup + login callback flows
+   feat(auth-and-orgs): T-012 — suspension lifecycle + WorkOS listSessions
    ```
 2. Push and open PR.
 3. Watch CI: 6 active jobs (db-\* skip — no `packages/db/**` delta;
    core-integration runs the T-007 repo suite again because
    `microservices/core/**` changed).
-4. Tick T-008 `[x]` in `.kiro/specs/.../tasks.md` after merge.
+4. Tick T-012 `[x]` in `.kiro/specs/.../tasks.md` after merge.
 
-## After T-008 merges → continue the application-layer fan-out
+## After T-012 merges → continue the application-layer fan-out
 
-Same parallelisable set as before T-008:
+Same parallelisable set, minus T-012:
 
-- **T-009** invitations (depends on T-006 + T-007 + T-013).
+- **T-009** invitations — multi-write flow (will benefit from the
+  transaction follow-up flagged in T-008).
 - **T-010** MFA enrolment hook + recovery codes.
-- **T-011** password reset.
-- **T-012** suspension lifecycle.
-- **T-016** WorkOS webhook handler routing — best landed AFTER
-  T-008/T-009/T-010/T-011/T-012/T-019 since it routes to them.
-- **T-019** GDPR hard-delete.
-
-Multi-write transaction follow-up (see "Known follow-up" above) is
-worth doing before T-009 / T-019 merge, so they pick up the
-transactional repo type.
+- **T-011** password reset — can reuse the new
+  `WorkOSClient.listSessions` (revoke-all-on-reset).
+- **T-019** GDPR hard-delete — multi-write (same transaction
+  follow-up applies).
+- **T-016** WorkOS webhook handler routing — best last.
 
 ## Sticky knowledge — kept across handoffs
 
@@ -181,8 +159,7 @@ transactional repo type.
     never `AuditRepo.write` directly.
 14. **`safeAudit` in `application/_audit-context.ts`** — every
     application-layer auth flow uses this to emit audits without
-    letting an audit-write failure mask the real outcome. New
-    flows (T-009 / T-010 / T-011 / T-012 / T-019) should reuse it.
+    letting an audit-write failure mask the real outcome.
 15. **MFA-presence check is pluggable via `deps.isMfaPresent`** —
     default trusts AuthKit; T-010 will swap in a stricter check
     once `listAuthFactors` is added to the WorkOS wrapper.
@@ -190,3 +167,20 @@ transactional repo type.
     function.** Signup orphans an org if membershipCreate fails;
     same risk for any future flow with >1 write. Follow-up that
     expands T-007 repos to accept `Db | PgTransaction` is queued.
+17. **Login resolves WorkOS org id → local UUID via
+    `orgRepo.findByWorkosOrgId`** — `session.organizationId` is the
+    WorkOS-side text id, NOT our local UUID. Passing it directly to
+    `findByOrgUser` would either throw "invalid uuid syntax" or
+    silently miss every membership.
+18. **Signup stamps `mfaEnrolledAt` + `emailVerifiedAt` at create-time**
+    (T-007's `CreateUserInput` was extended). Without this, fresh
+    signups would fail their first login on the FR16 MFA gate
+    until the (not-yet-built) T-010 webhook backfills.
+19. **Suspension revokes WorkOS sessions BEFORE flipping local
+    lifecycle.** A revoke failure leaves our DB consistent — better
+    than the opposite (DB says "suspended" but sessions still
+    alive). The spec's "timing test" asserts this ordering via
+    `mock.invocationCallOrder`.
+20. **`WorkOSClient.listSessions(userId)` auto-paginates** — T-011
+    (password reset on completion) will reuse the same flat-array
+    return shape.
