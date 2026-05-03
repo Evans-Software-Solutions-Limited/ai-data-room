@@ -103,4 +103,34 @@ export class InvitationRepo {
       .returning();
     return firstOrThrow(rows as Invitation[], "Invitation", id);
   }
+
+  /**
+   * Atomic compare-and-set: transitions `state` only if the row is
+   * currently in `expectedState`. Returns the updated row on success,
+   * `null` if another concurrent caller already moved the state.
+   *
+   * The application layer uses this to close the TOCTOU race between
+   * the read-state check and the write — without the WHERE clause,
+   * two concurrent `acceptInvitation` deliveries could both pass a
+   * pre-transaction `state === "pending"` check and both proceed to
+   * create grants, and a concurrent `revokeInvitation` could clobber
+   * an in-flight accept (and vice versa).
+   */
+  async transitionState(
+    id: string,
+    expectedState: InvitationState,
+    newState: InvitationState,
+  ): Promise<Invitation | null> {
+    const now = new Date();
+    const rows = await this.db
+      .update(invitations)
+      .set({
+        state: newState,
+        acceptedAt: newState === "accepted" ? now : null,
+        updatedAt: now,
+      })
+      .where(and(eq(invitations.id, id), eq(invitations.state, expectedState)))
+      .returning();
+    return firstOrNull(rows as Invitation[]);
+  }
 }

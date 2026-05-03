@@ -139,6 +139,7 @@ interface MockDeps {
   invitationFindByWorkosInvitationId: ReturnType<typeof vi.fn>;
   invitationListByOrgAndState: ReturnType<typeof vi.fn>;
   invitationSetState: ReturnType<typeof vi.fn>;
+  invitationTransitionState: ReturnType<typeof vi.fn>;
   invitationWithTx: ReturnType<typeof vi.fn>;
   membershipRepo: MembershipRepo;
   membershipCreate: ReturnType<typeof vi.fn>;
@@ -174,6 +175,7 @@ function makeDeps(): MockDeps {
   const invitationFindByWorkosInvitationId = vi.fn();
   const invitationListByOrgAndState = vi.fn();
   const invitationSetState = vi.fn();
+  const invitationTransitionState = vi.fn();
   const invitationWithTx = vi.fn();
   const invitationRepo = {
     create: invitationCreate,
@@ -181,6 +183,7 @@ function makeDeps(): MockDeps {
     findByWorkosInvitationId: invitationFindByWorkosInvitationId,
     listByOrgAndState: invitationListByOrgAndState,
     setState: invitationSetState,
+    transitionState: invitationTransitionState,
     withTx: invitationWithTx,
   } as unknown as InvitationRepo;
   invitationWithTx.mockReturnValue(invitationRepo);
@@ -231,6 +234,7 @@ function makeDeps(): MockDeps {
     invitationFindByWorkosInvitationId,
     invitationListByOrgAndState,
     invitationSetState,
+    invitationTransitionState,
     invitationWithTx,
     membershipRepo,
     membershipCreate,
@@ -537,7 +541,7 @@ describe("revokeInvitation", () => {
   beforeEach(() => {
     deps = makeDeps();
     deps.invitationFindById.mockResolvedValue(makeInvitation());
-    deps.invitationSetState.mockResolvedValue(
+    deps.invitationTransitionState.mockResolvedValue(
       makeInvitation({ state: "revoked" }),
     );
   });
@@ -562,7 +566,7 @@ describe("revokeInvitation", () => {
       ).rejects.toThrow(/actor_role_insufficient/);
 
       expect(deps.revokeInvitation).not.toHaveBeenCalled();
-      expect(deps.invitationSetState).not.toHaveBeenCalled();
+      expect(deps.invitationTransitionState).not.toHaveBeenCalled();
     });
   });
 
@@ -580,8 +584,9 @@ describe("revokeInvitation", () => {
       );
 
       expect(deps.revokeInvitation).toHaveBeenCalledWith(WORKOS_INVITATION_ID);
-      expect(deps.invitationSetState).toHaveBeenCalledWith(
+      expect(deps.invitationTransitionState).toHaveBeenCalledWith(
         INVITATION_ID,
+        "pending",
         "revoked",
       );
       expect(result.state).toBe("revoked");
@@ -615,7 +620,7 @@ describe("revokeInvitation", () => {
       );
       const revokeOrder = deps.revokeInvitation.mock.invocationCallOrder[0]!;
       const setStateOrder =
-        deps.invitationSetState.mock.invocationCallOrder[0]!;
+        deps.invitationTransitionState.mock.invocationCallOrder[0]!;
       expect(revokeOrder).toBeLessThan(setStateOrder);
     });
 
@@ -664,7 +669,7 @@ describe("revokeInvitation", () => {
       // Crucially, no WorkOS revoke and no local state flip. The
       // tenant-B invitation must be untouched.
       expect(deps.revokeInvitation).not.toHaveBeenCalled();
-      expect(deps.invitationSetState).not.toHaveBeenCalled();
+      expect(deps.invitationTransitionState).not.toHaveBeenCalled();
 
       // Audit the attempt with the actor's requested org as the
       // top-level orgId, plus the actual owning org in metadata so
@@ -678,6 +683,38 @@ describe("revokeInvitation", () => {
           metadata: expect.objectContaining({
             reason: "invitation_not_found",
             actualOrgId: otherOrgId,
+          }),
+        }),
+      );
+    });
+
+    it("throws invitation_state_race when transitionState returns null (concurrent accept won)", async () => {
+      // Defends against an `acceptInvitation` webhook delivery
+      // landing between our `findById` and our `transitionState`.
+      // The conditional UPDATE returns null (state moved off
+      // pending), and we surface a typed race error rather than
+      // silently overwriting the new state back to revoked.
+      deps.invitationTransitionState.mockResolvedValue(null);
+
+      await expect(
+        revokeInvitation(
+          {
+            invitationId: INVITATION_ID,
+            orgId: ORG_ID,
+            actorId: ACTOR_ID,
+            actorRole: "owner",
+            audit: AUDIT_CTX,
+          },
+          deps,
+        ),
+      ).rejects.toThrow(/invitation_state_race/);
+
+      expect(deps.auditWrite).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: "invite_revoked",
+          outcome: "failure",
+          metadata: expect.objectContaining({
+            reason: "invitation_state_race",
           }),
         }),
       );
@@ -702,7 +739,7 @@ describe("revokeInvitation", () => {
       ).rejects.toThrow(/invitation_not_pending/);
 
       expect(deps.revokeInvitation).not.toHaveBeenCalled();
-      expect(deps.invitationSetState).not.toHaveBeenCalled();
+      expect(deps.invitationTransitionState).not.toHaveBeenCalled();
       expect(deps.auditWrite).toHaveBeenCalledWith(
         expect.objectContaining({
           outcome: "failure",
@@ -745,7 +782,7 @@ describe("acceptInvitation", () => {
     deps.invitationFindByWorkosInvitationId.mockResolvedValue(makeInvitation());
     deps.userFindByWorkosUserId.mockResolvedValue(null);
     deps.userCreate.mockResolvedValue(makeAcceptedUser());
-    deps.invitationSetState.mockResolvedValue(
+    deps.invitationTransitionState.mockResolvedValue(
       makeInvitation({ state: "accepted", acceptedAt: NOW }),
     );
   });
@@ -785,8 +822,9 @@ describe("acceptInvitation", () => {
         role: "internal",
       });
       expect(deps.externalGrantCreate).not.toHaveBeenCalled();
-      expect(deps.invitationSetState).toHaveBeenCalledWith(
+      expect(deps.invitationTransitionState).toHaveBeenCalledWith(
         INVITATION_ID,
+        "pending",
         "accepted",
       );
 
@@ -949,6 +987,77 @@ describe("acceptInvitation", () => {
         /invitation_invariant_violation/,
       );
       expect(deps.externalGrantCreate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("TOCTOU race against concurrent accept / revoke", () => {
+    it("throws invitation_state_race when transitionState returns null inside the txn", async () => {
+      // Simulates two concurrent webhook deliveries: both pass the
+      // pre-transaction `state === "pending"` check, both enter the
+      // transaction, but only one wins the conditional UPDATE. The
+      // loser's transitionState returns null and we throw — Drizzle
+      // rolls the user / membership / grant inserts back, so the
+      // external-grant duplicate Bugbot flagged on PR #15 cannot
+      // happen.
+      deps.invitationTransitionState.mockResolvedValue(null);
+
+      await expect(acceptInvitation(ACCEPT_INPUT, deps)).rejects.toThrow(
+        /invitation_state_race/,
+      );
+
+      expect(deps.invitationTransitionState).toHaveBeenCalledWith(
+        INVITATION_ID,
+        "pending",
+        "accepted",
+      );
+      // Failure audit is emitted from the catch block outside the
+      // transaction; the success audit must not fire.
+      expect(deps.auditWrite).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: "invite_accepted",
+          outcome: "failure",
+          metadata: expect.objectContaining({
+            reason: "invitation_state_race",
+            invitationId: INVITATION_ID,
+          }),
+        }),
+      );
+      const successCalls = deps.auditWrite.mock.calls.filter(
+        ([event]) => event.outcome === "success",
+      );
+      expect(successCalls).toHaveLength(0);
+    });
+
+    it("does not create a duplicate external_access_grant when the race is lost", async () => {
+      // The membership table has a unique (org_id, user_id) index
+      // that catches duplicates. external_access_grants does NOT —
+      // hence the explicit transitionState guard. This test pins
+      // that contract specifically for the external path.
+      deps.invitationFindByWorkosInvitationId.mockResolvedValue(
+        makeInvitation({
+          kind: "external",
+          role: null,
+          opportunitySlug: "vendor-a",
+        }),
+      );
+      deps.invitationTransitionState.mockResolvedValue(null);
+
+      await expect(acceptInvitation(ACCEPT_INPUT, deps)).rejects.toThrow(
+        /invitation_state_race/,
+      );
+
+      // The grant `create` ran inside the transaction (before the
+      // transitionState check), but the throw rolls it back via
+      // Drizzle. We can't assert on rollback in a mocked
+      // transaction, so we instead pin that the audit recorded the
+      // race rather than a success — the integration test in
+      // invitationRepo.integration.test.ts proves the actual
+      // rollback against a real Postgres tx.
+      expect(deps.externalGrantCreate).toHaveBeenCalledTimes(1);
+      const successCalls = deps.auditWrite.mock.calls.filter(
+        ([event]) => event.outcome === "success",
+      );
+      expect(successCalls).toHaveLength(0);
     });
   });
 });

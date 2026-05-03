@@ -181,4 +181,72 @@ describe("InvitationRepo (integration)", () => {
     expect(revoked.state).toBe("revoked");
     expect(revoked.acceptedAt).toBeNull();
   });
+
+  describe("transitionState() — atomic compare-and-set against TOCTOU races", () => {
+    it("transitions pending→accepted when the row is still pending and stamps acceptedAt", async () => {
+      const { org, inviter } = await seedOrgAndInviter("transition_happy");
+      const inv = await invitations.create({
+        workosInvitationId: "inv_workos_transition_happy",
+        orgId: org.id,
+        email: "transition-happy@example.com",
+        kind: "internal",
+        role: "internal",
+        opportunitySlug: null,
+        invitedBy: inviter.id,
+        expiresAt: FUTURE,
+      });
+
+      const accepted = await invitations.transitionState(
+        inv.id,
+        "pending",
+        "accepted",
+      );
+      expect(accepted).not.toBeNull();
+      expect(accepted!.state).toBe("accepted");
+      expect(accepted!.acceptedAt).not.toBeNull();
+    });
+
+    it("returns null when the expected state doesn't match (race lost)", async () => {
+      // Simulates the second of two concurrent webhook deliveries:
+      // the first one already moved the row to `accepted`, so the
+      // second's compare-and-set against `pending` finds nothing
+      // and returns null. The application layer reads this as
+      // "race lost" and rolls back its in-tx multi-write.
+      const { org, inviter } = await seedOrgAndInviter("transition_race");
+      const inv = await invitations.create({
+        workosInvitationId: "inv_workos_transition_race",
+        orgId: org.id,
+        email: "transition-race@example.com",
+        kind: "internal",
+        role: "internal",
+        opportunitySlug: null,
+        invitedBy: inviter.id,
+        expiresAt: FUTURE,
+      });
+      // First caller wins.
+      await invitations.transitionState(inv.id, "pending", "accepted");
+
+      // Second caller loses — the row is no longer pending.
+      const second = await invitations.transitionState(
+        inv.id,
+        "pending",
+        "accepted",
+      );
+      expect(second).toBeNull();
+
+      // The row is still `accepted` from the first call — the
+      // second call must NOT have clobbered it.
+      const refetched = await invitations.findById(inv.id);
+      expect(refetched?.state).toBe("accepted");
+    });
+
+    it("returns null for a missing id (no implicit insert)", async () => {
+      const result = await invitations.transitionState(
+        "00000000-0000-4000-8000-000000000000",
+        "pending",
+        "accepted",
+      );
+      expect(result).toBeNull();
+    });
+  });
 });

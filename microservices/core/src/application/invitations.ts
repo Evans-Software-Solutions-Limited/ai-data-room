@@ -57,7 +57,14 @@ export type InvitationErrorReason =
    * null role. Defends `acceptInvitation` against DB drift (a manual
    * UPDATE bypassing the schema) by surfacing a typed error rather
    * than an opaque NOT NULL constraint violation from Drizzle. */
-  | "invitation_invariant_violation";
+  | "invitation_invariant_violation"
+  /** Atomic state transition lost a race against a concurrent caller
+   * — e.g. two `invitation.accepted` webhook deliveries arriving in
+   * parallel, or a `revokeInvitation` racing against an
+   * `acceptInvitation`. The application layer uses
+   * `invitationRepo.transitionState` (compare-and-set) to detect
+   * this and roll back partial multi-write effects. */
+  | "invitation_state_race";
 
 export class InvitationError extends Error {
   constructor(public readonly reason: InvitationErrorReason) {
@@ -281,7 +288,23 @@ export async function revokeInvitation(
   // alternative (local first, WorkOS second) is worse because a
   // user could still accept via a stale WorkOS-side token.
   await deps.workos.revokeInvitation(invitation.workosInvitationId);
-  const updated = await deps.invitationRepo.setState(invitation.id, "revoked");
+
+  // Conditional update: only flip state if the row is still pending.
+  // A concurrent `acceptInvitation` webhook delivery between our
+  // lookup above and this UPDATE would otherwise have its `accepted`
+  // state silently clobbered. The WorkOS-side revoke is already
+  // done and irreversible — that's an unavoidable consequence of
+  // the external-then-local ordering — but the local audit trail
+  // stays accurate.
+  const updated = await deps.invitationRepo.transitionState(
+    invitation.id,
+    "pending",
+    "revoked",
+  );
+  if (!updated) {
+    await emitFailure(deps, input, "invite_revoked", "invitation_state_race");
+    throw new InvitationError("invitation_state_race");
+  }
 
   await safeAudit(deps, {
     eventType: "invite_revoked",
@@ -391,62 +414,98 @@ export async function acceptInvitation(
   // (FR16), so `mfaEnrolledAt` is stamped at create-time — same
   // rationale as signup.ts.
   const now = new Date();
-  const result = await deps.db.transaction(async (tx) => {
-    const userTx = deps.userRepo.withTx(tx);
-    const membershipTx = deps.membershipRepo.withTx(tx);
-    const externalGrantTx = deps.externalGrantRepo.withTx(tx);
-    const invitationTx = deps.invitationRepo.withTx(tx);
+  let result;
+  try {
+    result = await deps.db.transaction(async (tx) => {
+      const userTx = deps.userRepo.withTx(tx);
+      const membershipTx = deps.membershipRepo.withTx(tx);
+      const externalGrantTx = deps.externalGrantRepo.withTx(tx);
+      const invitationTx = deps.invitationRepo.withTx(tx);
 
-    // Find-or-create on the user mirror. Webhook redelivery for a
-    // user we've already mirrored (e.g. a re-invited user) hits the
-    // existing row and skips the insert.
-    const existing = await userTx.findByWorkosUserId(input.workosUserId);
-    const user =
-      existing ??
-      (await userTx.create({
-        workosUserId: input.workosUserId,
-        email: input.email,
-        fullName: input.fullName,
-        mfaEnrolledAt: now,
-        emailVerifiedAt: input.emailVerified ? now : null,
-      }));
+      // Find-or-create on the user mirror. Webhook redelivery for a
+      // user we've already mirrored (e.g. a re-invited user) hits the
+      // existing row and skips the insert.
+      const existing = await userTx.findByWorkosUserId(input.workosUserId);
+      const user =
+        existing ??
+        (await userTx.create({
+          workosUserId: input.workosUserId,
+          email: input.email,
+          fullName: input.fullName,
+          mfaEnrolledAt: now,
+          emailVerifiedAt: input.emailVerified ? now : null,
+        }));
 
-    let membership: OrgMembership | null = null;
-    let grant: ExternalAccessGrant | null = null;
+      let membership: OrgMembership | null = null;
+      let grant: ExternalAccessGrant | null = null;
 
-    if (invitation.kind === "internal") {
-      // Schema's `superRefine` enforces `role !== null` when
-      // `kind === "internal"`, but the row comes from the DB
-      // unparsed — a manual UPDATE bypassing the schema would let
-      // null through. Explicit guard surfaces a typed error rather
-      // than Drizzle's opaque NOT NULL violation.
-      if (invitation.role === null) {
-        throw new InvitationError("invitation_invariant_violation");
+      if (invitation.kind === "internal") {
+        // Schema's `superRefine` enforces `role !== null` when
+        // `kind === "internal"`, but the row comes from the DB
+        // unparsed — a manual UPDATE bypassing the schema would let
+        // null through. Explicit guard surfaces a typed error rather
+        // than Drizzle's opaque NOT NULL violation.
+        if (invitation.role === null) {
+          throw new InvitationError("invitation_invariant_violation");
+        }
+        membership = await membershipTx.create({
+          orgId: invitation.orgId,
+          userId: user.id,
+          role: invitation.role,
+        });
+      } else {
+        if (invitation.opportunitySlug === null) {
+          throw new InvitationError("invitation_invariant_violation");
+        }
+        grant = await externalGrantTx.create({
+          orgId: invitation.orgId,
+          userId: user.id,
+          opportunitySlug: invitation.opportunitySlug,
+          grantedBy: invitation.invitedBy,
+        });
       }
-      membership = await membershipTx.create({
-        orgId: invitation.orgId,
-        userId: user.id,
-        role: invitation.role,
-      });
-    } else {
-      if (invitation.opportunitySlug === null) {
-        throw new InvitationError("invitation_invariant_violation");
+
+      // Conditional update: closes the TOCTOU race against another
+      // concurrent webhook delivery (or a `revokeInvitation` running
+      // in parallel). If the row is no longer pending, throw — Drizzle
+      // rolls back the user / membership / grant inserts above, so we
+      // can't end up with a duplicate `external_access_grants` row
+      // (which has no unique index that would otherwise catch it) or
+      // a clobbered `revoked` state.
+      const updatedInvitation = await invitationTx.transitionState(
+        invitation.id,
+        "pending",
+        "accepted",
+      );
+      if (!updatedInvitation) {
+        throw new InvitationError("invitation_state_race");
       }
-      grant = await externalGrantTx.create({
+
+      return { invitation: updatedInvitation, user, membership, grant };
+    });
+  } catch (err) {
+    // Audit the race-loss (the most common reason this throws under
+    // load) and re-throw. Other in-tx errors — schema-invariant,
+    // FK / unique-index violations from the DB — also flow through
+    // here; we record them with a generic failure shape so an
+    // operator can correlate. The webhook routing layer will
+    // translate the throw into a non-2xx so WorkOS retries.
+    if (err instanceof InvitationError) {
+      await safeAudit(deps, {
+        eventType: "invite_accepted",
+        outcome: "failure",
         orgId: invitation.orgId,
-        userId: user.id,
-        opportunitySlug: invitation.opportunitySlug,
-        grantedBy: invitation.invitedBy,
+        sourceIp: input.audit.sourceIp,
+        userAgent: input.audit.userAgent,
+        metadata: {
+          reason: err.reason,
+          invitationId: invitation.id,
+          workosInvitationId: invitation.workosInvitationId,
+        },
       });
     }
-
-    const updatedInvitation = await invitationTx.setState(
-      invitation.id,
-      "accepted",
-    );
-
-    return { invitation: updatedInvitation, user, membership, grant };
-  });
+    throw err;
+  }
 
   await safeAudit(deps, {
     eventType: "invite_accepted",
