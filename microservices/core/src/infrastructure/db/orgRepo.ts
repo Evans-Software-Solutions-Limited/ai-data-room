@@ -5,7 +5,7 @@
 // user, and by `/me` (T-015) to look up the active session's org.
 
 import { eq } from "drizzle-orm";
-import type { Db } from "@ai-data-room/db";
+import type { DbOrTx, Tx } from "@ai-data-room/db";
 import { schema } from "@ai-data-room/db";
 import type { Org } from "@ai-data-room/api-utils/schemas/auth-orgs";
 
@@ -20,7 +20,11 @@ export interface CreateOrgInput {
 }
 
 export class OrgRepo {
-  constructor(private readonly db: Db) {}
+  constructor(private readonly db: DbOrTx) {}
+
+  withTx(tx: Tx): OrgRepo {
+    return new OrgRepo(tx);
+  }
 
   async create(input: CreateOrgInput): Promise<Org> {
     const [row] = await this.db.insert(organizations).values(input).returning();

@@ -8,7 +8,7 @@
 // only exposes the create + read surface that auth-and-orgs needs.
 
 import { eq } from "drizzle-orm";
-import type { Db } from "@ai-data-room/db";
+import type { DbOrTx, Tx } from "@ai-data-room/db";
 import { schema } from "@ai-data-room/db";
 import type { ExternalAccessGrant } from "@ai-data-room/api-utils/schemas/auth-orgs";
 
@@ -22,7 +22,11 @@ export interface CreateExternalGrantInput {
 }
 
 export class ExternalGrantRepo {
-  constructor(private readonly db: Db) {}
+  constructor(private readonly db: DbOrTx) {}
+
+  withTx(tx: Tx): ExternalGrantRepo {
+    return new ExternalGrantRepo(tx);
+  }
 
   async create(input: CreateExternalGrantInput): Promise<ExternalAccessGrant> {
     const [row] = await this.db

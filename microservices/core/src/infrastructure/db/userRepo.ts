@@ -22,7 +22,7 @@
 //     Matches FDP and is consistent across the slice.
 
 import { eq } from "drizzle-orm";
-import type { Db } from "@ai-data-room/db";
+import type { DbOrTx, Tx } from "@ai-data-room/db";
 import { schema } from "@ai-data-room/db";
 import type {
   LifecycleState,
@@ -52,7 +52,19 @@ export interface CreateUserInput {
 }
 
 export class UserRepo {
-  constructor(private readonly db: Db) {}
+  constructor(private readonly db: DbOrTx) {}
+
+  /**
+   * Returns a new instance bound to a Drizzle transaction handle.
+   * Application functions wrap multi-write sequences in
+   * `db.transaction(async (tx) => repo.withTx(tx).create(...))` so a
+   * mid-sequence failure rolls every write back atomically. The
+   * factory shape (rather than a `tx?` parameter on every method)
+   * keeps the call sites unchanged inside the callback.
+   */
+  withTx(tx: Tx): UserRepo {
+    return new UserRepo(tx);
+  }
 
   /**
    * Insert a fresh `users` row for the WorkOS-authenticated user.

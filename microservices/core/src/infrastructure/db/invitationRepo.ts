@@ -5,7 +5,7 @@
 // acceptInvitation).
 
 import { and, eq } from "drizzle-orm";
-import type { Db } from "@ai-data-room/db";
+import type { DbOrTx, Tx } from "@ai-data-room/db";
 import { schema } from "@ai-data-room/db";
 import type {
   Invitation,
@@ -30,7 +30,11 @@ export interface CreateInvitationInput {
 }
 
 export class InvitationRepo {
-  constructor(private readonly db: Db) {}
+  constructor(private readonly db: DbOrTx) {}
+
+  withTx(tx: Tx): InvitationRepo {
+    return new InvitationRepo(tx);
+  }
 
   /**
    * Inserts a fresh invitation row. The `(kind, role, opportunitySlug)`

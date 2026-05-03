@@ -11,7 +11,7 @@
 // layer is designed. v0.1 needs only a recent-events-by-org listing.
 
 import { and, desc, eq, lt, or } from "drizzle-orm";
-import type { Db } from "@ai-data-room/db";
+import type { DbOrTx, Tx } from "@ai-data-room/db";
 import { schema } from "@ai-data-room/db";
 import type {
   AuditEvent,
@@ -47,7 +47,11 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
 export class AuditRepo {
-  constructor(private readonly db: Db) {}
+  constructor(private readonly db: DbOrTx) {}
+
+  withTx(tx: Tx): AuditRepo {
+    return new AuditRepo(tx);
+  }
 
   /**
    * Append-only writer. The application layer (T-013

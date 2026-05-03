@@ -8,15 +8,13 @@
 // `@ai-data-room/db/test/integration/setup`.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { drizzle } from "drizzle-orm/postgres-js";
 
 import {
   applyMigrations,
   destroyTestPool,
-  getTestPool,
+  getTestDb,
   truncateAllTables,
 } from "@ai-data-room/db/test/integration/setup";
-import { schema } from "@ai-data-room/db";
 
 import { UserRepo } from "../../../src/infrastructure/db/userRepo";
 
@@ -25,8 +23,7 @@ describe("UserRepo (integration)", () => {
 
   beforeAll(async () => {
     await applyMigrations();
-    const db = drizzle(getTestPool(), { schema });
-    repo = new UserRepo(db);
+    repo = new UserRepo(getTestDb());
   });
 
   beforeEach(async () => {
@@ -161,6 +158,40 @@ describe("UserRepo (integration)", () => {
     it("throws RepoNotFoundError instead of silently returning undefined", async () => {
       const missingId = "00000000-0000-4000-8000-000000000000";
       await expect(run(missingId)).rejects.toThrow(/User .* not found/);
+    });
+  });
+
+  // The withTx contract is structurally identical across the six
+  // T-007 repos (all just `return new ThisRepo(tx)`). One integration
+  // test on UserRepo proves the wiring against a real Postgres
+  // transaction; the other repos lean on this and their own unit
+  // typing.
+  describe("withTx() — multi-write transaction wrapping", () => {
+    it("commits writes performed via the tx-bound repo", async () => {
+      await getTestDb().transaction(async (tx) => {
+        await repo.withTx(tx).create({
+          workosUserId: "user_workos_withtx_commit",
+          email: "withtx-commit@example.com",
+        });
+      });
+      const found = await repo.findByWorkosUserId("user_workos_withtx_commit");
+      expect(found?.email).toBe("withtx-commit@example.com");
+    });
+
+    it("rolls every tx-bound write back when the callback throws", async () => {
+      await expect(
+        getTestDb().transaction(async (tx) => {
+          await repo.withTx(tx).create({
+            workosUserId: "user_workos_withtx_rollback",
+            email: "withtx-rollback@example.com",
+          });
+          throw new Error("simulated mid-transaction failure");
+        }),
+      ).rejects.toThrow(/simulated/);
+      const found = await repo.findByWorkosUserId(
+        "user_workos_withtx_rollback",
+      );
+      expect(found).toBeNull();
     });
   });
 });

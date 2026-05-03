@@ -16,6 +16,7 @@ import type { AuditRepo } from "../../infrastructure/db/auditRepo";
 import type { MembershipRepo } from "../../infrastructure/db/membershipRepo";
 import type { OrgRepo } from "../../infrastructure/db/orgRepo";
 import type { UserRepo } from "../../infrastructure/db/userRepo";
+import type { Db } from "@ai-data-room/db";
 
 import { handleSignup, SignupError } from "../signup";
 
@@ -52,15 +53,24 @@ const VALID_INPUT = {
   audit: { sourceIp: "203.0.113.5", userAgent: "test/1.0" } as const,
 };
 
+/** Sentinel passed by the mocked `db.transaction` into the callback —
+ * any non-null value works since the repo `withTx` mocks ignore it. */
+const TX_SENTINEL = Symbol("tx");
+
 interface MockDeps {
   workos: WorkOSClient;
   authenticateWithCode: ReturnType<typeof vi.fn>;
+  db: Db;
+  dbTransaction: ReturnType<typeof vi.fn>;
   userRepo: UserRepo;
   userCreate: ReturnType<typeof vi.fn>;
+  userWithTx: ReturnType<typeof vi.fn>;
   orgRepo: OrgRepo;
   orgCreate: ReturnType<typeof vi.fn>;
+  orgWithTx: ReturnType<typeof vi.fn>;
   membershipRepo: MembershipRepo;
   membershipCreate: ReturnType<typeof vi.fn>;
+  membershipWithTx: ReturnType<typeof vi.fn>;
   auditRepo: AuditRepo;
   auditWrite: ReturnType<typeof vi.fn>;
 }
@@ -75,15 +85,48 @@ function makeDeps(): MockDeps {
     occurredAt: NOW,
   });
 
+  // `withTx` returns the same mock repo so existing assertions on
+  // `userCreate.toHaveBeenCalledWith(...)` continue to fire when the
+  // production code calls `userRepo.withTx(tx).create(...)`.
+  const userWithTx = vi.fn();
+  const orgWithTx = vi.fn();
+  const membershipWithTx = vi.fn();
+  const userRepo = {
+    create: userCreate,
+    withTx: userWithTx,
+  } as unknown as UserRepo;
+  const orgRepo = {
+    create: orgCreate,
+    withTx: orgWithTx,
+  } as unknown as OrgRepo;
+  const membershipRepo = {
+    create: membershipCreate,
+    withTx: membershipWithTx,
+  } as unknown as MembershipRepo;
+  userWithTx.mockReturnValue(userRepo);
+  orgWithTx.mockReturnValue(orgRepo);
+  membershipWithTx.mockReturnValue(membershipRepo);
+
+  // Default: invoke the callback synchronously with the sentinel.
+  // Tests can override to simulate rollback by throwing inside the cb.
+  const dbTransaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) =>
+    cb(TX_SENTINEL),
+  );
+
   return {
     workos: { authenticateWithCode } as unknown as WorkOSClient,
     authenticateWithCode,
-    userRepo: { create: userCreate } as unknown as UserRepo,
+    db: { transaction: dbTransaction } as unknown as Db,
+    dbTransaction,
+    userRepo,
     userCreate,
-    orgRepo: { create: orgCreate } as unknown as OrgRepo,
+    userWithTx,
+    orgRepo,
     orgCreate,
-    membershipRepo: { create: membershipCreate } as unknown as MembershipRepo,
+    orgWithTx,
+    membershipRepo,
     membershipCreate,
+    membershipWithTx,
     auditRepo: { write: auditWrite } as unknown as AuditRepo,
     auditWrite,
   };
@@ -290,6 +333,38 @@ describe("handleSignup", () => {
       const result = await handleSignup(VALID_INPUT, deps);
       expect(result.user.workosUserId).toBe(FRESH_USER.id);
       expect(result.org.slug).toBe("capital-pay");
+    });
+  });
+
+  describe("multi-write transaction wrapping (orphan-prevention)", () => {
+    it("performs the user / org / membership writes inside db.transaction", async () => {
+      // Defends the orphan-prevention invariant: if any of the three
+      // writes throws, all of them must roll back atomically. The
+      // earlier shape did the writes sequentially outside any
+      // transaction and would leak an org row when membership-insert
+      // failed.
+      await handleSignup(VALID_INPUT, deps);
+
+      expect(deps.dbTransaction).toHaveBeenCalledTimes(1);
+      expect(deps.userWithTx).toHaveBeenCalledWith(TX_SENTINEL);
+      expect(deps.orgWithTx).toHaveBeenCalledWith(TX_SENTINEL);
+      expect(deps.membershipWithTx).toHaveBeenCalledWith(TX_SENTINEL);
+    });
+
+    it("does not emit a success audit when the transaction rolls back", async () => {
+      // Real Drizzle propagates the callback's throw out of
+      // `db.transaction`. The mock matches that shape: the rejection
+      // bubbles up, the audit success block never runs, and signup
+      // throws.
+      deps.membershipCreate.mockRejectedValue(new Error("FK violation"));
+
+      await expect(handleSignup(VALID_INPUT, deps)).rejects.toThrow(
+        /FK violation/,
+      );
+      const successCalls = deps.auditWrite.mock.calls.filter(
+        ([event]) => event.outcome === "success",
+      );
+      expect(successCalls).toHaveLength(0);
     });
   });
 });

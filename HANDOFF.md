@@ -4,130 +4,146 @@
 > session should pick up. Refreshed at every task transition; delete
 > once steady state ("look at `tasks.md`") is safe to assume.
 
-**Last updated:** 2026-05-03 by Claude Code, mid-flight on T-010.
-Branch `feat/auth-and-orgs-T-010-mfa-enrolment` is open and awaiting
-review. T-011 (password reset) merged earlier today as PR #12.
+**Last updated:** 2026-05-03 by Claude Code, mid-flight on the
+multi-write transaction wrapper refactor. Branch
+`chore/repos-accept-pgtransaction` is open and awaiting review.
+T-010 (MFA enrolment) merged earlier today as PR #13.
 
 ## Currently in flight
 
-**T-010 — application-layer MFA enrolment hook + recovery-code-used
-audit.** PR open against `main`.
+**Chore: repos accept `Db | PgTransaction` + signup wraps in a
+transaction.** The "multi-write transaction wrapping" follow-up
+that's been on the backlog since T-008. Unblocks T-009
+(invitations) and T-019 (GDPR delete) — both of which need atomic
+multi-write to land cleanly.
 
-- `adr/003-recovery-codes-delegated-to-authkit.md` — resolves a
-  three-way contradiction across `requirements.md` / `design.md` /
-  `tasks.md` about who owns the recovery-codes UX. Decision:
-  delegate entirely to AuthKit; we never see plaintext codes.
-- `microservices/core/src/application/mfa.ts` — two webhook
-  reactions: `handleMfaEnrolled` mirrors `users.mfa_enrolled_at`
-  and audits, `handleRecoveryCodeUsed` audits only.
-- `microservices/core/src/application/__tests__/mfa.test.ts` —
-  5 unit tests (happy + idempotency + closed-shape metadata
-  invariants).
-- `.kiro/specs/ai-data-room/auth-and-orgs/tasks.md` — T-010 scope
-  rewritten to match ADR-003.
+What changed:
+
+- `packages/db/src/index.ts` — exports `Tx` (Drizzle's
+  postgres-js transaction handle) and `DbOrTx = Db | Tx`.
+- All 6 T-007 repos in `microservices/core/src/infrastructure/db/`
+  now accept `DbOrTx` in their constructor and expose
+  `withTx(tx: Tx)` as a factory that returns a tx-bound instance.
+- `microservices/core/src/application/signup.ts` wraps the
+  user / org / membership creates in `db.transaction(...)`. Audit
+  stays outside the transaction (matches `safeAudit`'s
+  rollback-isolation contract). The "KNOWN FOLLOW-UP" orphan-org
+  comment is gone.
+- `microservices/core/test/integration/db/userRepo.integration.test.ts`
+  adds a `withTx()` describe block — one test asserts commit, one
+  asserts rollback against a real Postgres tx. Other repos lean on
+  this + their own unit typing rather than duplicating.
+- `packages/db/test/integration/setup.ts` exposes a new
+  `getTestDb()` helper to consolidate `drizzle(getTestPool(), {
+schema })` constructions across integration tests.
+- `microservices/core/src/application/__tests__/signup.test.ts`
+  gets two new tests: "writes happen inside `db.transaction`" and
+  "no success audit on rollback".
 
 Local guard set green: `typecheck` (force) + `test:unit` (force,
-105/105, mfa.ts 100/100/100/100) + `lint` + `prettier:check`.
+107/107 incl. signup at 100/100/100/100) + `lint` + `prettier:check`.
 Awaiting CI + Cursor Bugbot + Brad's review.
 
-### Why this is a small PR
+### Pattern picked: `withTx(tx)` factory on each repo
 
-ADR-003 trims T-010's original scope significantly. The original
-spec wanted us to expose `getRecoveryCodesForDownload` — but
-`design.md` explicitly says "we never see plaintext codes". Three
-options on the table; we picked "delegate everything to AuthKit"
-because (a) it matches `design.md`, (b) AuthKit already shows +
-downloads codes during the enrolment redirect, and (c) it keeps
-the SOC 2 evidence surface narrow. The ADR documents the
-follow-ups (FR17(c) regenerate; `listAuthFactors` wrapper for the
-HANDOFF #15 stricter MFA-presence check) so they don't get lost.
+The clean alternatives were:
+
+- **(A) Method-level `tx?` parameter** — every repo method takes
+  an optional tx. Cleanest at the call site (`repo.create(input,
+tx)`), but adds a parameter to every method on every repo and
+  every test mock.
+- **(B) Constructor-only widening + import the concrete repo
+  classes inside the txn callback** — `new UserRepo(tx)` directly.
+  Couples application code to concrete classes (DI breaks).
+- **(C) `withTx(tx)` factory ✅ chosen** — repos accept `DbOrTx`
+  in the constructor, and a one-line factory returns a tx-bound
+  clone. Three lines per repo, zero call-site noise inside the
+  callback (`userRepo.withTx(tx).create(...)`), DI-clean. Same
+  contract every repo exposes.
+
+FDP's pattern (`TenantScopedConnection.transaction(cb)` opening
+the tx _inside_ the repo) doesn't fit because Drizzle's
+`db.transaction()` lives on the client and we want the
+application layer — not the repo — to own the txn boundary.
 
 ### Departures from the brief after the simplify review
 
-1. **Per-function deps + result interfaces** instead of a shared
-   `MfaWebhookDeps` / `MfaWebhookResult`. `handleRecoveryCodeUsed`
-   takes `Pick<UserRepo, "findByWorkosUserId">` — it never mutates,
-   so the deps interface advertises that. Mirrors the password-
-   reset.ts pattern (PR #12).
-2. **Dropped a redundant timestamp-drift test.** The happy-path
-   assertion already pins `setMfaEnrolledAt(USER_ID, ENROLLED_AT)`
-   — a separate test for "uses the webhook timestamp" was
-   asserting the same invariant from a different angle, with a
-   paragraph of justifying comment that gave it away as redundant.
-3. **No `lookupOrAuditFailure` helper extracted yet.** The
-   "lookup user → audit-failure-and-return-null on miss → otherwise
-   process" pattern now exists in 3 webhook handlers
-   (password-reset, mfa-enrolled, recovery-code-used). Both
-   reviewers concluded 3-callers-but-shallow-divergence isn't yet
-   worth it; revisit when a 4th caller (likely `email_verified` or
-   an org-membership webhook) lands and forces a `metadataExtra`
-   parameter.
+1. **No `BaseRepo` extraction.** Six identical 3-line `withTx`
+   methods could become a single base class with
+   `this.constructor as new (db: DbOrTx) => this`, but that
+   incantation costs more than the duplication saves. Keep inline.
+2. **Dropped redundant call-order assertion** in the new signup
+   test. The mock's structural shape (`db.transaction(cb)` calls
+   `cb(TX_SENTINEL)` synchronously) already enforces "writes
+   happen inside the transaction"; the
+   `invocationCallOrder`-based assertion defended nothing extra.
+3. **Single integration test for `withTx`.** All 6 repos have the
+   same 3-line `withTx` body; one integration test on `UserRepo`
+   exercising commit + rollback against a real Postgres tx is
+   enough proof. The other 5 repos lean on their unit typing.
+4. **`getTestDb()` helper extracted** because three callsites for
+   `drizzle(getTestPool(), { schema })` was the threshold to
+   consolidate.
+5. **AuditRepo's `withTx` doc trimmed.** The "audit usually stays
+   outside the caller's transaction" rationale lives in
+   `_audit-context.ts`'s `safeAudit` doc, not on the repo.
 
 ### Deliberately not done in this PR (reviewer flagged, deferred)
 
-- **Extract `AUDIT_REASONS` constants** — `"user_not_found"`,
-  `"revoke_failed"`, `"delegate_error"` are stringly-typed across
-  password-reset.ts and mfa.ts. Cross-file refactor; not in
-  T-010's scope.
-- **Extract a `lookupOrAuditFailureForWebhook` helper** — see #3
-  above. Wait for the 4th caller.
-- **Existing carryovers:** shared `revokeAllActiveSessions` helper
-  (suspension + password-reset), shared test fixtures
-  (`makeUser` / `makeSession` / `makeDeps`), and the
-  `AuthFlowError<TReason>` generic — all flagged before, all still
-  deferred.
+- **Renaming `Db` → `DbClient` / `DbSession`** — would make
+  `Db | Tx` more self-documenting at the type level. Optional
+  rename; defer.
+- **Existing carryovers:** shared `revokeAllActiveSessions`
+  helper, `lookupOrAuditFailureForWebhook` helper (3 webhook
+  callers), `AUDIT_REASONS` constants, shared test fixtures,
+  `AuthFlowError<TReason>` generic — all still deferred.
 
 ## Where we are in slice 1 (auth-and-orgs)
 
-| Task  | Status                     | Notes                                                                     |
-| ----- | -------------------------- | ------------------------------------------------------------------------- |
-| T-001 | ✅                         | Repo scaffold.                                                            |
-| T-002 | ✅                         | WorkOS + secrets wiring (PR #1).                                          |
-| T-003 | ✅                         | Postgres + Drizzle setup (PR #3).                                         |
-| T-004 | ✅                         | Domain types + zod schemas (PR #4).                                       |
-| T-005 | ✅                         | Postgres-specific DDL augments (PR #5).                                   |
-| T-006 | ✅                         | WorkOS client wrapper + webhook verifier (PR #6).                         |
-| T-007 | ✅                         | Typed Drizzle repositories (PR #7).                                       |
-| T-013 | ✅                         | Application-layer audit event writer (PR #8).                             |
-| T-008 | ✅                         | Signup + login callback flows (PR #9).                                    |
-| T-012 | ✅                         | Suspension lifecycle + `WorkOSClient.listSessions` (PR #10).              |
-| T-011 | ✅                         | Password reset (PR #12).                                                  |
-| T-010 | 🟡 **in flight** (this PR) | MFA enrolment hook + recovery-code-used audit (scope trimmed by ADR-003). |
-| T-009 | ⏳                         | Application: invitations.                                                 |
-| T-014 | ⏳                         | Handlers: HTTP routes (depends on the application-layer fan-out below).   |
-| T-015 | ⏳                         | Session middleware + `/me` (depends on T-014).                            |
-| T-016 | ⏳                         | WorkOS webhook handler routing — best landed AFTER T-008–T-012 / T-019.   |
-| T-017 | ⏳                         | Minimal web shell (login / signup / MFA / `/me`).                         |
-| T-018 | ⏳                         | Observability (logs / metrics / alerts).                                  |
-| T-019 | ⏳                         | GDPR hard-delete.                                                         |
-| T-020 | ⏳                         | Rate limiting + NFR hardening.                                            |
-| T-021 | ⏳                         | Playwright acceptance suite.                                              |
-| T-022 | ⏳                         | Slice sign-off + traceability matrix + tag.                               |
+| Task  | Status                     | Notes                                                                        |
+| ----- | -------------------------- | ---------------------------------------------------------------------------- |
+| T-001 | ✅                         | Repo scaffold.                                                               |
+| T-002 | ✅                         | WorkOS + secrets wiring (PR #1).                                             |
+| T-003 | ✅                         | Postgres + Drizzle setup (PR #3).                                            |
+| T-004 | ✅                         | Domain types + zod schemas (PR #4).                                          |
+| T-005 | ✅                         | Postgres-specific DDL augments (PR #5).                                      |
+| T-006 | ✅                         | WorkOS client wrapper + webhook verifier (PR #6).                            |
+| T-007 | ✅                         | Typed Drizzle repositories (PR #7).                                          |
+| T-013 | ✅                         | Application-layer audit event writer (PR #8).                                |
+| T-008 | ✅                         | Signup + login callback flows (PR #9).                                       |
+| T-012 | ✅                         | Suspension lifecycle + `WorkOSClient.listSessions` (PR #10).                 |
+| T-011 | ✅                         | Password reset (PR #12).                                                     |
+| T-010 | ✅                         | MFA enrolment + recovery-code-used audit (PR #13, scope trimmed by ADR-003). |
+| –     | 🟡 **in flight** (this PR) | Chore: repos accept `Db \| PgTransaction` + signup wraps multi-write.        |
+| T-009 | ⏳                         | Application: invitations (now unblocked by this PR).                         |
+| T-014 | ⏳                         | Handlers: HTTP routes (depends on the application-layer fan-out below).      |
+| T-015 | ⏳                         | Session middleware + `/me` (depends on T-014).                               |
+| T-016 | ⏳                         | WorkOS webhook handler routing — best landed AFTER T-008–T-012 / T-019.      |
+| T-017 | ⏳                         | Minimal web shell (login / signup / MFA / `/me`).                            |
+| T-018 | ⏳                         | Observability (logs / metrics / alerts).                                     |
+| T-019 | ⏳                         | GDPR hard-delete.                                                            |
+| T-020 | ⏳                         | Rate limiting + NFR hardening.                                               |
+| T-021 | ⏳                         | Playwright acceptance suite.                                                 |
+| T-022 | ⏳                         | Slice sign-off + traceability matrix + tag.                                  |
 
-## Recommended next pick after T-010 merges
+## Recommended next pick after this chore PR merges
 
-The application-layer fan-out is nearly done. After T-010 merges,
-only **T-009 (invitations)** and **T-019 (GDPR hard-delete)** remain
-in the application layer — and both are gated on the multi-write
-transaction follow-up (see #1 below). So the recommended order is:
+With the txn wrapper landed, the application-layer fan-out can
+finish:
 
-1. **Multi-write transaction wrapping** (the deferred follow-up).
-   Half a day of work; unblocks T-009 and T-019 to land cleanly
-   without the orphan-on-failure risk that signup currently has.
-2. **T-009 (invitations)** — biggest of the remaining application
-   tasks. Multi-write (invitations row + sometimes
-   external_access_grants); needs the txn wrapper from step 1.
-3. **T-019 (GDPR hard-delete)** — also multi-write; same txn
-   prerequisite.
-4. **T-016 (webhook routing)** — best landed AFTER all the
+1. **T-009 (invitations)** — the biggest remaining application
+   task. Multi-write (invitations row + sometimes
+   external_access_grants for external invites). The new
+   `withTx(tx)` factory + `db.transaction()` pattern from this PR
+   is the template; copy the signup.ts shape.
+2. **T-019 (GDPR hard-delete)** — also multi-write (PII scrub on
+   `users` row + audit). Smaller than T-009; same template.
+3. **T-016 (webhook routing)** — best landed AFTER all the
    application functions exist, since it routes events to all of
    them. Validates the `mfa_enrolled` / `recovery_code_used` /
-   `password_reset.succeeded` event handlers we've been writing.
+   `password_reset.succeeded` handlers.
 
-### Faster alternative if Brad wants a small win
-
-If a smaller PR is preferable, knock out **one of the deferred
-refactors** before the next application task:
+### Faster alternative if Brad wants a small win first
 
 - Extract `revokeAllActiveSessions` helper (suspension +
   password-reset); ~50 LOC + test updates.
@@ -135,7 +151,7 @@ refactors** before the next application task:
   `"user_not_found"` / `"revoke_failed"` / `"delegate_error"`
   string literals across password-reset.ts and mfa.ts.
 - Add `listAuthFactors` to the WorkOS wrapper + swap the
-  `isMfaPresent` default in signup/login (per HANDOFF #15).
+  `isMfaPresent` default in signup/login (per sticky #15).
 
 ## Pending follow-ups (not blocking, but worth doing soon)
 
@@ -271,6 +287,25 @@ refactors** before the next application task:
     `toEqual({})` not `objectContaining` — any future regression
     that adds an `id` / `codeHash` / `code` field breaks it on
     purpose. Defence-in-depth on top of the NFR8 strip.
+30. **Multi-write transactions use the `withTx(tx)` factory
+    pattern.** Every T-007 repo accepts `DbOrTx` in its
+    constructor and exposes `withTx(tx: Tx): ThisRepo`. Application
+    functions take a `db: Db` dep and call
+    `db.transaction(async (tx) => { repo.withTx(tx).create(...) })`
+    so a mid-sequence failure rolls every write back. **Awaits
+    inside the callback MUST stay sequential** — Drizzle's `tx`
+    handle wraps a single Postgres connection, so concurrent
+    awaits interleave commands and risk
+    `another command is already in progress`. signup.ts is the
+    template; T-009 and T-019 will copy this shape.
+31. **Audit writes deliberately stay OUTSIDE the caller's
+    transaction.** `safeAudit` is called after `db.transaction`
+    resolves, on purpose: an audit-write failure shouldn't roll
+    business state back, and a transaction rollback shouldn't
+    erase the audit row of the failure we wanted to record.
+    `AuditRepo` does still have a `withTx` for the rare case a
+    caller wants in-tx audit, but signup.ts shows the standard
+    pattern.
 
 ## Workflow conventions in one paragraph
 

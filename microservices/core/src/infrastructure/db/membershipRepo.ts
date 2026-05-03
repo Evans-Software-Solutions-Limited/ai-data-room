@@ -6,7 +6,7 @@
 // suspended, and the role-change audit emitter (T-013).
 
 import { and, eq } from "drizzle-orm";
-import type { Db } from "@ai-data-room/db";
+import type { DbOrTx, Tx } from "@ai-data-room/db";
 import { schema } from "@ai-data-room/db";
 import type {
   OrgMembership,
@@ -24,7 +24,11 @@ export interface CreateMembershipInput {
 }
 
 export class MembershipRepo {
-  constructor(private readonly db: Db) {}
+  constructor(private readonly db: DbOrTx) {}
+
+  withTx(tx: Tx): MembershipRepo {
+    return new MembershipRepo(tx);
+  }
 
   /**
    * Inserts a fresh membership. The `(org_id, user_id)` unique index

@@ -24,6 +24,8 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 
+import * as testSchema from "../../src/schema";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -38,6 +40,17 @@ export const TEST_CONNECTION_STRING =
   process.env.INTEGRATION_DATABASE_URL ?? LOCAL_FALLBACK;
 
 let pool: ReturnType<typeof postgres> | null = null;
+
+/**
+ * Drizzle client bound to the test pool, with the project schema
+ * attached. Three callsites (the existing per-repo `beforeAll` and
+ * the new `withTx` integration tests) construct this the same way;
+ * keeping the construction here means a future schema-config change
+ * doesn't fan out across every test file.
+ */
+export function getTestDb(): ReturnType<typeof drizzle<typeof testSchema>> {
+  return drizzle(getTestPool(), { schema: testSchema });
+}
 
 /**
  * Lazy singleton — one pool per test process. `max: 5` keeps the
