@@ -273,7 +273,7 @@ enrolment), audit event emission on `recovery_code_used`.
 
 ## T-011 — Application layer: password reset
 
-Status: `[ ]`
+Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-011-password-reset`)
 **Scope:** `requestPasswordReset` delegates to WorkOS's password-reset
 email flow. On `password_reset_completed` webhook, invalidate all
 sessions for the user via WorkOS `session.revoke`, write audit event.
