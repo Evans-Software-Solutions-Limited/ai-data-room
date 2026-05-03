@@ -4,110 +4,138 @@
 > session should pick up. Refreshed at every task transition; delete
 > once steady state ("look at `tasks.md`") is safe to assume.
 
-**Last updated:** 2026-05-03 by Claude Code, mid-flight on T-011.
-Branch `feat/auth-and-orgs-T-011-password-reset` is open and awaiting
-review.
+**Last updated:** 2026-05-03 by Claude Code, mid-flight on T-010.
+Branch `feat/auth-and-orgs-T-010-mfa-enrolment` is open and awaiting
+review. T-011 (password reset) merged earlier today as PR #12.
 
 ## Currently in flight
 
-**T-011 — application-layer password reset.** PR open against `main`.
-Diff is two new files:
+**T-010 — application-layer MFA enrolment hook + recovery-code-used
+audit.** PR open against `main`.
 
-- `microservices/core/src/application/password-reset.ts` (~190 LOC)
-- `microservices/core/src/application/__tests__/password-reset.test.ts` (~310 LOC, 8 cases)
+- `adr/003-recovery-codes-delegated-to-authkit.md` — resolves a
+  three-way contradiction across `requirements.md` / `design.md` /
+  `tasks.md` about who owns the recovery-codes UX. Decision:
+  delegate entirely to AuthKit; we never see plaintext codes.
+- `microservices/core/src/application/mfa.ts` — two webhook
+  reactions: `handleMfaEnrolled` mirrors `users.mfa_enrolled_at`
+  and audits, `handleRecoveryCodeUsed` audits only.
+- `microservices/core/src/application/__tests__/mfa.test.ts` —
+  5 unit tests (happy + idempotency + closed-shape metadata
+  invariants).
+- `.kiro/specs/ai-data-room/auth-and-orgs/tasks.md` — T-010 scope
+  rewritten to match ADR-003.
 
 Local guard set green: `typecheck` (force) + `test:unit` (force,
-14/14, password-reset 100/100/100/100) + `lint` + `prettier:check`.
+105/105, mfa.ts 100/100/100/100) + `lint` + `prettier:check`.
 Awaiting CI + Cursor Bugbot + Brad's review.
 
-### Shape that landed (vs. the brief in PR #11's HANDOFF)
+### Why this is a small PR
 
-Followed the brief closely; departed in three places after the
-`simplify` review:
+ADR-003 trims T-010's original scope significantly. The original
+spec wanted us to expose `getRecoveryCodesForDownload` — but
+`design.md` explicitly says "we never see plaintext codes". Three
+options on the table; we picked "delegate everything to AuthKit"
+because (a) it matches `design.md`, (b) AuthKit already shows +
+downloads codes during the enrolment redirect, and (c) it keeps
+the SOC 2 evidence surface narrow. The ADR documents the
+follow-ups (FR17(c) regenerate; `listAuthFactors` wrapper for the
+HANDOFF #15 stricter MFA-presence check) so they don't get lost.
 
-1. **Two error classes, not one.** `PasswordResetRequestError`
-   (reason `invalid_email`) lives in the request flow only;
-   `PasswordResetCompletionError` (reason `revoke_failed`) lives in
-   the completion flow. The two callers will never catch both, so a
-   union shape was indirection without value.
-2. **`Promise.allSettled`-style fan-out, not `Promise.all`.** Lets
-   every revoke run even when one rejects, so the failure-audit row
-   carries `{ attempted, succeeded, failed }`. FR20 still treats any
-   rejection as hard failure (we throw); the per-attempt breakdown
-   is forensic only. Suspension (T-012) still uses `Promise.all` —
-   if a revoke fails there, the lifecycle flip is skipped, which is
-   the right outcome for that flow.
-3. **No emit-helper extraction.** The 5 `safeAudit` calls have
-   different metadata shapes (email-only / workosUserId-only /
-   per-attempt counts / revokedSessions count), so suspension's
-   `emitFailure`-style helper would have added indirection without
-   saving lines. Kept inline.
+### Departures from the brief after the simplify review
+
+1. **Per-function deps + result interfaces** instead of a shared
+   `MfaWebhookDeps` / `MfaWebhookResult`. `handleRecoveryCodeUsed`
+   takes `Pick<UserRepo, "findByWorkosUserId">` — it never mutates,
+   so the deps interface advertises that. Mirrors the password-
+   reset.ts pattern (PR #12).
+2. **Dropped a redundant timestamp-drift test.** The happy-path
+   assertion already pins `setMfaEnrolledAt(USER_ID, ENROLLED_AT)`
+   — a separate test for "uses the webhook timestamp" was
+   asserting the same invariant from a different angle, with a
+   paragraph of justifying comment that gave it away as redundant.
+3. **No `lookupOrAuditFailure` helper extracted yet.** The
+   "lookup user → audit-failure-and-return-null on miss → otherwise
+   process" pattern now exists in 3 webhook handlers
+   (password-reset, mfa-enrolled, recovery-code-used). Both
+   reviewers concluded 3-callers-but-shallow-divergence isn't yet
+   worth it; revisit when a 4th caller (likely `email_verified` or
+   an org-membership webhook) lands and forces a `metadataExtra`
+   parameter.
 
 ### Deliberately not done in this PR (reviewer flagged, deferred)
 
-- **Extract a shared `revokeAllActiveSessions` helper** —
-  `password-reset.ts` and `suspension.ts` now have identical
-  list-then-filter-then-fan-out blocks. Would land best as a tiny
-  refactor PR after T-011 merges; touches both files + their tests.
-- **Extract shared test fixtures** (`makeUser` / `makeSession` /
-  `makeDeps`) — duplicated across `suspension.test.ts` and
-  `password-reset.test.ts`. Same shape as above: refactor PR, not
-  inside T-011.
-- **`AuthFlowError<TReason>` generic** — already on the deferred
-  list from PR #10's HANDOFF; nothing changed.
+- **Extract `AUDIT_REASONS` constants** — `"user_not_found"`,
+  `"revoke_failed"`, `"delegate_error"` are stringly-typed across
+  password-reset.ts and mfa.ts. Cross-file refactor; not in
+  T-010's scope.
+- **Extract a `lookupOrAuditFailureForWebhook` helper** — see #3
+  above. Wait for the 4th caller.
+- **Existing carryovers:** shared `revokeAllActiveSessions` helper
+  (suspension + password-reset), shared test fixtures
+  (`makeUser` / `makeSession` / `makeDeps`), and the
+  `AuthFlowError<TReason>` generic — all flagged before, all still
+  deferred.
 
 ## Where we are in slice 1 (auth-and-orgs)
 
-| Task  | Status                     | Notes                                                                   |
-| ----- | -------------------------- | ----------------------------------------------------------------------- |
-| T-001 | ✅                         | Repo scaffold.                                                          |
-| T-002 | ✅                         | WorkOS + secrets wiring (PR #1).                                        |
-| T-003 | ✅                         | Postgres + Drizzle setup (PR #3).                                       |
-| T-004 | ✅                         | Domain types + zod schemas (PR #4).                                     |
-| T-005 | ✅                         | Postgres-specific DDL augments (PR #5).                                 |
-| T-006 | ✅                         | WorkOS client wrapper + webhook verifier (PR #6).                       |
-| T-007 | ✅                         | Typed Drizzle repositories (PR #7).                                     |
-| T-013 | ✅                         | Application-layer audit event writer (PR #8).                           |
-| T-008 | ✅                         | Signup + login callback flows (PR #9).                                  |
-| T-012 | ✅                         | Suspension lifecycle + `WorkOSClient.listSessions` (PR #10).            |
-| T-011 | 🟡 **in flight** (this PR) | Application: password reset.                                            |
-| T-009 | ⏳                         | Application: invitations.                                               |
-| T-010 | ⏳                         | Application: MFA enrolment hook + recovery codes UX contract.           |
-| T-014 | ⏳                         | Handlers: HTTP routes (depends on the application-layer fan-out below). |
-| T-015 | ⏳                         | Session middleware + `/me` (depends on T-014).                          |
-| T-016 | ⏳                         | WorkOS webhook handler routing — best landed AFTER T-008–T-012 / T-019. |
-| T-017 | ⏳                         | Minimal web shell (login / signup / MFA / `/me`).                       |
-| T-018 | ⏳                         | Observability (logs / metrics / alerts).                                |
-| T-019 | ⏳                         | GDPR hard-delete.                                                       |
-| T-020 | ⏳                         | Rate limiting + NFR hardening.                                          |
-| T-021 | ⏳                         | Playwright acceptance suite.                                            |
-| T-022 | ⏳                         | Slice sign-off + traceability matrix + tag.                             |
+| Task  | Status                     | Notes                                                                     |
+| ----- | -------------------------- | ------------------------------------------------------------------------- |
+| T-001 | ✅                         | Repo scaffold.                                                            |
+| T-002 | ✅                         | WorkOS + secrets wiring (PR #1).                                          |
+| T-003 | ✅                         | Postgres + Drizzle setup (PR #3).                                         |
+| T-004 | ✅                         | Domain types + zod schemas (PR #4).                                       |
+| T-005 | ✅                         | Postgres-specific DDL augments (PR #5).                                   |
+| T-006 | ✅                         | WorkOS client wrapper + webhook verifier (PR #6).                         |
+| T-007 | ✅                         | Typed Drizzle repositories (PR #7).                                       |
+| T-013 | ✅                         | Application-layer audit event writer (PR #8).                             |
+| T-008 | ✅                         | Signup + login callback flows (PR #9).                                    |
+| T-012 | ✅                         | Suspension lifecycle + `WorkOSClient.listSessions` (PR #10).              |
+| T-011 | ✅                         | Password reset (PR #12).                                                  |
+| T-010 | 🟡 **in flight** (this PR) | MFA enrolment hook + recovery-code-used audit (scope trimmed by ADR-003). |
+| T-009 | ⏳                         | Application: invitations.                                                 |
+| T-014 | ⏳                         | Handlers: HTTP routes (depends on the application-layer fan-out below).   |
+| T-015 | ⏳                         | Session middleware + `/me` (depends on T-014).                            |
+| T-016 | ⏳                         | WorkOS webhook handler routing — best landed AFTER T-008–T-012 / T-019.   |
+| T-017 | ⏳                         | Minimal web shell (login / signup / MFA / `/me`).                         |
+| T-018 | ⏳                         | Observability (logs / metrics / alerts).                                  |
+| T-019 | ⏳                         | GDPR hard-delete.                                                         |
+| T-020 | ⏳                         | Rate limiting + NFR hardening.                                            |
+| T-021 | ⏳                         | Playwright acceptance suite.                                              |
+| T-022 | ⏳                         | Slice sign-off + traceability matrix + tag.                               |
 
-## Recommended next pick after T-011 merges
+## Recommended next pick after T-010 merges
 
-**T-010 — MFA enrolment hook + recovery codes UX contract.**
+The application-layer fan-out is nearly done. After T-010 merges,
+only **T-009 (invitations)** and **T-019 (GDPR hard-delete)** remain
+in the application layer — and both are gated on the multi-write
+transaction follow-up (see #1 below). So the recommended order is:
 
-- Bounded scope. Two webhook reactions (`mfa_enrolled`,
-  `recovery_code_used`) + a `getRecoveryCodesForDownload` method
-  with a one-shot gate.
-- Same shape as T-011: webhook-driven mirror updates + audit emit.
-- Doesn't have the multi-write transaction concern that's still
-  blocking T-009 / T-019. (See pending follow-up #1 below.)
-- Finalises the recovery-codes contract that T-017's web shell will
-  consume.
+1. **Multi-write transaction wrapping** (the deferred follow-up).
+   Half a day of work; unblocks T-009 and T-019 to land cleanly
+   without the orphan-on-failure risk that signup currently has.
+2. **T-009 (invitations)** — biggest of the remaining application
+   tasks. Multi-write (invitations row + sometimes
+   external_access_grants); needs the txn wrapper from step 1.
+3. **T-019 (GDPR hard-delete)** — also multi-write; same txn
+   prerequisite.
+4. **T-016 (webhook routing)** — best landed AFTER all the
+   application functions exist, since it routes events to all of
+   them. Validates the `mfa_enrolled` / `recovery_code_used` /
+   `password_reset.succeeded` event handlers we've been writing.
 
-### Alternatives, in order of preference
+### Faster alternative if Brad wants a small win
 
-- **T-009 (invitations)** — multi-write (creates `invitations` row,
-  sometimes `external_access_grants` too). Should land AFTER the
-  multi-write transaction follow-up below. ~2x the LOC of T-011.
-- **T-019 (GDPR hard-delete)** — multi-write (PII scrub + audit).
-  Same transaction caveat as T-009.
-- **T-016 (webhook routing)** — best AFTER T-009 / T-010 / T-011 /
-  T-019 land, since it routes events to all of them.
-- **The two reviewer-flagged refactors** (session-revocation helper
-  and shared test fixtures) if you want a tidy session before the
-  next application task.
+If a smaller PR is preferable, knock out **one of the deferred
+refactors** before the next application task:
+
+- Extract `revokeAllActiveSessions` helper (suspension +
+  password-reset); ~50 LOC + test updates.
+- Extract `AUDIT_REASONS` constants for the
+  `"user_not_found"` / `"revoke_failed"` / `"delegate_error"`
+  string literals across password-reset.ts and mfa.ts.
+- Add `listAuthFactors` to the WorkOS wrapper + swap the
+  `isMfaPresent` default in signup/login (per HANDOFF #15).
 
 ## Pending follow-ups (not blocking, but worth doing soon)
 
@@ -228,6 +256,21 @@ Followed the brief closely; departed in three places after the
     every revoke runs even when one fails — the audit row carries
     `{ attempted, succeeded, failed }` for forensics. Both are
     intentional; copy whichever matches the new flow's semantics.
+27. **Recovery codes are entirely owned by AuthKit per ADR-003.**
+    Plaintext codes never enter our system. The
+    `getRecoveryCodesForDownload` method the original T-010 spec
+    mentioned is intentionally NOT implemented. FR17(c)
+    (regenerate) is a deferred follow-up.
+28. **`mfa_enrolled` webhook handler always re-mirrors
+    `users.mfa_enrolled_at` even on redelivery** — no idempotency
+    guard. The DB write is cheap and webhook redeliveries are
+    rare; a guard would add branch + test for negligible win.
+    Audit dedup is the webhook routing layer's job (T-016).
+29. **Recovery-code-used audit metadata is closed-shape `{}`** by
+    contract (ADR-003 follow-up #4). The unit test pins this with
+    `toEqual({})` not `objectContaining` — any future regression
+    that adds an `id` / `codeHash` / `code` field breaks it on
+    purpose. Defence-in-depth on top of the NFR8 strip.
 
 ## Workflow conventions in one paragraph
 

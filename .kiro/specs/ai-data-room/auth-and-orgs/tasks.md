@@ -254,20 +254,34 @@ expiry + revoke-after-accept rejection.
 
 ---
 
-## T-010 — Application layer: MFA enrolment hook + recovery codes UX contract
+## T-010 — Application layer: MFA enrolment hook + recovery-code-used audit
 
-Status: `[ ]`
-**Scope:** WorkOS handles MFA. Our job: on `mfa_enrolled` webhook,
-mirror `mfa_enrolled_at`; on recovery code usage webhook, write audit
-event. Expose a `getRecoveryCodesForDownload` application method that
-is callable exactly once per enrolment (feature-flagged via
-`users.mfa_enrolled_at` transition) and returns the codes text-file
-payload. Post-enrolment, the method returns 410 Gone.
-**Files (likely):** `microservices/core/application/mfa.ts`.
-**Definition of done:** FR17 (a/b/c) met; AC-US9 reachable at
-application layer.
-**Tests required:** Unit tests for the download gate (pre/post
-enrolment), audit event emission on `recovery_code_used`.
+Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-010-mfa-enrolment`)
+
+**Scope (trimmed by [ADR-003](../../../adr/003-recovery-codes-delegated-to-authkit.md)):**
+WorkOS AuthKit handles every part of recovery-codes UX (view +
+download at enrolment); we never see plaintext codes. Our job:
+
+- On `authentication.mfa_enrolled` webhook: mirror `mfa_enrolled_at`
+  on the local `users` row + audit `mfa_enrolled`.
+- On `authentication.recovery_code_used` webhook: audit
+  `recovery_code_used` (no metadata identifying which code, since
+  we don't see them).
+  The `getRecoveryCodesForDownload` method that the original spec
+  referenced is **not** implemented — see ADR-003 for rationale.
+
+**Files (likely):** `microservices/core/src/application/mfa.ts`.
+
+**Definition of done:** FR17(a) and FR17(b) delivered by AuthKit's
+hosted enrolment UI; FR17(c) regenerate captured as a deferred
+follow-up in ADR-003. AC-US9's "use is recorded in the audit trail"
+half is reachable at the application layer; the "view once + download"
+half is verified at the web-shell layer (T-017) by a Playwright
+assertion that the AuthKit redirect surfaces those affordances.
+
+**Tests required:** Unit tests for both webhook handlers — happy path
+(mirror + audit), missing-user idempotency (audit failure + return
+null, not throw, so webhook redelivery is safe).
 
 ---
 
