@@ -4,183 +4,110 @@
 > session should pick up. Refreshed at every task transition; delete
 > once steady state ("look at `tasks.md`") is safe to assume.
 
-**Last updated:** 2026-05-01 by Claude Code, immediately after T-012
-merged via PR #10. No task is currently in flight — branch is clean,
-`main` is the head everywhere.
+**Last updated:** 2026-05-03 by Claude Code, mid-flight on T-011.
+Branch `feat/auth-and-orgs-T-011-password-reset` is open and awaiting
+review.
+
+## Currently in flight
+
+**T-011 — application-layer password reset.** PR open against `main`.
+Diff is two new files:
+
+- `microservices/core/src/application/password-reset.ts` (~190 LOC)
+- `microservices/core/src/application/__tests__/password-reset.test.ts` (~310 LOC, 8 cases)
+
+Local guard set green: `typecheck` (force) + `test:unit` (force,
+14/14, password-reset 100/100/100/100) + `lint` + `prettier:check`.
+Awaiting CI + Cursor Bugbot + Brad's review.
+
+### Shape that landed (vs. the brief in PR #11's HANDOFF)
+
+Followed the brief closely; departed in three places after the
+`simplify` review:
+
+1. **Two error classes, not one.** `PasswordResetRequestError`
+   (reason `invalid_email`) lives in the request flow only;
+   `PasswordResetCompletionError` (reason `revoke_failed`) lives in
+   the completion flow. The two callers will never catch both, so a
+   union shape was indirection without value.
+2. **`Promise.allSettled`-style fan-out, not `Promise.all`.** Lets
+   every revoke run even when one rejects, so the failure-audit row
+   carries `{ attempted, succeeded, failed }`. FR20 still treats any
+   rejection as hard failure (we throw); the per-attempt breakdown
+   is forensic only. Suspension (T-012) still uses `Promise.all` —
+   if a revoke fails there, the lifecycle flip is skipped, which is
+   the right outcome for that flow.
+3. **No emit-helper extraction.** The 5 `safeAudit` calls have
+   different metadata shapes (email-only / workosUserId-only /
+   per-attempt counts / revokedSessions count), so suspension's
+   `emitFailure`-style helper would have added indirection without
+   saving lines. Kept inline.
+
+### Deliberately not done in this PR (reviewer flagged, deferred)
+
+- **Extract a shared `revokeAllActiveSessions` helper** —
+  `password-reset.ts` and `suspension.ts` now have identical
+  list-then-filter-then-fan-out blocks. Would land best as a tiny
+  refactor PR after T-011 merges; touches both files + their tests.
+- **Extract shared test fixtures** (`makeUser` / `makeSession` /
+  `makeDeps`) — duplicated across `suspension.test.ts` and
+  `password-reset.test.ts`. Same shape as above: refactor PR, not
+  inside T-011.
+- **`AuthFlowError<TReason>` generic** — already on the deferred
+  list from PR #10's HANDOFF; nothing changed.
 
 ## Where we are in slice 1 (auth-and-orgs)
 
-Slice 1 is **about half landed**. The infrastructure layer is done;
-the application-layer fan-out is mid-stream.
+| Task  | Status                     | Notes                                                                   |
+| ----- | -------------------------- | ----------------------------------------------------------------------- |
+| T-001 | ✅                         | Repo scaffold.                                                          |
+| T-002 | ✅                         | WorkOS + secrets wiring (PR #1).                                        |
+| T-003 | ✅                         | Postgres + Drizzle setup (PR #3).                                       |
+| T-004 | ✅                         | Domain types + zod schemas (PR #4).                                     |
+| T-005 | ✅                         | Postgres-specific DDL augments (PR #5).                                 |
+| T-006 | ✅                         | WorkOS client wrapper + webhook verifier (PR #6).                       |
+| T-007 | ✅                         | Typed Drizzle repositories (PR #7).                                     |
+| T-013 | ✅                         | Application-layer audit event writer (PR #8).                           |
+| T-008 | ✅                         | Signup + login callback flows (PR #9).                                  |
+| T-012 | ✅                         | Suspension lifecycle + `WorkOSClient.listSessions` (PR #10).            |
+| T-011 | 🟡 **in flight** (this PR) | Application: password reset.                                            |
+| T-009 | ⏳                         | Application: invitations.                                               |
+| T-010 | ⏳                         | Application: MFA enrolment hook + recovery codes UX contract.           |
+| T-014 | ⏳                         | Handlers: HTTP routes (depends on the application-layer fan-out below). |
+| T-015 | ⏳                         | Session middleware + `/me` (depends on T-014).                          |
+| T-016 | ⏳                         | WorkOS webhook handler routing — best landed AFTER T-008–T-012 / T-019. |
+| T-017 | ⏳                         | Minimal web shell (login / signup / MFA / `/me`).                       |
+| T-018 | ⏳                         | Observability (logs / metrics / alerts).                                |
+| T-019 | ⏳                         | GDPR hard-delete.                                                       |
+| T-020 | ⏳                         | Rate limiting + NFR hardening.                                          |
+| T-021 | ⏳                         | Playwright acceptance suite.                                            |
+| T-022 | ⏳                         | Slice sign-off + traceability matrix + tag.                             |
 
-| Task  | Status      | Notes                                                                   |
-| ----- | ----------- | ----------------------------------------------------------------------- |
-| T-001 | ✅          | Repo scaffold.                                                          |
-| T-002 | ✅          | WorkOS + secrets wiring (PR #1).                                        |
-| T-003 | ✅          | Postgres + Drizzle setup (PR #3).                                       |
-| T-004 | ✅          | Domain types + zod schemas (PR #4).                                     |
-| T-005 | ✅          | Postgres-specific DDL augments (PR #5).                                 |
-| T-006 | ✅          | WorkOS client wrapper + webhook verifier (PR #6).                       |
-| T-007 | ✅          | Typed Drizzle repositories (PR #7).                                     |
-| T-013 | ✅          | Application-layer audit event writer (PR #8).                           |
-| T-008 | ✅          | Signup + login callback flows (PR #9).                                  |
-| T-012 | ✅          | Suspension lifecycle + `WorkOSClient.listSessions` (PR #10).            |
-| T-009 | ⏳          | Application: invitations.                                               |
-| T-010 | ⏳          | Application: MFA enrolment hook + recovery codes UX contract.           |
-| T-011 | 🎯 **next** | Application: password reset.                                            |
-| T-014 | ⏳          | Handlers: HTTP routes (depends on the application-layer fan-out below). |
-| T-015 | ⏳          | Session middleware + `/me` (depends on T-014).                          |
-| T-016 | ⏳          | WorkOS webhook handler routing — best landed AFTER T-008–T-012 / T-019. |
-| T-017 | ⏳          | Minimal web shell (login / signup / MFA / `/me`).                       |
-| T-018 | ⏳          | Observability (logs / metrics / alerts).                                |
-| T-019 | ⏳          | GDPR hard-delete.                                                       |
-| T-020 | ⏳          | Rate limiting + NFR hardening.                                          |
-| T-021 | ⏳          | Playwright acceptance suite.                                            |
-| T-022 | ⏳          | Slice sign-off + traceability matrix + tag.                             |
+## Recommended next pick after T-011 merges
 
-## Recommended next pick: T-011 — application-layer password reset
+**T-010 — MFA enrolment hook + recovery codes UX contract.**
 
-T-011 is the cleanest next move because:
+- Bounded scope. Two webhook reactions (`mfa_enrolled`,
+  `recovery_code_used`) + a `getRecoveryCodesForDownload` method
+  with a one-shot gate.
+- Same shape as T-011: webhook-driven mirror updates + audit emit.
+- Doesn't have the multi-write transaction concern that's still
+  blocking T-009 / T-019. (See pending follow-up #1 below.)
+- Finalises the recovery-codes contract that T-017's web shell will
+  consume.
 
-- **Tight scope** — two functions in one file, no schema or infra
-  changes. PR sized like T-013 (~150 LOC application + tests).
-- **No transaction concerns** — it's two independent flows, each
-  one DB write at most. The multi-write transaction follow-up
-  flagged in T-008's PR can keep waiting until T-009 / T-019
-  actually need it.
-- **Reuses `WorkOSClient.listSessions`** added in T-012 — validates
-  the abstraction by exercising it from a second callsite.
-- **Sets up T-016** — the `password_reset_completed` webhook
-  handler will route through this file's
-  `handlePasswordResetCompleted` once T-016 lands.
+### Alternatives, in order of preference
 
-### Spec recap
-
-From [`tasks.md` §T-011](./.kiro/specs/ai-data-room/auth-and-orgs/tasks.md#t-011--application-layer-password-reset):
-
-> `requestPasswordReset` delegates to WorkOS's password-reset email
-> flow. On `password_reset_completed` webhook, invalidate all
-> sessions for the user via WorkOS `session.revoke`, write audit
-> event.
->
-> **DoD:** US5 acceptance reachable at application layer.
-> **Tests:** Unit tests for both events.
-
-### Suggested shape — `microservices/core/src/application/password-reset.ts`
-
-Two exported functions, parallel to the
-`signup` / `login` / `suspension` files:
-
-```ts
-// 1. User clicks "forgot password" — enters email — backend calls this.
-async function requestPasswordReset(
-  input: { email: string; audit: AuditContext },
-  deps: { workos: WorkOSClient; auditRepo: AuditRepo },
-): Promise<{ acknowledged: true }> {
-  // Always delegate, even if the email is unknown — never reveal
-  // whether an email is registered (privacy / enumeration defence).
-  // Catch any WorkOS error (e.g. email-not-found) and audit it as
-  // a failure but return success to the caller.
-  // Audit: password_reset_requested.
-}
-
-// 2. WorkOS fires `password_reset_completed` webhook — T-016 routes
-//    the verified payload here. Returns the affected user for the
-//    handler to log (or null if we don't mirror them).
-async function handlePasswordResetCompleted(
-  input: { workosUserId: string; audit: AuditContext },
-  deps: {
-    workos: WorkOSClient;
-    userRepo: UserRepo;
-    auditRepo: AuditRepo;
-  },
-): Promise<{ revokedSessions: number; user: User | null }> {
-  // Look up local user by workosUserId. If missing (rare — webhook
-  // for an unmirrored user), audit and return null without throwing
-  // — webhook redelivery should be idempotent.
-  // List all WorkOS sessions, revoke each active one in parallel
-  // (same pattern as suspension.ts).
-  // Audit: password_reset_completed (success / failure with reason).
-}
-```
-
-### Things to do exactly the same as T-012
-
-- Use `safeAudit` from `application/_audit-context.ts` so an
-  audit-write failure doesn't mask the real outcome.
-- Use `Promise.all(sessions.filter(s => s.status === "active").map(...))`
-  for the revocation fan-out.
-- The completion handler doesn't need to flip lifecycle — that
-  belongs to suspension. Password reset just terminates sessions
-  and emails the user the new password.
-
-### Things to consider
-
-- **Privacy defence on `requestPasswordReset`**: WorkOS's
-  `createPasswordReset` throws if the email isn't a known user.
-  Don't propagate that error to the caller — emit a
-  `password_reset_requested` audit with `outcome: "failure"` and
-  return success. Otherwise the API leaks "this email is
-  registered" via timing / error response (NFR8 spirit).
-- **Idempotency on the completion handler**: T-016 will deliver
-  the webhook at-least-once. The lookup → revoke flow needs to be
-  safe under redelivery: if all sessions are already revoked,
-  `Promise.all([])` is a no-op; the audit will record duplicates.
-  T-016's handler is responsible for the actual dedup; T-011 can
-  trust that.
-- **T-011 spec mentions `session.revoke` (singular)**, but the
-  same flow as suspension list-then-revoke-all is what FR8
-  ("must invalidate all sessions") actually wants.
-
-### Tests
-
-- `requestPasswordReset` (3): happy path delegates to WorkOS +
-  audits success; WorkOS throws (unknown email) → still returns
-  acknowledged + audits failure; missing email argument throws.
-- `handlePasswordResetCompleted` (4): happy path lists + revokes
-  - audits; user_not_found returns null + audits failure (no
-    throw — webhook idempotency); all sessions already revoked is a
-    zero-revocation success; revoke failure surfaces and audits
-    failure.
-
-### What you need to do to ship T-011
-
-1. `git checkout main && git pull` (this branch's chore commit
-   should already be in main when you start).
-2. `git checkout -b feat/auth-and-orgs-T-011-password-reset`.
-3. Implement `application/password-reset.ts` per the shape above.
-4. Tests at `application/__tests__/password-reset.test.ts`. Mock
-   `WorkOSClient` + `UserRepo`; real `recordAuditEvent` against a
-   mocked `AuditRepo` (the existing pattern from
-   `suspension.test.ts`).
-5. Run the simplify skill before committing — the reviewer caught
-   real wins on every recent PR.
-6. Guard set: `bun run typecheck && bun run test && bun run lint && bun run prettier:check`.
-7. Tick T-011 `[~]` in `tasks.md`. Refresh HANDOFF.md for the
-   next pickup.
-8. Commit + push + open PR with the standard
-   `feat(auth-and-orgs): T-011 ...` shape.
-9. Watch the 6 active CI jobs (db-\* will skip; core-integration
-   re-runs the T-007 repo suite because `microservices/core/**`
-   changed).
-10. Cursor Bugbot has caught real bugs on every PR with multi-step
-    flows or external IDs. Expect it to flag something on T-011 —
-    review carefully and fix on the same branch with a regression
-    test that proves the fix.
-
-## Alternative paths if T-011 isn't the right priority
-
-- **T-010 (MFA enrolment hook + recovery codes)** — bounded scope,
-  webhook-driven mirror updates. Good if Brad wants the recovery-
-  codes UX contract finalized for the web shell (T-017).
-- **T-009 (invitations)** — multi-write flow (creates an
-  `invitations` row + sometimes an `external_access_grants`
-  row). Should land AFTER the multi-write transaction follow-up
-  is wired (see "Pending follow-ups" below).
-- **T-019 (GDPR hard-delete)** — multi-write (scrubPii + audit),
-  similar transaction concern as T-009.
-- **T-016 (webhook handler routing)** — best AFTER T-009 / T-010 /
-  T-011 / T-019 land, since it routes events to all of them.
+- **T-009 (invitations)** — multi-write (creates `invitations` row,
+  sometimes `external_access_grants` too). Should land AFTER the
+  multi-write transaction follow-up below. ~2x the LOC of T-011.
+- **T-019 (GDPR hard-delete)** — multi-write (PII scrub + audit).
+  Same transaction caveat as T-009.
+- **T-016 (webhook routing)** — best AFTER T-009 / T-010 / T-011 /
+  T-019 land, since it routes events to all of them.
+- **The two reviewer-flagged refactors** (session-revocation helper
+  and shared test fixtures) if you want a tidy session before the
+  next application task.
 
 ## Pending follow-ups (not blocking, but worth doing soon)
 
@@ -190,15 +117,19 @@ async function handlePasswordResetCompleted(
    T-007 repos accept a `Db`; they need to also accept a
    `PgTransaction` so callers can wrap sequences in
    `db.transaction(async (tx) => { ... })`. Touches all six repos
-   - their integration tests. Bounded scope (~half a day).
-     Prerequisite for T-009 (invitations) and T-019 (hard-delete)
-     to land cleanly.
+   plus their integration tests. Bounded scope (~half a day).
+   Prerequisite for T-009 (invitations) and T-019 (hard-delete) to
+   land cleanly.
 2. **`AuthFlowError` generic** — `SignupError`, `LoginError`,
-   `SuspensionError` are nearly identical class shells. Could
-   extract a generic `AuthFlowError<R extends string>` to
-   `application/_errors.ts`. Touches three files for ~10 LOC
-   savings — low priority but clean if a future task is in the
+   `SuspensionError`, `PasswordResetRequestError`,
+   `PasswordResetCompletionError` are nearly identical class shells.
+   Could extract a generic `AuthFlowError<R extends string>` to
+   `application/_errors.ts`. Touches five files for ~15 LOC savings
+   — low priority but clean if a future task is in the
    neighbourhood.
+3. **`revokeAllActiveSessions` helper** — see "Deliberately not
+   done in this PR" above.
+4. **Shared application-test fixtures** — see same.
 
 ## Sticky knowledge — kept across handoffs
 
@@ -213,7 +144,9 @@ async function handlePasswordResetCompleted(
 4. **Local docker-compose is `ai-data-room-test-db`-prefixed** to
    avoid colliding with FDP's compose stack.
 5. **`bun run test`, not `bun test`.** Bun's built-in runner
-   doesn't support our Vitest setup.
+   doesn't support our Vitest setup. Note `bun run test` requires
+   `sst shell` (AWS creds); `bunx vitest run <pattern>` is the
+   no-creds local fast path.
 6. **`.claude/` is gitignored + prettier-ignored.**
 7. **Migration naming**: drizzle-kit emits
    `0001_<random_nouns>.sql`; we rename to `0001_<intent>.sql`
@@ -271,6 +204,30 @@ async function handlePasswordResetCompleted(
     invariants only — self-suspension, sole-owner protection,
     schema validation. Don't put role checks in
     `application/*.ts`.
+23. **`requestPasswordReset` deliberately skips a local
+    `findByEmail` lookup** — it would leak account existence via
+    timing differences (DB hit vs miss) and add no functional
+    value (WorkOS is the source of truth). T-011's file header
+    documents this.
+24. **`requestPasswordReset` swallows the WorkOS error message
+    entirely**, including from the audit metadata — only a generic
+    `reason: "delegate_error"` is written. WorkOS error strings
+    differ between known/unknown emails; if any of them ever leak
+    to the response or to a downstream consumer of the audit,
+    enumeration becomes possible. Tests pin the audit metadata to
+    a closed shape (not `objectContaining`) to catch a future
+    field-addition leak.
+25. **`handlePasswordResetCompleted` returns null on
+    `user_not_found` rather than throwing** — webhooks must be
+    redeliverable; a throw would force WorkOS into a permanent
+    retry loop for an event we'll never act on.
+26. **`Promise.all` vs `Promise.allSettled` choice is
+    flow-dependent.** Suspension uses `Promise.all` (revoke
+    failure must skip the lifecycle flip). Password-reset
+    completion uses an `allSettled`-style per-task try/catch so
+    every revoke runs even when one fails — the audit row carries
+    `{ attempted, succeeded, failed }` for forensics. Both are
+    intentional; copy whichever matches the new flow's semantics.
 
 ## Workflow conventions in one paragraph
 
