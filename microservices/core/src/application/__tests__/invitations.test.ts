@@ -637,6 +637,52 @@ describe("revokeInvitation", () => {
       expect(deps.revokeInvitation).not.toHaveBeenCalled();
     });
 
+    it("rejects revoke when the invitation belongs to a different org (cross-org guard)", async () => {
+      // Defends against tenancy bypass: the handler validates the
+      // actor's role in `input.orgId`, but `invitationId` is a
+      // globally-unique PK. A tenant-A admin passing a tenant-B
+      // invitation id must not be able to revoke it. Bugbot caught
+      // this on PR #15 — high-severity finding.
+      const otherOrgId = "99999999-9999-4999-8999-999999999999";
+      deps.invitationFindById.mockResolvedValue(
+        makeInvitation({ orgId: otherOrgId }),
+      );
+
+      await expect(
+        revokeInvitation(
+          {
+            invitationId: INVITATION_ID,
+            orgId: ORG_ID,
+            actorId: ACTOR_ID,
+            actorRole: "owner",
+            audit: AUDIT_CTX,
+          },
+          deps,
+        ),
+      ).rejects.toThrow(/invitation_not_found/);
+
+      // Crucially, no WorkOS revoke and no local state flip. The
+      // tenant-B invitation must be untouched.
+      expect(deps.revokeInvitation).not.toHaveBeenCalled();
+      expect(deps.invitationSetState).not.toHaveBeenCalled();
+
+      // Audit the attempt with the actor's requested org as the
+      // top-level orgId, plus the actual owning org in metadata so
+      // an operator can spot the cross-org probe.
+      expect(deps.auditWrite).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: "invite_revoked",
+          outcome: "failure",
+          actorUserId: ACTOR_ID,
+          orgId: ORG_ID,
+          metadata: expect.objectContaining({
+            reason: "invitation_not_found",
+            actualOrgId: otherOrgId,
+          }),
+        }),
+      );
+    });
+
     it("rejects revoke against an already-accepted invitation", async () => {
       deps.invitationFindById.mockResolvedValue(
         makeInvitation({ state: "accepted", acceptedAt: NOW }),

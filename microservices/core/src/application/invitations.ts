@@ -245,8 +245,28 @@ export async function revokeInvitation(
   }
 
   const invitation = await deps.invitationRepo.findById(input.invitationId);
-  if (!invitation) {
-    await emitFailure(deps, input, "invite_revoked", "invitation_not_found");
+  // Cross-org guard: the handler validates the actor's role in
+  // `input.orgId`, but `invitationId` is a globally-unique PK. A
+  // tenant-A admin passing a tenant-B invitation id would otherwise
+  // bypass tenancy. We treat cross-org access the same as not-found
+  // so the response shape doesn't reveal that the invitation exists
+  // in some other org. The failure-audit metadata records the actual
+  // owning org so an operator investigating the audit trail can
+  // distinguish a real lookup miss from an attempted cross-org
+  // probe.
+  if (!invitation || invitation.orgId !== input.orgId) {
+    await safeAudit(deps, {
+      eventType: "invite_revoked",
+      outcome: "failure",
+      actorUserId: input.actorId,
+      orgId: input.orgId,
+      sourceIp: input.audit.sourceIp,
+      userAgent: input.audit.userAgent,
+      metadata: {
+        reason: "invitation_not_found",
+        ...(invitation ? { actualOrgId: invitation.orgId } : {}),
+      },
+    });
     throw new InvitationError("invitation_not_found");
   }
 
@@ -267,7 +287,11 @@ export async function revokeInvitation(
     eventType: "invite_revoked",
     outcome: "success",
     actorUserId: input.actorId,
-    orgId: input.orgId,
+    // Source-of-truth from the row, not the request — they are
+    // equal here (cross-org check above), but using the row's value
+    // means the audit is correct by construction even if the guard
+    // is ever weakened.
+    orgId: invitation.orgId,
     sourceIp: input.audit.sourceIp,
     userAgent: input.audit.userAgent,
     metadata: {
