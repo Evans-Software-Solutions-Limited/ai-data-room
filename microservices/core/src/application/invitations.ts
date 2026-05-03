@@ -1,0 +1,478 @@
+// Application-layer invitations flow — covers the FR6 / FR7 / FR10
+// invitation lifecycle for slice 1.
+//
+// Authorization split: handlers gate "signed in + some org role";
+// this file enforces the domain-specific role rules — only owner
+// can invite an admin (FR6 / FR7), and revoke requires owner-or-
+// admin role.
+//
+// `acceptInvitation` is webhook-driven and idempotent under WorkOS
+// at-least-once redelivery — missing invitation returns null
+// rather than throwing; non-pending state returns null + audits
+// failure; the in-tx user lookup uses find-or-create so a re-fired
+// webhook doesn't double-create. Multi-write atomicity is via the
+// `withTx` factory pattern that landed before this PR.
+
+import type {
+  Invitation as WorkOSInvitation,
+  WorkOSClient,
+} from "../infrastructure/workos/client";
+import type { AuditRepo } from "../infrastructure/db/auditRepo";
+import type { ExternalGrantRepo } from "../infrastructure/db/externalGrantRepo";
+import type { InvitationRepo } from "../infrastructure/db/invitationRepo";
+import type { MembershipRepo } from "../infrastructure/db/membershipRepo";
+import type { OrgRepo } from "../infrastructure/db/orgRepo";
+import type { UserRepo } from "../infrastructure/db/userRepo";
+import type { Db } from "@ai-data-room/db";
+import type {
+  ExternalAccessGrant,
+  Invitation,
+  InvitationRole,
+  OrgMembership,
+  Role,
+  User,
+} from "@ai-data-room/api-utils/schemas/auth-orgs";
+
+import { type AuditContext, safeAudit } from "./_audit-context";
+
+export type InvitationErrorReason =
+  /** Actor's org role is `internal` or otherwise insufficient — FR6 / FR7
+   * permit only owner / admin to issue or revoke invites. */
+  | "actor_role_insufficient"
+  /** Admin-role invite issued by a non-owner — FR6 reserves admin
+   * promotion to the owner. */
+  | "only_owner_can_invite_admin"
+  /** Lookup miss on revoke. */
+  | "invitation_not_found"
+  /** Revoke against an invite that's already accepted / expired /
+   * previously revoked — FR10 is "revoke unaccepted invite". */
+  | "invitation_not_pending"
+  /** Inviter row missing locally — usually a data-integrity bug
+   * since the inviter's session shouldn't exist without the row. */
+  | "inviter_user_not_found"
+  /** Org row missing locally — same shape as above. */
+  | "org_not_found"
+  /** Invitation row violates the schema's `(kind, role,
+   * opportunity_slug)` invariant — e.g. an internal invite with a
+   * null role. Defends `acceptInvitation` against DB drift (a manual
+   * UPDATE bypassing the schema) by surfacing a typed error rather
+   * than an opaque NOT NULL constraint violation from Drizzle. */
+  | "invitation_invariant_violation";
+
+export class InvitationError extends Error {
+  constructor(public readonly reason: InvitationErrorReason) {
+    super(reason);
+    this.name = "InvitationError";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// createInvitation
+// ---------------------------------------------------------------------------
+
+interface CreateInvitationInputBase {
+  email: string;
+  orgId: string;
+  actorId: string;
+  /** Actor's role in the org. The handler layer is responsible for
+   * resolving this; the application layer enforces the role-vs-action
+   * rules (only owner can invite admin). */
+  actorRole: Role;
+  audit: AuditContext;
+}
+
+export type CreateInvitationInput = CreateInvitationInputBase &
+  (
+    | {
+        kind: "internal";
+        role: InvitationRole;
+        opportunitySlug?: never;
+      }
+    | {
+        kind: "external";
+        opportunitySlug: string;
+        role?: never;
+      }
+  );
+
+export interface CreateInvitationDeps {
+  workos: WorkOSClient;
+  userRepo: UserRepo;
+  orgRepo: OrgRepo;
+  invitationRepo: InvitationRepo;
+  auditRepo: AuditRepo;
+}
+
+export async function createInvitation(
+  input: CreateInvitationInput,
+  deps: CreateInvitationDeps,
+): Promise<Invitation> {
+  // Authorization invariants (FR6 / FR7).
+  if (input.actorRole !== "owner" && input.actorRole !== "admin") {
+    await emitFailure(deps, input, "invite_sent", "actor_role_insufficient");
+    throw new InvitationError("actor_role_insufficient");
+  }
+  if (
+    input.kind === "internal" &&
+    input.role === "admin" &&
+    input.actorRole !== "owner"
+  ) {
+    await emitFailure(
+      deps,
+      input,
+      "invite_sent",
+      "only_owner_can_invite_admin",
+    );
+    throw new InvitationError("only_owner_can_invite_admin");
+  }
+
+  // The WorkOS `sendInvitation` call needs `inviterUserId` (their
+  // side's id) and `organizationId` (their side's id). We resolve
+  // both from our local mirror so we never expose a local UUID
+  // across the WorkOS boundary.
+  const [actor, org] = await Promise.all([
+    deps.userRepo.findById(input.actorId),
+    deps.orgRepo.findById(input.orgId),
+  ]);
+  if (!actor) {
+    await emitFailure(deps, input, "invite_sent", "inviter_user_not_found");
+    throw new InvitationError("inviter_user_not_found");
+  }
+  if (!org) {
+    await emitFailure(deps, input, "invite_sent", "org_not_found");
+    throw new InvitationError("org_not_found");
+  }
+
+  // External call before local write. If the local mirror fails
+  // afterwards, we have a "live" WorkOS invite that doesn't exist
+  // in our DB — the audit row carries the WorkOS id so an operator
+  // can revoke it manually. Wrapping in a DB transaction is not
+  // possible here because WorkOS is an external API; the standard
+  // outbox pattern is the proper long-term fix and is out of scope.
+  const workosInvite: WorkOSInvitation = await deps.workos.createInvitation({
+    email: input.email,
+    organizationId: org.workosOrgId,
+    inviterUserId: actor.workosUserId,
+    expiresInDays: 7,
+  });
+
+  const invitation = await deps.invitationRepo.create({
+    workosInvitationId: workosInvite.id,
+    orgId: input.orgId,
+    email: input.email,
+    kind: input.kind,
+    role: input.kind === "internal" ? input.role : null,
+    opportunitySlug: input.kind === "external" ? input.opportunitySlug : null,
+    invitedBy: input.actorId,
+    expiresAt: new Date(workosInvite.expiresAt),
+  });
+
+  await safeAudit(deps, {
+    eventType: "invite_sent",
+    outcome: "success",
+    actorUserId: input.actorId,
+    orgId: input.orgId,
+    sourceIp: input.audit.sourceIp,
+    userAgent: input.audit.userAgent,
+    metadata: {
+      invitationId: invitation.id,
+      workosInvitationId: workosInvite.id,
+      email: input.email,
+      kind: input.kind,
+      ...(input.kind === "internal"
+        ? { role: input.role }
+        : { opportunitySlug: input.opportunitySlug }),
+    },
+  });
+
+  return invitation;
+}
+
+// ---------------------------------------------------------------------------
+// listInvitations
+// ---------------------------------------------------------------------------
+
+export interface ListInvitationsInput {
+  orgId: string;
+  /** Defaults to `pending` — the admin UI's primary case. Pass other
+   * states explicitly when surfacing audit history. */
+  state?: Invitation["state"];
+}
+
+export interface ListInvitationsDeps {
+  invitationRepo: InvitationRepo;
+}
+
+/**
+ * Read-only — no audit emission. The list endpoint returns 0+ rows
+ * for the requested org and state.
+ */
+export async function listInvitations(
+  input: ListInvitationsInput,
+  deps: ListInvitationsDeps,
+): Promise<Invitation[]> {
+  return deps.invitationRepo.listByOrgAndState(
+    input.orgId,
+    input.state ?? "pending",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// revokeInvitation
+// ---------------------------------------------------------------------------
+
+export interface RevokeInvitationInput {
+  invitationId: string;
+  orgId: string;
+  actorId: string;
+  actorRole: Role;
+  audit: AuditContext;
+}
+
+export interface RevokeInvitationDeps {
+  workos: WorkOSClient;
+  invitationRepo: InvitationRepo;
+  auditRepo: AuditRepo;
+}
+
+export async function revokeInvitation(
+  input: RevokeInvitationInput,
+  deps: RevokeInvitationDeps,
+): Promise<Invitation> {
+  if (input.actorRole !== "owner" && input.actorRole !== "admin") {
+    await emitFailure(deps, input, "invite_revoked", "actor_role_insufficient");
+    throw new InvitationError("actor_role_insufficient");
+  }
+
+  const invitation = await deps.invitationRepo.findById(input.invitationId);
+  if (!invitation) {
+    await emitFailure(deps, input, "invite_revoked", "invitation_not_found");
+    throw new InvitationError("invitation_not_found");
+  }
+
+  if (invitation.state !== "pending") {
+    await emitFailure(deps, input, "invite_revoked", "invitation_not_pending");
+    throw new InvitationError("invitation_not_pending");
+  }
+
+  // WorkOS revoke first — same ordering rationale as createInvitation:
+  // if the local update fails after WorkOS revokes, the audit row
+  // captures the workosInvitationId for manual reconciliation. The
+  // alternative (local first, WorkOS second) is worse because a
+  // user could still accept via a stale WorkOS-side token.
+  await deps.workos.revokeInvitation(invitation.workosInvitationId);
+  const updated = await deps.invitationRepo.setState(invitation.id, "revoked");
+
+  await safeAudit(deps, {
+    eventType: "invite_revoked",
+    outcome: "success",
+    actorUserId: input.actorId,
+    orgId: input.orgId,
+    sourceIp: input.audit.sourceIp,
+    userAgent: input.audit.userAgent,
+    metadata: {
+      invitationId: invitation.id,
+      workosInvitationId: invitation.workosInvitationId,
+    },
+  });
+
+  return updated;
+}
+
+// ---------------------------------------------------------------------------
+// acceptInvitation
+// ---------------------------------------------------------------------------
+
+export interface AcceptInvitationInput {
+  workosInvitationId: string;
+  /** WorkOS user id from the webhook payload — the user who accepted. */
+  workosUserId: string;
+  /** Email + name from the webhook payload — used to seed the local
+   * `users` row when we don't already mirror this WorkOS user. */
+  email: string;
+  fullName: string | null;
+  emailVerified: boolean;
+  audit: AuditContext;
+}
+
+export interface AcceptInvitationDeps {
+  db: Db;
+  userRepo: UserRepo;
+  membershipRepo: MembershipRepo;
+  externalGrantRepo: ExternalGrantRepo;
+  invitationRepo: InvitationRepo;
+  auditRepo: AuditRepo;
+}
+
+export interface AcceptInvitationResult {
+  /** Null on idempotent no-op (unknown invitation or already-accepted
+   * state) so the webhook handler can ack without retrying. */
+  invitation: Invitation | null;
+  user: User | null;
+  /** Set for internal invites; null for external. */
+  membership: OrgMembership | null;
+  /** Set for external invites; null for internal. */
+  grant: ExternalAccessGrant | null;
+}
+
+export async function acceptInvitation(
+  input: AcceptInvitationInput,
+  deps: AcceptInvitationDeps,
+): Promise<AcceptInvitationResult> {
+  const invitation = await deps.invitationRepo.findByWorkosInvitationId(
+    input.workosInvitationId,
+  );
+  if (!invitation) {
+    await safeAudit(deps, {
+      eventType: "invite_accepted",
+      outcome: "failure",
+      sourceIp: input.audit.sourceIp,
+      userAgent: input.audit.userAgent,
+      metadata: {
+        reason: "invitation_not_found",
+        workosInvitationId: input.workosInvitationId,
+      },
+    });
+    return { invitation: null, user: null, membership: null, grant: null };
+  }
+
+  if (invitation.state !== "pending") {
+    // Webhook redelivery for an already-accepted invite is the
+    // common case here. The first delivery flipped state to
+    // `accepted`; the redelivery sees `accepted` and no-ops.
+    await safeAudit(deps, {
+      eventType: "invite_accepted",
+      outcome: "failure",
+      orgId: invitation.orgId,
+      sourceIp: input.audit.sourceIp,
+      userAgent: input.audit.userAgent,
+      metadata: {
+        reason: "invitation_not_pending",
+        invitationId: invitation.id,
+        currentState: invitation.state,
+      },
+    });
+    return { invitation, user: null, membership: null, grant: null };
+  }
+
+  // The user / membership-or-grant / invitation-state writes all
+  // need to commit together — a partial failure would leave the
+  // invitation pending with a half-built grant or vice versa, which
+  // would block the user from re-accepting. Mirrors the signup.ts
+  // pattern that landed in the txn-wrapper PR.
+  //
+  // Note: WorkOS sends user data with the webhook, so we mirror
+  // here rather than calling `getUser` separately. AuthKit guarantees
+  // the user finished MFA enrolment before we reach this point
+  // (FR16), so `mfaEnrolledAt` is stamped at create-time — same
+  // rationale as signup.ts.
+  const now = new Date();
+  const result = await deps.db.transaction(async (tx) => {
+    const userTx = deps.userRepo.withTx(tx);
+    const membershipTx = deps.membershipRepo.withTx(tx);
+    const externalGrantTx = deps.externalGrantRepo.withTx(tx);
+    const invitationTx = deps.invitationRepo.withTx(tx);
+
+    // Find-or-create on the user mirror. Webhook redelivery for a
+    // user we've already mirrored (e.g. a re-invited user) hits the
+    // existing row and skips the insert.
+    const existing = await userTx.findByWorkosUserId(input.workosUserId);
+    const user =
+      existing ??
+      (await userTx.create({
+        workosUserId: input.workosUserId,
+        email: input.email,
+        fullName: input.fullName,
+        mfaEnrolledAt: now,
+        emailVerifiedAt: input.emailVerified ? now : null,
+      }));
+
+    let membership: OrgMembership | null = null;
+    let grant: ExternalAccessGrant | null = null;
+
+    if (invitation.kind === "internal") {
+      // Schema's `superRefine` enforces `role !== null` when
+      // `kind === "internal"`, but the row comes from the DB
+      // unparsed — a manual UPDATE bypassing the schema would let
+      // null through. Explicit guard surfaces a typed error rather
+      // than Drizzle's opaque NOT NULL violation.
+      if (invitation.role === null) {
+        throw new InvitationError("invitation_invariant_violation");
+      }
+      membership = await membershipTx.create({
+        orgId: invitation.orgId,
+        userId: user.id,
+        role: invitation.role,
+      });
+    } else {
+      if (invitation.opportunitySlug === null) {
+        throw new InvitationError("invitation_invariant_violation");
+      }
+      grant = await externalGrantTx.create({
+        orgId: invitation.orgId,
+        userId: user.id,
+        opportunitySlug: invitation.opportunitySlug,
+        grantedBy: invitation.invitedBy,
+      });
+    }
+
+    const updatedInvitation = await invitationTx.setState(
+      invitation.id,
+      "accepted",
+    );
+
+    return { invitation: updatedInvitation, user, membership, grant };
+  });
+
+  await safeAudit(deps, {
+    eventType: "invite_accepted",
+    outcome: "success",
+    actorUserId: result.user.id,
+    targetUserId: result.user.id,
+    orgId: invitation.orgId,
+    sourceIp: input.audit.sourceIp,
+    userAgent: input.audit.userAgent,
+    metadata: {
+      invitationId: invitation.id,
+      workosInvitationId: invitation.workosInvitationId,
+      kind: invitation.kind,
+      ...(invitation.kind === "internal"
+        ? { role: invitation.role }
+        : { opportunitySlug: invitation.opportunitySlug }),
+    },
+  });
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Shared shape for failure-audit emission across the two write paths
+ * (create + revoke). The two webhook-driven failure paths in
+ * `acceptInvitation` use `safeAudit` directly — they have neither an
+ * `actorId` (no authenticated session) nor always an `orgId` (the
+ * invitation_not_found branch hasn't resolved one).
+ */
+async function emitFailure(
+  deps: { auditRepo: AuditRepo },
+  input: {
+    actorId: string;
+    orgId: string;
+    audit: AuditContext;
+  },
+  eventType: "invite_sent" | "invite_revoked",
+  reason: InvitationErrorReason,
+): Promise<void> {
+  await safeAudit(deps, {
+    eventType,
+    outcome: "failure",
+    actorUserId: input.actorId,
+    orgId: input.orgId,
+    sourceIp: input.audit.sourceIp,
+    userAgent: input.audit.userAgent,
+    metadata: { reason },
+  });
+}
