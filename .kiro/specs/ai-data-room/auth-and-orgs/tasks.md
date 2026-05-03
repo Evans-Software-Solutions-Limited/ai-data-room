@@ -241,7 +241,7 @@ returns a user without MFA for any role).
 
 ## T-009 — Application layer: invitations
 
-Status: `[ ]`
+Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-009-invitations`)
 **Scope:** `createInvitation` (internal + external variants),
 `listInvitations`, `revokeInvitation`, `acceptInvitation`. Enforce
 FR6–FR10. Only owner/admin can invite; only owner can invite an admin;
