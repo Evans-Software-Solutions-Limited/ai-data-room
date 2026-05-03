@@ -6,6 +6,9 @@
 // infra/secrets.ts.
 
 import { drizzle } from "drizzle-orm/postgres-js";
+import type { ExtractTablesWithRelations } from "drizzle-orm";
+import type { PgTransaction } from "drizzle-orm/pg-core";
+import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import * as schema from "./schema";
@@ -27,3 +30,23 @@ export function getDb(connectionString: string) {
 
 export { schema };
 export type Db = ReturnType<typeof getDb>;
+
+/**
+ * The transaction handle Drizzle's `db.transaction(cb)` passes to its
+ * callback. Repos accept `DbOrTx` so the same instance works whether
+ * called directly on the pool or inside a transaction; `Repo#withTx`
+ * is the factory that swaps in the tx-bound version.
+ */
+export type Tx = PgTransaction<
+  PostgresJsQueryResultHKT,
+  typeof schema,
+  ExtractTablesWithRelations<typeof schema>
+>;
+
+/**
+ * Repos accept this union so the same instance works whether called
+ * on the pool client (`Db`) or on a transaction handle (`Tx`); use
+ * `Repo#withTx` to swap an existing repo onto a tx for the duration
+ * of a `db.transaction()` callback.
+ */
+export type DbOrTx = Db | Tx;

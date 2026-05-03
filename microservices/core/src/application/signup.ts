@@ -43,6 +43,7 @@ import type { OrgRepo } from "../infrastructure/db/orgRepo";
 import type { UserRepo } from "../infrastructure/db/userRepo";
 import type { MembershipRepo } from "../infrastructure/db/membershipRepo";
 import type { AuditRepo } from "../infrastructure/db/auditRepo";
+import type { Db } from "@ai-data-room/db";
 import type {
   Org,
   OrgMembership,
@@ -69,6 +70,13 @@ export interface HandleSignupInput {
 
 export interface HandleSignupDeps {
   workos: WorkOSClient;
+  /**
+   * Drizzle client used as the outer transaction boundary for the
+   * user / org / membership multi-write. Repos still come in
+   * pre-constructed; we call `repo.withTx(tx)` inside the callback
+   * to swap them onto the transaction handle.
+   */
+  db: Db;
   userRepo: UserRepo;
   orgRepo: OrgRepo;
   membershipRepo: MembershipRepo;
@@ -130,51 +138,62 @@ export async function handleSignup(
     throw new SignupError("mfa_required");
   }
 
-  // Stamp `mfaEnrolledAt` and (conditionally) `emailVerifiedAt` at
-  // create-time so the user can log in immediately after signup —
-  // without this, every login that runs before the T-010 webhook
-  // backfills these mirror columns would fail the
-  // `mfaEnrolledAt === null → mfa_required` gate in `login.ts`.
-  // AuthKit guarantees MFA was enrolled before issuing the code
-  // (FR16 + per-org config), so stamping `now()` is correct at
-  // this layer — the webhook will idempotently re-stamp the same
-  // value when it arrives.
+  // The user / org / membership writes are wrapped in a single
+  // Drizzle transaction so a mid-sequence failure rolls every row
+  // back atomically. Without this, a `membershipRepo.create` failure
+  // after the user + org rows commit would leave an orphan org with
+  // no owner — the single-owner partial unique would then block
+  // re-signup attempts that try to attach a fresh owner.
+  //
+  // The audit write stays OUTSIDE the transaction (via `safeAudit`
+  // after commit) so that an audit-write failure doesn't roll the
+  // user/org/membership back, and so a transaction rollback doesn't
+  // erase the audit row of a failure we wanted to record.
   const now = new Date();
-  const user = await deps.userRepo.create({
-    workosUserId: session.user.id,
-    email: session.user.email,
-    fullName: composeFullName(session.user),
-    mfaEnrolledAt: now,
-    emailVerifiedAt: session.user.emailVerified ? now : null,
-  });
+  // The three writes below MUST stay sequential — a Drizzle tx
+  // wraps a single Postgres connection, so concurrent awaits on the
+  // same tx interleave commands on one wire and risk
+  // `another command is already in progress` errors.
+  const { user, org, membership } = await deps.db.transaction(async (tx) => {
+    const userTx = deps.userRepo.withTx(tx);
+    const orgTx = deps.orgRepo.withTx(tx);
+    const membershipTx = deps.membershipRepo.withTx(tx);
 
-  // KNOWN FOLLOW-UP: this sequence (user → org → membership) is not
-  // wrapped in a Drizzle transaction yet. If `membershipRepo.create`
-  // fails after the user + org rows are persisted, we leave an
-  // orphaned org with no owner. The fix is a small T-007 refactor —
-  // the repos need to accept `Db | PgTransaction` so an application
-  // function can call `deps.db.transaction(async tx => { ... })`
-  // and instantiate transaction-scoped repos. Tracked for the
-  // multi-write follow-up that also covers T-009 (invitations,
-  // membership + grant insert pair) and T-019 (deletion, scrub +
-  // audit pair).
-  const org = await deps.orgRepo.create({
-    // `workosOrgId` is unique on `organizations`. WorkOS itself
-    // doesn't currently create an org for solo signups, so we
-    // synthesise an ID. Using only `session.user.id` would collide
-    // when a user signs up → deletes account → signs up again
-    // (WorkOS user IDs are stable across the lifecycle), so we
-    // append a fresh UUID. The synth_ prefix keeps the column's
-    // semantics legible to a human reading admin tooling.
-    workosOrgId: session.organizationId ?? `synth_${randomUUID()}`,
-    name: input.orgName,
-    slug: input.orgSlug,
-  });
+    // Stamp `mfaEnrolledAt` and (conditionally) `emailVerifiedAt` at
+    // create-time so the user can log in immediately after signup;
+    // without this, every login that runs before the T-010 webhook
+    // backfills these mirror columns would fail the
+    // `mfaEnrolledAt === null → mfa_required` gate in `login.ts`.
+    // AuthKit guarantees MFA was enrolled before issuing the code
+    // (FR16), so stamping `now()` is correct at this layer — the
+    // webhook will idempotently re-stamp the same value when it
+    // arrives.
+    const user = await userTx.create({
+      workosUserId: session.user.id,
+      email: session.user.email,
+      fullName: composeFullName(session.user),
+      mfaEnrolledAt: now,
+      emailVerifiedAt: session.user.emailVerified ? now : null,
+    });
 
-  const membership = await deps.membershipRepo.create({
-    orgId: org.id,
-    userId: user.id,
-    role: "owner",
+    const org = await orgTx.create({
+      // WorkOS doesn't create an org for solo signups, so we
+      // synthesise an ID. Using only `session.user.id` would collide
+      // on signup → delete → re-signup (WorkOS user IDs are stable
+      // across the lifecycle), so we append a fresh UUID. The
+      // `synth_` prefix keeps the column legible in admin tooling.
+      workosOrgId: session.organizationId ?? `synth_${randomUUID()}`,
+      name: input.orgName,
+      slug: input.orgSlug,
+    });
+
+    const membership = await membershipTx.create({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    return { user, org, membership };
   });
 
   await safeAudit(deps, {
