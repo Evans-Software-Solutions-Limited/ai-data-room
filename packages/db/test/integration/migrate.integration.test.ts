@@ -38,6 +38,7 @@ const EXPECTED_TABLES = [
   "org_memberships",
   "organizations",
   "users",
+  "webhook_deliveries",
 ];
 
 const EXPECTED_ENUMS = [
