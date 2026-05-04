@@ -1,6 +1,7 @@
 // Integration tests for `AuditRepo`.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
@@ -186,5 +187,92 @@ describe("AuditRepo (integration)", () => {
     });
     const listB = await audit.listByOrg(orgB.id);
     expect(listB).toHaveLength(0);
+  });
+
+  describe("NFR9 — audit continuity after GDPR scrub", () => {
+    it("audit rows JOIN to the tombstoned user after scrubPii (PII nulled, FK still resolves)", async () => {
+      // The literal T-019 DoD: "delete a user and assert PII is
+      // gone but audit joins still resolve". `scrubPii` nulls
+      // `email` + `fullName` and flips `lifecycleState = "deleted"`
+      // but deliberately keeps `id` and `workosUserId` so
+      // `audit_events.target_user_id` still resolves to the user
+      // row via FK.
+      const { org, actor } = await seedOrgAndActor("nfr9_continuity");
+
+      // Plant historical audit events that target the user —
+      // login_success and user_suspended, typical of an
+      // active-then-suspended-then-deleted lifecycle.
+      await audit.write({
+        eventType: "login_success",
+        outcome: "success",
+        actorUserId: actor.id,
+        targetUserId: actor.id,
+        orgId: org.id,
+        sourceIp: "203.0.113.5",
+        userAgent: "test/1.0",
+      });
+      await audit.write({
+        eventType: "user_suspended",
+        outcome: "success",
+        actorUserId: actor.id,
+        targetUserId: actor.id,
+        orgId: org.id,
+        sourceIp: "203.0.113.5",
+        userAgent: "test/1.0",
+      });
+
+      // Now scrub the user — this is the moment NFR9 hinges on.
+      const tombstone = await users.scrubPii(actor.id);
+      expect(tombstone.email).toBeNull();
+      expect(tombstone.fullName).toBeNull();
+      expect(tombstone.lifecycleState).toBe("deleted");
+
+      // Plus the deletion-itself event written post-scrub against
+      // the tombstoned id.
+      await audit.write({
+        eventType: "user_deleted",
+        outcome: "success",
+        targetUserId: tombstone.id,
+        orgId: org.id,
+        sourceIp: "203.0.113.5",
+        userAgent: "test/1.0",
+      });
+
+      // The actual NFR9 assertion: a real JOIN from audit_events to
+      // users on `target_user_id = users.id` resolves to the
+      // tombstone row for every event. A regression where `scrubPii`
+      // accidentally deleted the user row instead of nulling PII
+      // would surface here as `userId === null` from the leftJoin.
+      const joined = await db
+        .select({
+          auditId: schema.auditEvents.id,
+          eventType: schema.auditEvents.eventType,
+          userId: schema.users.id,
+          userWorkosId: schema.users.workosUserId,
+          userEmail: schema.users.email,
+          userFullName: schema.users.fullName,
+          userLifecycle: schema.users.lifecycleState,
+        })
+        .from(schema.auditEvents)
+        .leftJoin(
+          schema.users,
+          eq(schema.auditEvents.targetUserId, schema.users.id),
+        )
+        .where(eq(schema.auditEvents.targetUserId, tombstone.id));
+
+      expect(joined).toHaveLength(3);
+      for (const row of joined) {
+        // Join resolved — the FK target still exists.
+        expect(row.userId).toBe(tombstone.id);
+        // workosUserId tombstone retained — supports a future
+        // webhook redelivery for the same WorkOS id resolving back
+        // to this row rather than fanning out to a new mirror.
+        expect(row.userWorkosId).toBe(actor.workosUserId);
+        // PII gone.
+        expect(row.userEmail).toBeNull();
+        expect(row.userFullName).toBeNull();
+        expect(row.userLifecycle).toBe("deleted");
+      }
+    });
   });
 });
