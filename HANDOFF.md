@@ -4,208 +4,157 @@
 > session should pick up. Refreshed at every task transition; delete
 > once steady state ("look at `tasks.md`") is safe to assume.
 
-**Last updated:** 2026-05-04 by Claude Code, mid-flight on T-016.
-Branch `feat/auth-and-orgs-T-016-webhook-routing` is open and
-awaiting review. T-019 (GDPR delete) merged yesterday as PR #16.
-
-## Currently in flight
-
-**T-016 — WorkOS webhook routing.** First wiring task in slice 1
-(after the application fan-out finished with T-019). A dedicated
-Lambda at `POST /webhooks/workos` that verifies the WorkOS HMAC
-signature → dedups via a new `webhook_deliveries` ledger →
-routes to one of three application handlers (`handleUserDeleted`,
-`handlePasswordResetCompleted`, `acceptInvitation`).
-
-The dedup ledger is the load-bearing piece of the spec's "replay
-3× → exactly one audit row + one state change" guarantee. The
-application handlers are independently idempotent for state, but
-each emits a `failure / already_*` audit row on redelivery —
-without dedup that'd violate the spec.
-
-What changed:
-
-- `packages/db/src/schema/auth.ts` — new `webhook_deliveries`
-  table (event_id PK, event_type, received_at).
-- `packages/db/migrations/0002_webhook_deliveries.sql` —
-  drizzle-generated migration (renamed from random nouns).
-- `microservices/core/src/infrastructure/db/webhookDeliveryRepo.ts`
-  (~95 LOC) — `markDelivered(eventId, eventType)` returning
-  `{ firstDelivery, delivery }` via INSERT ... ON CONFLICT DO
-  NOTHING + conditional SELECT.
-- `microservices/core/test/integration/db/webhookDeliveryRepo.integration.test.ts`
-  (~95 LOC, 4 tests) — proves the dedup contract on real
-  Postgres including the literal "replay 3× yields one row"
-  DoD assertion.
-- `microservices/core/src/handlers/webhooks/workos.ts` (~225 LOC)
-  — `routeWorkOSWebhook(event, deps)`: pure routing logic with
-  deps-injected for testing. Verifies signature → dedups →
-  switches on `event.event` to one of 3 routes. Other event
-  types ack as `{ ignored: true }` (includes the MFA events
-  whose application handlers exist but have no matching WorkOS
-  event in v8.13's SDK — investigation deferred).
-- `microservices/core/src/handlers/webhooks/workosLambda.ts` —
-  thin Lambda wrapper that constructs production deps from
-  `Resource.*` + `getDb()` and hands off to
-  `routeWorkOSWebhook`. Excluded from the unit-coverage gate
-  (mirroring the `src/api.ts` precedent — pure wiring).
-- `microservices/core/src/handlers/webhooks/__tests__/workos.test.ts`
-  (~470 LOC, 14 tests) — covers signature verification (incl.
-  truly-absent header), dedup short-circuit, each routing
-  branch, the handler-exception path, and the audit-context
-  fallbacks.
-- `infra/api.ts` — uncommented the `POST /webhooks/workos`
-  route wiring (was a TODO since T-006).
-- `microservices/core/vitest.config.ts` — excluded the
-  Lambda wrapper from the coverage gate.
-- `sst-env.d.ts` — manually added the `PLANETSCALE_DATABASE_URL`
-  type entry with a `// MANUAL ENTRY (T-016)` marker; will be
-  cleanly overwritten on the next `bun sst dev` regen.
-
-Local guard set green: `typecheck` (force), `test:unit` (force —
-154/154 with workos.ts at 100/94.73/100/100), `lint`,
-`prettier:check`. Awaiting CI + Cursor Bugbot + Brad's review.
-
-### Departures from the brief after the simplify review
-
-1. **Collapsed the `handlerDeps` factory shape.** First-pass
-   handler had three `() => Deps` factory closures (one per
-   event type) for "lazy" dep construction. Reviewers flagged
-   the lazy bit as nil-value: every dep is already constructed
-   in the production wrapper before the factories are called.
-   Replaced with a `routes` shape: pre-bound
-   `(input) => Promise<result>` invocations. Tests now inject
-   `vi.fn()` mocks directly without `vi.spyOn` on application
-   modules; production wires by binding repo+SDK deps.
-2. **Replaced the defensive `firstDelivery: true` fallback** in
-   `WebhookDeliveryRepo.markDelivered` with a loud
-   `throw new Error(...)`. The fallback would have silently
-   bypassed dedup if INSERT skipped AND SELECT missed — exactly
-   the wrong shape for the spec's "exactly one audit row"
-   guarantee. The branch is unreachable in v0.1 (no DELETE
-   path on the table); failing loud is better than silently
-   short-circuiting.
-3. **Stripped `error: err.message` from the 500 response body**
-   to avoid leaking internal detail (DB connection strings,
-   driver paths) into WorkOS's webhook delivery log. Full error
-   is `console.error`'d for forensics instead.
-4. **Dropped the `WorkOS-Signature` TitleCase header fallback**
-   — API Gateway HTTP API v2 normalizes header names to
-   lowercase, so the TitleCase branch was dead code.
-5. **Split the file into routing + Lambda wiring.** `workos.ts`
-   holds `routeWorkOSWebhook` (testable, in coverage gate);
-   `workosLambda.ts` holds the production `handler` that wires
-   `Resource.*` (excluded as pure wiring, mirrors `src/api.ts`).
-   Avoids a 6-module mock just to bump coverage.
-
-### Deliberately not done in this PR (reviewer flagged, deferred)
-
-- **Real WorkOS event names for MFA enrolment / recovery code
-  used.** The application handlers `handleMfaEnrolled` and
-  `handleRecoveryCodeUsed` exist but have no matching event in
-  the v8.13 WorkOS SDK union. Investigation (WorkOS docs / SDK
-  upgrade / event-shape inference from `user.updated`) is a
-  follow-up — for now, both event types ack as
-  `{ ignored: true }`.
-- **Session events** (`session.created`, `session.revoked`).
-  Acked as ignored — `session.revoked` should bust the session
-  cache that lands in T-015. Wired then.
-- **Helper extraction follow-ups** still deferred: shared
-  `lookupUserOrAuditFailureForWebhook`, `revokeAllActiveSessions`,
-  `AUDIT_REASONS` constants, shared test fixtures.
-
-### Operator note
-
-The `sst-env.d.ts` manual edit will be silently overwritten by
-the next `bun sst dev` / `bun sst deploy` regen — that's fine,
-the regen will produce the same line because
-`PLANETSCALE_DATABASE_URL` is a real declared secret in
-`infra/secrets.ts` and a real link on the core API Lambda.
+**Last updated:** 2026-05-04 by Claude Code, post-T-016 merge. No
+task currently in flight — branch is clean, `main` is the head
+everywhere. T-016 (WorkOS webhook routing) merged as PR #17.
 
 ## Where we are in slice 1 (auth-and-orgs)
 
-| Task  | Status                     | Notes                                                                              |
-| ----- | -------------------------- | ---------------------------------------------------------------------------------- |
-| T-001 | ✅                         | Repo scaffold.                                                                     |
-| T-002 | ✅                         | WorkOS + secrets wiring (PR #1).                                                   |
-| T-003 | ✅                         | Postgres + Drizzle setup (PR #3).                                                  |
-| T-004 | ✅                         | Domain types + zod schemas (PR #4).                                                |
-| T-005 | ✅                         | Postgres-specific DDL augments (PR #5).                                            |
-| T-006 | ✅                         | WorkOS client wrapper + webhook verifier (PR #6).                                  |
-| T-007 | ✅                         | Typed Drizzle repositories (PR #7).                                                |
-| T-013 | ✅                         | Application-layer audit event writer (PR #8).                                      |
-| T-008 | ✅                         | Signup + login callback flows (PR #9).                                             |
-| T-012 | ✅                         | Suspension lifecycle + `WorkOSClient.listSessions` (PR #10).                       |
-| T-011 | ✅                         | Password reset (PR #12).                                                           |
-| T-010 | ✅                         | MFA enrolment + recovery-code-used audit (PR #13, scope trimmed by ADR-003).       |
-| –     | ✅                         | Chore: repos accept `Db \| PgTransaction` + signup wraps multi-write (PR #14).     |
-| T-009 | ✅                         | Application: invitations (PR #15, 4 functions incl. multi-write acceptInvitation). |
-| T-019 | ✅                         | GDPR hard-delete (PR #16, NFR9 audit-continuity proven by real JOIN test).         |
-| T-016 | 🟡 **in flight** (this PR) | WorkOS webhook routing (signature → dedup → 3 application handlers).               |
-| T-014 | ⏳                         | Handlers: HTTP routes (depends on the application-layer fan-out below).            |
-| T-015 | ⏳                         | Session middleware + `/me` (depends on T-014).                                     |
-| T-017 | ⏳                         | Minimal web shell (login / signup / MFA / `/me`).                                  |
-| T-018 | ⏳                         | Observability (logs / metrics / alerts).                                           |
-| T-020 | ⏳                         | Rate limiting + NFR hardening.                                                     |
-| T-021 | ⏳                         | Playwright acceptance suite.                                                       |
-| T-022 | ⏳                         | Slice sign-off + traceability matrix + tag.                                        |
+The application-layer fan-out is complete. The webhook routing
+surface is wired. **Next up is the user-facing HTTP surface — the
+biggest remaining task in the slice.**
 
-## Recommended next pick after T-016 merges
+| Task  | Status      | Notes                                                                              |
+| ----- | ----------- | ---------------------------------------------------------------------------------- |
+| T-001 | ✅          | Repo scaffold.                                                                     |
+| T-002 | ✅          | WorkOS + secrets wiring (PR #1).                                                   |
+| T-003 | ✅          | Postgres + Drizzle setup (PR #3).                                                  |
+| T-004 | ✅          | Domain types + zod schemas (PR #4).                                                |
+| T-005 | ✅          | Postgres-specific DDL augments (PR #5).                                            |
+| T-006 | ✅          | WorkOS client wrapper + webhook verifier (PR #6).                                  |
+| T-007 | ✅          | Typed Drizzle repositories (PR #7).                                                |
+| T-013 | ✅          | Application-layer audit event writer (PR #8).                                      |
+| T-008 | ✅          | Signup + login callback flows (PR #9).                                             |
+| T-012 | ✅          | Suspension lifecycle + `WorkOSClient.listSessions` (PR #10).                       |
+| T-011 | ✅          | Password reset (PR #12).                                                           |
+| T-010 | ✅          | MFA enrolment + recovery-code-used audit (PR #13, scope trimmed by ADR-003).       |
+| –     | ✅          | Chore: repos accept `Db \| PgTransaction` + signup wraps multi-write (PR #14).     |
+| T-009 | ✅          | Application: invitations (PR #15, 4 functions incl. multi-write acceptInvitation). |
+| T-019 | ✅          | GDPR hard-delete (PR #16, NFR9 audit-continuity proven by real JOIN test).         |
+| T-016 | ✅          | WorkOS webhook routing + dedup ledger (PR #17).                                    |
+| T-014 | 🎯 **next** | Handlers: HTTP routes (auth-callback, invitations, suspend, audit-events).         |
+| T-015 | ⏳          | Session middleware + `/me` (depends on T-014).                                     |
+| T-017 | ⏳          | Minimal web shell (login / signup / MFA / `/me`).                                  |
+| T-018 | ⏳          | Observability (logs / metrics / alerts).                                           |
+| T-020 | ⏳          | Rate limiting + NFR hardening.                                                     |
+| T-021 | ⏳          | Playwright acceptance suite.                                                       |
+| T-022 | ⏳          | Slice sign-off + traceability matrix + tag.                                        |
 
-The webhook surface is wired. Next-up is the user-facing HTTP
-surface:
+## Next pickup: T-014 — HTTP handlers
 
-1. **T-014 (HTTP handlers)** — wires the application layer to
-   API Gateway for the user-facing routes (`/auth/*`, `/orgs/*`,
-   `/me`). Authorization gates live here ("signed in + some role");
-   the application layer assumes them. Largest task in the slice.
-2. **T-015 (session middleware + `/me`)** — depends on T-014; adds
-   the cookie-validation middleware and the `/me` shape that the
-   web shell consumes.
-3. **T-017 (web shell)** — minimal Next.js pages + AuthKit
-   redirects; the functional gate before Playwright e2e.
-4. **T-018 (observability)** — parallelisable with T-014/T-015/T-017.
-5. **T-020 (rate limiting + NFR hardening)** — parallelisable.
-6. **T-021 (Playwright e2e)** — depends on T-017.
-7. **T-022 (slice sign-off + tag)** — last.
+The largest remaining task in the slice. Scope per `tasks.md`
+§T-014 covers a lot of surface: every authenticated route in
+`design.md` §Interfaces, plus session + CSRF + rate-limit
+middleware, plus integration tests against the SST dev stack.
+
+### Recommended scope split (decision before starting)
+
+Three honest ways to slice this. The PR is too big to land in one
+piece without losing reviewability.
+
+- **(A) T-014a — public auth routes only.** Wires
+  `GET /auth/login`, `GET /auth/signup`, `GET /auth/callback`
+  (exchanges code → calls `handleSignup` or `handleLoginCallback`),
+  `POST /auth/logout`. Adds the AuthKit redirect helpers + the
+  callback that mints the session cookie via WorkOS. CSRF
+  middleware is included for the logout POST. No protected
+  routes; no session middleware (those land in T-015 alongside
+  `/me`). T-014b (protected routes) becomes a follow-up after
+  T-015. Smallest reviewable unit. **Recommended default.**
+- **(B) T-014 full scope.** Public auth routes plus session
+  middleware, CSRF, and all protected routes (invitations,
+  suspend / unsuspend, audit-events). Massive PR (~1500+ LOC),
+  hard to review, effectively bundles T-015 into T-014.
+- **(C) T-014 + reabsorb T-015.** Recognise that T-014 and T-015
+  are tightly coupled and merge them into one task with a single
+  bigger PR. Cleaner spec but the same scope as (B).
+
+**Recommend (A).** Brief Brad explicitly before starting so he can
+redirect if he wants the larger split.
+
+### Files for the (A) shape
+
+- `microservices/core/src/handlers/auth/loginGetHandler.ts`
+- `microservices/core/src/handlers/auth/signupGetHandler.ts`
+- `microservices/core/src/handlers/auth/callbackGetHandler.ts`
+- `microservices/core/src/handlers/auth/logoutPostHandler.ts`
+- `microservices/core/src/middleware/csrf.ts`
+- `microservices/core/src/api.ts` — mount the new handlers
+- Per-handler unit tests + integration test for the callback flow
+
+### Patterns to mirror
+
+- **`healthWorkosGetHandler.ts`** for the Elysia plugin shape +
+  the `vi.doMock("sst", ...)` test pattern.
+- **`workos.ts` + `workosLambda.ts` (T-016)** for splitting pure
+  routing logic (testable) from production wiring (excluded from
+  the unit coverage gate). The auth handlers are smaller so
+  splitting may not be needed; judgement call per handler.
+- **Existing application functions** — handlers should be thin:
+  validate input → call application function → translate result
+  to HTTP. No business logic at the handler layer.
+
+### Things to think about up front
+
+1. **Session cookie format.** AuthKit issues sealed cookies via
+   `@workos-inc/authkit-js` (or our wrapper around it). The
+   callback handler is where this happens. Need to decide cookie
+   name, scope, secure flags. Per NFR7: `HttpOnly`, `Secure`,
+   `SameSite=Lax` or stricter.
+2. **AuthKit redirect URI.** WorkOS needs a registered redirect
+   URI per stage. The callback handler reads the stage's URI from
+   `Resource.<URL_HINT>.value` or hard-codes per-stage. Worth a
+   quick decision before writing the handler.
+3. **`workosClientId` threading.** `signup.ts` and `login.ts`
+   take `workosClientId` as input (not from a deps factory) so
+   the handler reads `Resource.WORKOS_CLIENT_ID.value` and passes
+   it down. Clear, no surprise.
+4. **CSRF for logout.** The single mutating public route is
+   `POST /auth/logout`. CSRF double-submit token + middleware.
+   T-020 will widen to all mutating routes; for T-014a we just
+   land the middleware shape.
 
 ### Faster alternatives if Brad wants a small win first
 
+Three deferred refactors are still warranted:
+
+- **`lookupUserOrAuditFailureForWebhook` helper** — 4 user-keyed
+  webhook callers now (password-reset, mfa-enrolled,
+  recovery-code-used, deletion). Cross-aggregate refactor PR.
+  Genuinely earned its keep.
 - **WorkOS event-name investigation for MFA** — figure out which
   real WorkOS events should drive `handleMfaEnrolled` /
   `handleRecoveryCodeUsed`. May need an SDK upgrade or
   `user.updated` mfaFactors-transition logic. Small focused PR.
-- **`lookupUserOrAuditFailureForWebhook` helper** — now 5
-  callers, 4 user-keyed. Genuinely warranted; small refactor PR.
-- Extract `revokeAllActiveSessions` helper (suspension +
-  password-reset).
-- Extract `AUDIT_REASONS` constants for the stringly-typed
+- **`AUDIT_REASONS` constants** — the stringly-typed
   `metadata.reason` literals across password-reset, mfa,
-  invitations, deletion.
-- Add `listAuthFactors` to the WorkOS wrapper + swap the
-  `isMfaPresent` default in signup/login (per sticky #15).
+  invitations, deletion. Cross-file extraction.
 
 ## Pending follow-ups (not blocking, but worth doing soon)
 
-1. **Multi-write transaction wrapping** — `application/signup.ts`
-   today does three writes (user / org / membership) outside any
-   transaction. If membership-insert fails, we orphan an org. The
-   T-007 repos accept a `Db`; they need to also accept a
-   `PgTransaction` so callers can wrap sequences in
-   `db.transaction(async (tx) => { ... })`. Touches all six repos
-   plus their integration tests. Bounded scope (~half a day).
-   Prerequisite for T-009 (invitations) and T-019 (hard-delete) to
-   land cleanly.
-2. **`AuthFlowError` generic** — `SignupError`, `LoginError`,
+1. **`AuthFlowError` generic** — `SignupError`, `LoginError`,
    `SuspensionError`, `PasswordResetRequestError`,
-   `PasswordResetCompletionError` are nearly identical class shells.
-   Could extract a generic `AuthFlowError<R extends string>` to
-   `application/_errors.ts`. Touches five files for ~15 LOC savings
-   — low priority but clean if a future task is in the
+   `PasswordResetCompletionError`, `InvitationError` are nearly
+   identical class shells. Could extract a generic
+   `AuthFlowError<R extends string>` to `application/_errors.ts`.
+   Low priority but clean if a future task is in the
    neighbourhood.
-3. **`revokeAllActiveSessions` helper** — see "Deliberately not
-   done in this PR" above.
-4. **Shared application-test fixtures** — see same.
+2. **`revokeAllActiveSessions` helper** — `password-reset.ts` and
+   `suspension.ts` have identical list-then-filter-then-fan-out
+   blocks. Tiny refactor; touches both files + their tests.
+3. **Shared application-test fixtures** — `makeUser` /
+   `makeSession` / `makeOrg` etc. duplicate across 7+ test files
+   now. Consolidation refactor.
+4. **`scripts/manual-gdpr-delete.ts`** — referenced in the
+   `ops/runbooks/gdpr-delete.md` runbook as the WorkOS-down
+   fallback. Doesn't exist yet; flagged as Phase 2.
+5. **MFA application handler wiring** — `handleMfaEnrolled` and
+   `handleRecoveryCodeUsed` exist but aren't reachable by any
+   webhook (T-016 acks the relevant event types as ignored).
+   Wire once the WorkOS event-name investigation lands.
+6. **`session.revoked` cache bust** — webhook acks the event but
+   doesn't bust the session cache (which doesn't exist yet —
+   lands in T-015). Wire then.
 
 ## Sticky knowledge — kept across handoffs
 
@@ -228,7 +177,8 @@ surface:
    `0001_<random_nouns>.sql`; we rename to `0001_<intent>.sql`
    and update the `tag` in `meta/_journal.json`.
 8. **Hand-edited migrations** — pair every hand-touched `*.sql`
-   with a `*.down.sql` outside the migrations folder drizzle reads.
+   with a `*.down.sql` outside the migrations folder drizzle
+   reads.
 9. **WorkOS SDK names** — `userManagement.sendInvitation` (not
    `createInvitation`), `userManagement.createPasswordReset` (no
    `sendPasswordResetEmail` method). The wrapper at
@@ -241,7 +191,8 @@ surface:
     `firstOrThrow` for "update-must-find-row"** —
     `_helpers.ts` is the single home.
 12. **AuditRepo cursor is composite `(occurredAt, id) < (cursor)`**
-    — the id half is load-bearing for events sharing a millisecond.
+    — the id half is load-bearing for events sharing a
+    millisecond.
 13. **All audit writes go through
     `application/audit.ts#recordAuditEvent`**, never
     `AuditRepo.write` directly. Validates the canonical shape +
@@ -250,16 +201,18 @@ surface:
     application-layer auth flow uses this so an audit-write
     failure doesn't mask the real outcome.
 15. **MFA-presence check is pluggable via `deps.isMfaPresent`** —
-    default trusts AuthKit; T-010 will swap in a stricter check
-    once `listAuthFactors` is added to the WorkOS wrapper.
-16. **Multi-write transactions are NOT yet wired in any
-    application function.** Signup orphans an org if membership
-    create fails; same risk for any future multi-write flow. See
-    "Pending follow-ups" above.
+    default trusts AuthKit; investigation deferred until WorkOS
+    event-name mapping for `mfa_enrolled` is settled.
+16. **Multi-write transaction wrapping uses the `withTx(tx)`
+    factory pattern.** Every T-007 repo accepts `DbOrTx` and
+    exposes `withTx(tx: Tx): ThisRepo`. Application functions
+    call `db.transaction(async (tx) => repo.withTx(tx).create(...))`.
+    **Awaits inside the txn callback MUST stay sequential** —
+    Drizzle's tx handle wraps a single Postgres connection.
 17. **Login resolves WorkOS org id → local UUID via
     `orgRepo.findByWorkosOrgId`** — `session.organizationId` is
-    the WorkOS-side text id, NOT our local UUID. Bug Cursor caught
-    on PR #9.
+    the WorkOS-side text id, NOT our local UUID. Bug Cursor
+    caught on PR #9.
 18. **Signup stamps `mfaEnrolledAt` + `emailVerifiedAt` at
     create-time** (T-007's `CreateUserInput` was extended).
     Without this, fresh signups would fail their first login on
@@ -269,8 +222,8 @@ surface:
     via `mock.invocationCallOrder`. A revoke failure leaves our
     DB consistent — better than the opposite.
 20. **`WorkOSClient.listSessions(userId)` auto-paginates** —
-    returns a flat `Session[]`. T-011 reuses this for the
-    revoke-all-on-completion path.
+    returns a flat `Session[]`. Reused by the
+    revoke-all-on-password-reset path.
 21. **Cursor Bugbot has caught real bugs on every PR with
     multi-step or external-ID flows.** Always read its findings
     before merging; if it flags something, write a regression
@@ -279,24 +232,24 @@ surface:
     concern (T-014).** Application functions enforce data
     invariants only — self-suspension, sole-owner protection,
     schema validation. Don't put role checks in
-    `application/*.ts`.
+    `application/*.ts`. Exception: invitations.ts enforces the
+    `actorRole`-vs-`invitationRole` rule (only owner can invite
+    admin) because it's a domain-specific permission, not a
+    handler-layer "is signed in" check.
 23. **`requestPasswordReset` deliberately skips a local
-    `findByEmail` lookup** — it would leak account existence via
-    timing differences (DB hit vs miss) and add no functional
-    value (WorkOS is the source of truth). T-011's file header
-    documents this.
+    `findByEmail` lookup** — would leak account existence via
+    timing. Documented in T-011's file header.
 24. **`requestPasswordReset` swallows the WorkOS error message
-    entirely**, including from the audit metadata — only a generic
-    `reason: "delegate_error"` is written. WorkOS error strings
-    differ between known/unknown emails; if any of them ever leak
-    to the response or to a downstream consumer of the audit,
-    enumeration becomes possible. Tests pin the audit metadata to
-    a closed shape (not `objectContaining`) to catch a future
-    field-addition leak.
-25. **`handlePasswordResetCompleted` returns null on
-    `user_not_found` rather than throwing** — webhooks must be
-    redeliverable; a throw would force WorkOS into a permanent
-    retry loop for an event we'll never act on.
+    entirely** — only a generic `reason: "delegate_error"` lands
+    in the audit. WorkOS error strings differ between
+    known/unknown emails; tests pin the audit metadata to a
+    closed shape (`toEqual`, not `objectContaining`) to catch a
+    future field-addition leak.
+25. **Webhook handlers return null on lookup-miss rather than
+    throwing** — webhooks must be redeliverable; a throw would
+    force WorkOS into a permanent retry loop for an event we'll
+    never act on. Pattern across password-reset, mfa, invitations
+    accept, deletion.
 26. **`Promise.all` vs `Promise.allSettled` choice is
     flow-dependent.** Suspension uses `Promise.all` (revoke
     failure must skip the lifecycle flip). Password-reset
@@ -309,35 +262,80 @@ surface:
     `getRecoveryCodesForDownload` method the original T-010 spec
     mentioned is intentionally NOT implemented. FR17(c)
     (regenerate) is a deferred follow-up.
-28. **`mfa_enrolled` webhook handler always re-mirrors
-    `users.mfa_enrolled_at` even on redelivery** — no idempotency
-    guard. The DB write is cheap and webhook redeliveries are
-    rare; a guard would add branch + test for negligible win.
-    Audit dedup is the webhook routing layer's job (T-016).
-29. **Recovery-code-used audit metadata is closed-shape `{}`** by
-    contract (ADR-003 follow-up #4). The unit test pins this with
-    `toEqual({})` not `objectContaining` — any future regression
-    that adds an `id` / `codeHash` / `code` field breaks it on
-    purpose. Defence-in-depth on top of the NFR8 strip.
-30. **Multi-write transactions use the `withTx(tx)` factory
-    pattern.** Every T-007 repo accepts `DbOrTx` in its
-    constructor and exposes `withTx(tx: Tx): ThisRepo`. Application
-    functions take a `db: Db` dep and call
-    `db.transaction(async (tx) => { repo.withTx(tx).create(...) })`
-    so a mid-sequence failure rolls every write back. **Awaits
-    inside the callback MUST stay sequential** — Drizzle's `tx`
-    handle wraps a single Postgres connection, so concurrent
-    awaits interleave commands and risk
-    `another command is already in progress`. signup.ts is the
-    template; T-009 and T-019 will copy this shape.
-31. **Audit writes deliberately stay OUTSIDE the caller's
-    transaction.** `safeAudit` is called after `db.transaction`
-    resolves, on purpose: an audit-write failure shouldn't roll
-    business state back, and a transaction rollback shouldn't
-    erase the audit row of the failure we wanted to record.
-    `AuditRepo` does still have a `withTx` for the rare case a
-    caller wants in-tx audit, but signup.ts shows the standard
-    pattern.
+28. **Recovery-code-used audit metadata is closed-shape `{}`** by
+    contract (ADR-003 follow-up #4). The unit test pins this
+    with `toEqual({})` not `objectContaining` — any future
+    regression that adds an `id` / `codeHash` / `code` field
+    breaks it on purpose. Defence-in-depth on top of the NFR8
+    strip.
+29. **Invitation state transitions use atomic compare-and-set
+    (`InvitationRepo.transitionState`)** — both `acceptInvitation`
+    and `revokeInvitation` use it to close TOCTOU races against
+    concurrent webhook deliveries. Returns null on race-loss;
+    the application layer catches and rolls back the
+    multi-write. Bug Bugbot caught on PR #15. Without this,
+    `external_access_grants` could end up with duplicate rows
+    (no unique constraint on that table).
+30. **Cross-org tenancy guard on `revokeInvitation`** — the
+    handler validates the actor's role in `input.orgId`, but
+    `invitationId` is a globally-unique PK. After `findById`,
+    the application function checks `invitation.orgId ===
+input.orgId` and treats mismatch as not-found
+    (information-hiding — don't reveal the invitation exists in
+    another org). Bug Bugbot caught on PR #15.
+31. **Webhook routing dedups via the `webhook_deliveries`
+    table** keyed on the WorkOS event id. `INSERT ... ON
+CONFLICT DO NOTHING` is the load-bearing primitive — first
+    insert returns the row, redelivery returns 0 rows and the
+    routing layer short-circuits to a 200 with `{ replay: true }`.
+    Application handlers stay independently idempotent for state,
+    but emit `failure / already_*` audit rows on redelivery,
+    which is why dedup at the routing layer is required for the
+    spec's "exactly one audit row" guarantee.
+32. **Webhook handlers split: routing logic in `workos.ts`
+    (testable, in coverage gate) + Lambda wrapper in
+    `workosLambda.ts` (excluded from unit coverage gate, mirrors
+    `src/api.ts`).** Production wires deps from `Resource.*` +
+    `getDb()` + binds application handlers to `(input) => result`
+    routes. The split avoids needing a 6-module mock just to
+    bump coverage.
+33. **WorkOS event names ≠ design.md event names.** The v8.13
+    SDK does NOT expose `authentication.mfa_enrolled` or
+    `authentication.recovery_code_used` as discriminated event
+    types (the closest is `authentication.mfa_succeeded` for
+    auth-time, not enrolment). T-016 acks these as
+    `{ ignored: true }`; the application handlers exist but
+    aren't reachable. Real WorkOS event mapping is a deferred
+    investigation.
+34. **API Gateway HTTP API v2 lowercases all header names**
+    before invoking the Lambda. No need for TitleCase fallbacks
+    on header lookups (`event.headers["workos-signature"]` is
+    sufficient — never `event.headers["WorkOS-Signature"]`).
+35. **Webhook handler 500-response bodies omit error messages**
+    — WorkOS surfaces response bodies in its delivery log, and
+    pg-driver errors can include connection strings or stack
+    frame paths. The full error is `console.error`'d for
+    forensics; the response body just says
+    `{ reason: "handler_error" }`.
+36. **Webhook dedup ordering: insert-then-route, NOT
+    route-then-insert.** Trade-off: an application-handler
+    exception leaves the dedup row in place, so WorkOS retries
+    will short-circuit to replay rather than re-execute. Manual
+    operator recovery is `DELETE FROM webhook_deliveries WHERE
+event_id = '…'` followed by re-trigger. Acceptable for v0.1
+    because the spec's "exactly one audit row" guarantee
+    matters more than transient-failure auto-recovery.
+37. **`migrate.integration.test.ts` `EXPECTED_TABLES` is
+    exact-match.** Adding any new table to `schema/auth.ts`
+    requires a one-line update to that array, otherwise the
+    smoke test fails on count mismatch. CI caught this on T-016
+    (PR #17).
+38. **`sst-env.d.ts` is auto-generated by SST but committed.**
+    If a new secret is declared in `infra/secrets.ts` between
+    SST runs, the type entry won't appear until someone runs
+    `bun sst dev` to regenerate. The pattern in T-016 was a
+    manual edit with a `// MANUAL ENTRY (T-NNN)` marker; the
+    next regen overwrites cleanly.
 
 ## Workflow conventions in one paragraph
 
