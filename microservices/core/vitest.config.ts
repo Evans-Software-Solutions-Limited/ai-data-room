@@ -29,6 +29,13 @@ export default defineConfig({
         "**/sst-env.d.ts",
         "src/api.ts",
         "src/index.ts",
+        // Pure Lambda wiring — constructs deps and hands off to
+        // the routing function in the sibling `workos.ts`. Same
+        // exclusion rationale as `src/api.ts`: a unit test would
+        // just assert that the constructed objects are passed
+        // through unchanged. Production wiring is exercised by
+        // `bun sst diff` + deploy.
+        "src/handlers/webhooks/workosLambda.ts",
         // Domain barrels (T-004) — pure `export type` re-exports from
         // `@ai-data-room/api-utils/schemas/auth-orgs`. v8 can't measure
         // coverage on type-only output (it compiles away), so these

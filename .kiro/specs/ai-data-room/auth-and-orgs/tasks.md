@@ -362,7 +362,7 @@ within inactivity window stays logged in).
 
 ## T-016 — WorkOS webhook handler
 
-Status: `[ ]`
+Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-016-webhook-routing`)
 **Scope:** `POST /webhooks/workos`. Verify signature (T-006). Route
 each event type to the appropriate application function (`user.created`
 → mirror user, `authentication.*` → audit writer, `session.revoked`

@@ -281,6 +281,33 @@ export const auditEvents = pgTable(
   }),
 );
 
+/**
+ * Dedup ledger for inbound WorkOS webhook events. Each WorkOS
+ * delivery carries a unique `id`; T-016's routing handler inserts
+ * here before fanning out to the application handlers, and a PK
+ * collision is the at-most-once signal that lets us short-circuit
+ * a redelivery.
+ *
+ * `received_at` is the timestamp the routing layer first saw the
+ * event (not the WorkOS-side `createdAt`, which lives in
+ * `metadata.workosCreatedAt` if a future task wants it).
+ *
+ * v0.1 keeps this append-only with no GC; the table grows linearly
+ * with delivered events. A future maintenance task will trim rows
+ * older than the maximum WorkOS retry window (commonly 7 days).
+ */
+export const webhookDeliveries = pgTable("webhook_deliveries", {
+  // The WorkOS event id, e.g. `event_01JABCDEF...`. Drives the
+  // dedup PK; insert-on-first-delivery is the whole contract.
+  eventId: text("event_id").primaryKey(),
+  // Stored separately from `metadata` so analytics / dashboards can
+  // group by type without parsing JSON.
+  eventType: text("event_type").notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 // Intentionally unused locally — kept so this barrel imports boolean from
 // drizzle-orm without creating a "declared but not used" warning once we
 // flesh out the lifecycle triggers. Remove when the first trigger lands.
