@@ -50,14 +50,24 @@ coreAPI.route("$default", {
 
 // Dedicated webhook handler — sits outside the Hono/Elysia stack so that
 // API Gateway passes the raw body string to the Lambda. Required for
-// WorkOS HMAC-SHA256 signature verification (T-016 / T-006).
-// coreAPI.route("POST /webhooks/workos", {
-//   handler: "microservices/core/src/handlers/webhooks/workos.handler",
-//   name: `core-webhook-workos-${$app.stage}`,
-//   link: [workos_api_key, workos_webhook_secret, planetscale_database_url],
-//   environment: { SST_STAGE: $app.stage },
-//   memory: "256 MB",
-// });
+// WorkOS HMAC-SHA256 signature verification (T-016 / T-006). The link
+// list mirrors `$default` minus `workos_cookie_password` (no session
+// cookies on the webhook path) — `workos_api_key` + `workos_client_id`
+// are needed because the password-reset webhook calls
+// `workos.listSessions` + `workos.revokeSession` to terminate sessions
+// after the new password takes effect.
+coreAPI.route("POST /webhooks/workos", {
+  handler: "microservices/core/src/handlers/webhooks/workosLambda.handler",
+  name: `core-webhook-workos-${$app.stage}`,
+  link: [
+    workos_client_id,
+    workos_api_key,
+    workos_webhook_secret,
+    planetscale_database_url,
+  ],
+  environment: { SST_STAGE: $app.stage },
+  memory: "256 MB",
+});
 
 // Async workers. Currently a stub — will host:
 //   - sense-check SQS worker (slice 5: ai-doc-sensecheck)

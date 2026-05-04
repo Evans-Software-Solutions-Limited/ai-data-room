@@ -6,6 +6,15 @@
 
 declare module "sst" {
   export interface Resource {
+    // MANUAL ENTRY (T-016) — pending first `bun sst dev` regen.
+    // The secret is real (declared in `infra/secrets.ts` and linked
+    // in `infra/api.ts`); this stanza is here so typecheck passes
+    // before SST has been re-run locally to refresh this file. Safe
+    // to delete on the next regen — it'll come back identical.
+    "PLANETSCALE_DATABASE_URL": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "WORKOS_API_KEY": {
       "type": "sst.sst.Secret"
       "value": string
