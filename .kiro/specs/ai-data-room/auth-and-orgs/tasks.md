@@ -406,7 +406,7 @@ at least once in a representative run.
 
 ## T-019 — GDPR hard-delete path
 
-Status: `[ ]`
+Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-019-gdpr-delete`)
 **Scope:** On `user.deleted` webhook: (1) scrub PII from `users` row,
 (2) set `lifecycle_state='deleted'`, (3) preserve `workos_user_id` and
 all `audit_events.target_user_id` references, (4) audit event for the
