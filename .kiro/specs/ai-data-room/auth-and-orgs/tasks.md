@@ -329,7 +329,10 @@ required fields + strips forbidden fields.
 
 ## T-014 — Handlers: HTTP routes
 
-Status: `[ ]`
+Status: `[~]` (in flight — branch
+`feat/auth-and-orgs-T-014a-public-auth-routes`, public routes
+only; protected routes deferred to T-014b alongside T-015 session
+middleware)
 **Scope:** Wire the application layer into API Gateway handlers per
 §Interfaces. Public routes (`/auth/*`, `/webhooks/workos`) unauth'd;
 everything else behind session middleware. CSRF double-submit on
