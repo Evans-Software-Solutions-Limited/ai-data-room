@@ -44,6 +44,24 @@ coreAPI.route("$default", {
   ],
   environment: {
     SST_STAGE: $app.stage,
+    // T-014a — public auth handlers need both URLs to build the
+    // AuthKit redirect URI and to redirect users back to the web
+    // shell after sign-in / sign-out.
+    //
+    // FRONTEND_URL: dev runs Vite at localhost:5173; deployed
+    // stages will gain a real domain once `infra/web.ts` is wired
+    // to a custom domain (post-MVP). `$dev` is true when the
+    // process is `sst dev`; the fallback below is only hit in
+    // deployed stages, so flip to the real frontend domain when
+    // the web app lands in production.
+    FRONTEND_URL: $dev
+      ? "http://localhost:5173"
+      : "https://web.ai-data-room.example",
+    // API_URL: coreAPI.url is its own URL — SST resolves this
+    // lazily so the self-reference doesn't deadlock. Used by the
+    // sign-in handler to compose `${API_URL}/auth/callback` for
+    // the AuthKit OAuth redirect_uri.
+    API_URL: coreAPI.url,
   },
   memory: "512 MB",
 });

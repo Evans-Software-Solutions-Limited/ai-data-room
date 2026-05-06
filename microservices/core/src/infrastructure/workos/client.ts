@@ -40,12 +40,19 @@ import type {
   UserManagementAuthorizationURLOptions,
 } from "@workos-inc/node";
 
+// `CookieSession` is the runtime handle returned by the SDK's
+// `loadSealedSession` — exposes `authenticate()` / `refresh()` /
+// `getLogoutUrl()`. T-014a uses `getLogoutUrl()` only; `authenticate()`
+// and `refresh()` land in T-015's session middleware.
+type CookieSession = ReturnType<WorkOS["userManagement"]["loadSealedSession"]>;
+
 // Re-export the SDK shapes the application layer needs. Keeps
 // `application/*.ts` from ever having to `import "@workos-inc/node"`
 // directly — handlers only see this module.
 export type {
   AuthenticateWithCodeOptions,
   AuthenticationResponse,
+  CookieSession,
   CreatePasswordResetOptions,
   Invitation,
   PasswordReset,
@@ -96,6 +103,17 @@ export interface WorkOSClient {
    * `password_reset_completed`) reuses the same shape.
    */
   listSessions(userId: string): Promise<Session[]>;
+  /**
+   * Re-hydrate a sealed session cookie into the SDK handle whose
+   * methods (`authenticate` / `refresh` / `getLogoutUrl`) drive the
+   * authenticated request lifecycle. T-014a's sign-out handler uses
+   * `getLogoutUrl({ returnTo })`; T-015's session middleware will
+   * use `authenticate` + `refresh`.
+   */
+  loadSealedSession(options: {
+    sessionData: string;
+    cookiePassword: string;
+  }): CookieSession;
 }
 
 /**
@@ -133,5 +151,6 @@ export function createWorkOSClient(config: WorkOSClientConfig): WorkOSClient {
       const result = await um.listSessions(userId);
       return result.autoPagination();
     },
+    loadSealedSession: (options) => um.loadSealedSession(options),
   };
 }

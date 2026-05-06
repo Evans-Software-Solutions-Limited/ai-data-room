@@ -15,6 +15,7 @@ import { Hono } from "hono";
 import { handle } from "hono/aws-lambda";
 import openapi from "@elysiajs/openapi";
 
+import { publicRoutes } from "./application/auth/publicRoutes";
 import { getHelloWorldHandler } from "./application/hello-world/get/helloWorldGetHandler";
 import { healthWorkosGetHandler } from "./handlers/auth/healthWorkosGetHandler";
 
@@ -23,8 +24,9 @@ import { healthWorkosGetHandler } from "./handlers/auth/healthWorkosGetHandler";
 const app = new Elysia()
   .use(openapi())
   .use(getHelloWorldHandler)
+  .use(publicRoutes) // slice 1 T-014a — public auth routes (sign-in / sign-up / callback / sign-out)
   .use(healthWorkosGetHandler); // slice 1 T-002 — REMOVED in T-015
-// .use(authHandler)              // slice 1
+// .use(protectedRoutes)          // slice 1 T-014b / T-015
 // .use(orgsHandler)              // slice 1
 // .use(roomsHandler)             // slice 2
 // .use(accessControlHandler)     // slice 3
