@@ -19,6 +19,11 @@ export interface CreateExternalGrantInput {
   userId: string;
   opportunitySlug: string;
   grantedBy: string;
+  /** FR8b — diligence-bounded grants. Caller (`acceptInvitation`)
+   * computes the timestamp from the FR8b 90-day default. The DB
+   * column also carries a 90-day default as a defence-in-depth
+   * backstop, but the application layer is the policy owner. */
+  expiresAt: Date;
 }
 
 export class ExternalGrantRepo {

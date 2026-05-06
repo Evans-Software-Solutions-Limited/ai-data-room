@@ -870,6 +870,7 @@ describe("acceptInvitation", () => {
         opportunitySlug: "vendor-a",
         grantedBy: ACTOR_ID,
         status: "active",
+        expiresAt: new Date(NOW.getTime() + 90 * 24 * 60 * 60 * 1000),
         createdAt: NOW,
         updatedAt: NOW,
       };
@@ -877,12 +878,25 @@ describe("acceptInvitation", () => {
 
       const result = await acceptInvitation(ACCEPT_INPUT, deps);
 
+      // FR8b: grant must carry a 90-day default expiry. The exact
+      // millisecond depends on `now` inside the application function,
+      // so we pin the shape and assert the value via a tolerance
+      // window on a separate line.
       expect(deps.externalGrantCreate).toHaveBeenCalledWith({
         orgId: ORG_ID,
         userId: ACCEPTING_USER_ID,
         opportunitySlug: "vendor-a",
         grantedBy: ACTOR_ID,
+        expiresAt: expect.any(Date),
       });
+      const grantCallArg = deps.externalGrantCreate.mock.calls[0]?.[0] as {
+        expiresAt: Date;
+      };
+      const driftMs = Math.abs(
+        grantCallArg.expiresAt.getTime() -
+          (Date.now() + 90 * 24 * 60 * 60 * 1000),
+      );
+      expect(driftMs).toBeLessThan(5_000);
       expect(deps.membershipCreate).not.toHaveBeenCalled();
       expect(result.grant).toEqual(grant);
       expect(result.membership).toBeNull();

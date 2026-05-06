@@ -35,6 +35,14 @@ import type {
 
 import { type AuditContext, safeAudit } from "./_audit-context";
 
+/** FR8b — default external-access-grant TTL: 90 days from issuance.
+ *  Override / extension knobs (up to a 365-day ceiling) land in
+ *  `access-control` (slice 3); this constant is the slice-1 default
+ *  used by `acceptInvitation`'s grant insert. The DB column carries
+ *  a matching default as defence-in-depth, but the application is
+ *  the policy owner so the value lives here too. */
+const EXTERNAL_GRANT_DEFAULT_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
 export type InvitationErrorReason =
   /** Actor's org role is `internal` or otherwise insufficient — FR6 / FR7
    * permit only owner / admin to issue or revoke invites. */
@@ -462,6 +470,7 @@ export async function acceptInvitation(
           userId: user.id,
           opportunitySlug: invitation.opportunitySlug,
           grantedBy: invitation.invitedBy,
+          expiresAt: new Date(now.getTime() + EXTERNAL_GRANT_DEFAULT_TTL_MS),
         });
       }
 

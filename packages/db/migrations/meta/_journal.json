@@ -22,6 +22,13 @@
       "when": 1777901266236,
       "tag": "0002_webhook_deliveries",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778104397108,
+      "tag": "0003_external_grant_expiry",
+      "breakpoints": true
     }
   ]
 }
