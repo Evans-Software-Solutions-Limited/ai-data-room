@@ -317,6 +317,35 @@ describe("publicRoutes — getCallbackHandler", () => {
     expect(await res.json()).toEqual({ ok: false, reason: "auth_failed" });
   });
 
+  it("returns 500 client_init_failed (NOT 401) when WorkOS client construction throws", async () => {
+    // Defends the Bugbot finding on PR #19: a misconfigured API
+    // key was previously misclassified as 401 auth_failed (user
+    // problem) when it's actually a 500 server-config bug. The
+    // split try/catch in the handler keeps the two failure modes
+    // distinct so client-side error UX and ops dashboards see the
+    // right shape.
+    vi.doMock("@workos-inc/node", () => ({
+      WorkOS: class {
+        constructor() {
+          throw new Error("invalid api key shape");
+        }
+      },
+    }));
+    const routes = await loadPublicRoutes();
+
+    const res = await routes.handle(
+      new Request("http://localhost/auth/callback?code=auth_code&state=tok-1", {
+        headers: { cookie: "oauth_state=tok-1" },
+      }),
+    );
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({
+      ok: false,
+      reason: "client_init_failed",
+    });
+  });
+
   it("422s when the query is missing code or state (Elysia schema validation)", async () => {
     mockWorkOS();
     const routes = await loadPublicRoutes();

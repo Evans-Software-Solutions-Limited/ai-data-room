@@ -59,11 +59,25 @@ export const getCallbackHandler = new Elysia().get(
     }
     cookie.oauth_state.remove();
 
+    // SDK construction is in its own try/catch and surfaces as 500.
+    // A failure here means a misconfigured WorkOS client (empty
+    // API key, malformed client id) — that's a server-config bug,
+    // not a user auth failure. Lumping it into the same 401 catch
+    // as `authenticateWithCode` would mislead the web client into
+    // showing a "your credentials are wrong" message and mask
+    // infrastructure problems from ops dashboards.
+    let workos;
     try {
-      const workos = createWorkOSClient({
+      workos = createWorkOSClient({
         apiKey: Resource.WORKOS_API_KEY.value,
         clientId: Resource.WORKOS_CLIENT_ID.value,
       });
+    } catch {
+      set.status = 500;
+      return { ok: false as const, reason: "client_init_failed" as const };
+    }
+
+    try {
       const result = await workos.authenticateWithCode({
         clientId: Resource.WORKOS_CLIENT_ID.value,
         code,
@@ -91,6 +105,9 @@ export const getCallbackHandler = new Elysia().get(
 
       return redirect(getPostAuthRedirectUrl());
     } catch {
+      // Reaches here only for `authenticateWithCode` failures —
+      // expired / replayed / tampered code. That's a user auth
+      // failure, 401 is correct.
       set.status = 401;
       return { ok: false as const, reason: "auth_failed" as const };
     }
