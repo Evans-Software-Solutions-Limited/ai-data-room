@@ -17,7 +17,13 @@ import { status } from "elysia";
 
 import type { ActorContext } from "./authContextTypes";
 
-export function requireOrg({ actor }: Pick<ActorContext, "actor">) {
+export function requireOrg(ctx: Record<string, unknown>) {
+  // Cast inside the body — Elysia's `.onBeforeHandle()` passes the
+  // full request context, but the standalone guard's typed surface
+  // can't see the bundle's prior `.resolve(resolveActor)` injection.
+  // Same pattern as the handler bodies (FDP convention).
+  const { actor } = ctx as typeof ctx & { actor: ActorContext["actor"] };
+
   if (!actor.localOrgId) {
     return status(403, {
       ok: false as const,
