@@ -264,7 +264,8 @@ describe("ExternalAccessGrantSchema", () => {
   });
 
   it("requires expiresAt — FR8b", () => {
-    const { expiresAt: _, ...grantWithoutExpiry } = validGrant;
+    const grantWithoutExpiry: Partial<typeof validGrant> = { ...validGrant };
+    delete grantWithoutExpiry.expiresAt;
     expect(() => ExternalAccessGrantSchema.parse(grantWithoutExpiry)).toThrow();
   });
 });

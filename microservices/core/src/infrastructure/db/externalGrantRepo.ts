@@ -27,7 +27,10 @@ export interface CreateExternalGrantInput {
 }
 
 export class ExternalGrantRepo {
-  constructor(private readonly db: DbOrTx) {}
+  private readonly db: DbOrTx;
+  constructor(db: DbOrTx) {
+    this.db = db;
+  }
 
   withTx(tx: Tx): ExternalGrantRepo {
     return new ExternalGrantRepo(tx);

@@ -37,11 +37,12 @@ export function firstOrNull<T>(rows: T[]): T | null {
  * try/catch.
  */
 export class RepoNotFoundError extends Error {
-  constructor(
-    public readonly aggregate: string,
-    public readonly id: string,
-  ) {
+  public readonly aggregate: string;
+  public readonly id: string;
+  constructor(aggregate: string, id: string) {
     super(`${aggregate} ${id} not found`);
+    this.aggregate = aggregate;
+    this.id = id;
     this.name = "RepoNotFoundError";
   }
 }

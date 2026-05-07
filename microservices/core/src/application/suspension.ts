@@ -70,8 +70,10 @@ export type SuspensionErrorReason =
   | "user_not_found";
 
 export class SuspensionError extends Error {
-  constructor(public readonly reason: SuspensionErrorReason) {
+  public readonly reason: SuspensionErrorReason;
+  constructor(reason: SuspensionErrorReason) {
     super(reason);
+    this.reason = reason;
     this.name = "SuspensionError";
   }
 }

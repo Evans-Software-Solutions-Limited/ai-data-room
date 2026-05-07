@@ -74,8 +74,10 @@ export type LoginErrorReason =
   | "mfa_required";
 
 export class LoginError extends Error {
-  constructor(public readonly reason: LoginErrorReason) {
+  public readonly reason: LoginErrorReason;
+  constructor(reason: LoginErrorReason) {
     super(reason);
+    this.reason = reason;
     this.name = "LoginError";
   }
 }

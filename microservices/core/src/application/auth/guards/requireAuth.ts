@@ -40,7 +40,6 @@ import { Resource } from "sst";
 
 import { createWorkOSClient } from "../../../infrastructure/workos/client";
 import { setSecureCookie, SESSION_COOKIE_MAX_AGE } from "../config/frontendUrl";
-import type { AuthContext } from "./authContextTypes";
 
 interface RequireAuthInput {
   cookie: Context["cookie"];

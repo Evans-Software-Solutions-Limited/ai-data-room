@@ -75,8 +75,10 @@ export type InvitationErrorReason =
   | "invitation_state_race";
 
 export class InvitationError extends Error {
-  constructor(public readonly reason: InvitationErrorReason) {
+  public readonly reason: InvitationErrorReason;
+  constructor(reason: InvitationErrorReason) {
     super(reason);
+    this.reason = reason;
     this.name = "InvitationError";
   }
 }

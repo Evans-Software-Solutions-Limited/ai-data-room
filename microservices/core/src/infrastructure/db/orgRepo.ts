@@ -20,7 +20,10 @@ export interface CreateOrgInput {
 }
 
 export class OrgRepo {
-  constructor(private readonly db: DbOrTx) {}
+  private readonly db: DbOrTx;
+  constructor(db: DbOrTx) {
+    this.db = db;
+  }
 
   withTx(tx: Tx): OrgRepo {
     return new OrgRepo(tx);

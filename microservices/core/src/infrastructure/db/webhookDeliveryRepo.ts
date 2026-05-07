@@ -40,7 +40,10 @@ export interface MarkDeliveredResult {
 }
 
 export class WebhookDeliveryRepo {
-  constructor(private readonly db: DbOrTx) {}
+  private readonly db: DbOrTx;
+  constructor(db: DbOrTx) {
+    this.db = db;
+  }
 
   withTx(tx: Tx): WebhookDeliveryRepo {
     return new WebhookDeliveryRepo(tx);
