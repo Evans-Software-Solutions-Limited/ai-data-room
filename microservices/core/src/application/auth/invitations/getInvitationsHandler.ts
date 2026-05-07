@@ -9,13 +9,9 @@
 // admin role.
 
 import Elysia, { t } from "elysia";
-import { Resource } from "sst";
-
-import { getDb } from "@ai-data-room/db";
 
 import { listInvitations } from "../../../application/invitations";
-import { InvitationRepo } from "../../../infrastructure/db/invitationRepo";
-import { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
+import { protectedDeps } from "../_shared/deps";
 import { authorizeOrgAccess, isAuthFailure } from "../_shared/orgAccess";
 import type { ProtectedAuthContext } from "../guards/authContextTypes";
 
@@ -25,13 +21,10 @@ export const getInvitationsHandler = new Elysia().get(
     const { params, query, actor } = ctx as typeof ctx & {
       actor: ProtectedAuthContext["actor"];
     };
-    const db = getDb(Resource.PLANETSCALE_DATABASE_URL.value);
-    const invitationRepo = new InvitationRepo(db);
-    const membershipRepo = new MembershipRepo(db);
 
     const auth = await authorizeOrgAccess(
       { actor, paramOrgId: params.orgId },
-      { membershipRepo },
+      { membershipRepo: protectedDeps.membershipRepo },
     );
     if (isAuthFailure(auth)) {
       return auth;
@@ -39,7 +32,7 @@ export const getInvitationsHandler = new Elysia().get(
 
     return listInvitations(
       { orgId: params.orgId, state: query.state ?? "pending" },
-      { invitationRepo },
+      { invitationRepo: protectedDeps.invitationRepo },
     );
   },
   {

@@ -28,15 +28,9 @@
 // route. A future schema-driven refactor (alongside the OpenAPI
 // generation) can centralise this.
 
-import Elysia, { t } from "elysia";
-import { Resource } from "sst";
+import Elysia, { status, t } from "elysia";
 
-import { getDb } from "@ai-data-room/db";
-
-import { ExternalGrantRepo } from "../../../infrastructure/db/externalGrantRepo";
-import { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
-import { OrgRepo } from "../../../infrastructure/db/orgRepo";
-import { UserRepo } from "../../../infrastructure/db/userRepo";
+import { protectedDeps } from "../_shared/deps";
 import type { ProtectedAuthContext } from "../guards/authContextTypes";
 
 const meResponseSchema = t.Object({
@@ -69,35 +63,32 @@ export const getUserHandler = new Elysia().get(
     // doesn't see the parent bundle's `.resolve(resolveActor)`
     // augmentations at type level, so we narrow inside the body.
     // Same pattern as FDP's `getUserHandler`.
-    const { actor, set } = ctx as typeof ctx & {
+    const { actor } = ctx as typeof ctx & {
       actor: ProtectedAuthContext["actor"];
     };
-    const db = getDb(Resource.PLANETSCALE_DATABASE_URL.value);
-    const userRepo = new UserRepo(db);
-    const orgRepo = new OrgRepo(db);
-    const membershipRepo = new MembershipRepo(db);
-    const externalGrantRepo = new ExternalGrantRepo(db);
 
-    const user = await userRepo.findById(actor.localUserId);
+    const user = await protectedDeps.userRepo.findById(actor.localUserId);
     if (!user) {
       // Should never fire — `resolveActor` lazy-creates the row
       // before this handler runs. If it does fire, the user mirror
       // was deleted between guard and handler (unlikely race) or
       // there's a real bug. 500 surfaces the inconsistency rather
       // than fabricating a /me shape from session-only data.
-      set.status = 500;
-      return {
+      return status(500, {
         ok: false as const,
         reason: "user_mirror_missing" as const,
-      };
+      });
     }
 
     let role: "owner" | "admin" | "internal" | "external" | null = null;
     let orgName: string | null = null;
     if (actor.localOrgId) {
       const [org, membership] = await Promise.all([
-        orgRepo.findById(actor.localOrgId),
-        membershipRepo.findByOrgUser(actor.localOrgId, actor.localUserId),
+        protectedDeps.orgRepo.findById(actor.localOrgId),
+        protectedDeps.membershipRepo.findByOrgUser(
+          actor.localOrgId,
+          actor.localUserId,
+        ),
       ]);
       orgName = org?.name ?? null;
       role = membership?.role ?? null;
@@ -107,7 +98,9 @@ export const getUserHandler = new Elysia().get(
     // signalled by the presence of grants under this user. Slice 3
     // will tighten this once it lands the access-check flow; for now
     // "has any active grant" is a good-enough proxy for `external`.
-    const grants = await externalGrantRepo.listByUser(actor.localUserId);
+    const grants = await protectedDeps.externalGrantRepo.listByUser(
+      actor.localUserId,
+    );
     const activeGrants = grants.filter((g) => g.status === "active");
     const opportunityScopes = activeGrants.map((g) => g.opportunitySlug);
     if (role === null && activeGrants.length > 0) {

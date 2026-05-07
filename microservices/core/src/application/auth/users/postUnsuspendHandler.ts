@@ -6,18 +6,12 @@
 // them, and the user has to re-authenticate to mint fresh sessions.
 
 import Elysia, { status, t } from "elysia";
-import { Resource } from "sst";
-
-import { getDb } from "@ai-data-room/db";
 
 import {
   SuspensionError,
   unsuspendUser,
 } from "../../../application/suspension";
-import { AuditRepo } from "../../../infrastructure/db/auditRepo";
-import { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
-import { UserRepo } from "../../../infrastructure/db/userRepo";
-import { createWorkOSClient } from "../../../infrastructure/workos/client";
+import { protectedDeps } from "../_shared/deps";
 import { authorizeOrgAccess, isAuthFailure } from "../_shared/orgAccess";
 import { buildAuditContext } from "../_shared/auditContext";
 import type { ProtectedAuthContext } from "../guards/authContextTypes";
@@ -28,18 +22,10 @@ export const postUnsuspendHandler = new Elysia().post(
     const { params, headers, actor } = ctx as typeof ctx & {
       actor: ProtectedAuthContext["actor"];
     };
-    const db = getDb(Resource.PLANETSCALE_DATABASE_URL.value);
-    const workos = createWorkOSClient({
-      apiKey: Resource.WORKOS_API_KEY.value,
-      clientId: Resource.WORKOS_CLIENT_ID.value,
-    });
-    const userRepo = new UserRepo(db);
-    const membershipRepo = new MembershipRepo(db);
-    const auditRepo = new AuditRepo(db);
 
     const auth = await authorizeOrgAccess(
       { actor, paramOrgId: params.orgId },
-      { membershipRepo },
+      { membershipRepo: protectedDeps.membershipRepo },
     );
     if (isAuthFailure(auth)) {
       return auth;
@@ -55,7 +41,12 @@ export const postUnsuspendHandler = new Elysia().post(
           orgId: params.orgId,
           audit,
         },
-        { workos, userRepo, membershipRepo, auditRepo },
+        {
+          workos: protectedDeps.workos,
+          userRepo: protectedDeps.userRepo,
+          membershipRepo: protectedDeps.membershipRepo,
+          auditRepo: protectedDeps.auditRepo,
+        },
       );
       return user;
     } catch (err) {

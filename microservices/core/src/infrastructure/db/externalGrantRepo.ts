@@ -49,6 +49,11 @@ export class ExternalGrantRepo {
    * users. Returns all grants (active + revoked) — the application
    * layer filters to `status = 'active'` so revocation history is
    * still visible to admin tooling.
+   *
+   * v0.1 returns every row for the user — fine at Capital Pay
+   * scale. Slice 3 (`access-control`) will push the
+   * `status='active'` filter into SQL and add a LIMIT once external
+   * users routinely accumulate dozens of grants across opportunities.
    */
   async listByUser(userId: string): Promise<ExternalAccessGrant[]> {
     const rows = await this.db

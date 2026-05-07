@@ -17,12 +17,8 @@
 // a millisecond would otherwise be silently dropped between pages).
 
 import Elysia, { status, t } from "elysia";
-import { Resource } from "sst";
 
-import { getDb } from "@ai-data-room/db";
-
-import { AuditRepo } from "../../../infrastructure/db/auditRepo";
-import { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
+import { protectedDeps } from "../_shared/deps";
 import { authorizeOrgAccess, isAuthFailure } from "../_shared/orgAccess";
 import type { ProtectedAuthContext } from "../guards/authContextTypes";
 
@@ -32,21 +28,17 @@ export const getAuditEventsHandler = new Elysia().get(
     const { params, query, actor } = ctx as typeof ctx & {
       actor: ProtectedAuthContext["actor"];
     };
-    const db = getDb(Resource.PLANETSCALE_DATABASE_URL.value);
-    const auditRepo = new AuditRepo(db);
-    const membershipRepo = new MembershipRepo(db);
 
     const auth = await authorizeOrgAccess(
       { actor, paramOrgId: params.orgId },
-      { membershipRepo },
+      { membershipRepo: protectedDeps.membershipRepo },
     );
     if (isAuthFailure(auth)) {
       return auth;
     }
 
-    // Cursor must be either both fields or neither — partial cursors
-    // would silently degrade to "no cursor" and the client paginating
-    // with a typo would loop forever.
+    // Partial cursors would silently degrade to "no cursor" and a
+    // client paginating with a typo would loop forever — reject loud.
     if (
       (query.beforeOccurredAt && !query.beforeId) ||
       (!query.beforeOccurredAt && query.beforeId)
@@ -65,7 +57,7 @@ export const getAuditEventsHandler = new Elysia().get(
           }
         : undefined;
 
-    return auditRepo.listByOrg(params.orgId, {
+    return protectedDeps.auditRepo.listByOrg(params.orgId, {
       limit: query.limit,
       before,
     });

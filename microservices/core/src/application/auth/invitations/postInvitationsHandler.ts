@@ -16,20 +16,12 @@
 // check is handler-level.
 
 import Elysia, { status, t } from "elysia";
-import { Resource } from "sst";
-
-import { getDb } from "@ai-data-room/db";
 
 import {
   createInvitation,
   InvitationError,
 } from "../../../application/invitations";
-import { AuditRepo } from "../../../infrastructure/db/auditRepo";
-import { InvitationRepo } from "../../../infrastructure/db/invitationRepo";
-import { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
-import { OrgRepo } from "../../../infrastructure/db/orgRepo";
-import { UserRepo } from "../../../infrastructure/db/userRepo";
-import { createWorkOSClient } from "../../../infrastructure/workos/client";
+import { protectedDeps } from "../_shared/deps";
 import { authorizeOrgAccess, isAuthFailure } from "../_shared/orgAccess";
 import { buildAuditContext } from "../_shared/auditContext";
 import type { ProtectedAuthContext } from "../guards/authContextTypes";
@@ -55,20 +47,10 @@ export const postInvitationsHandler = new Elysia().post(
     const { params, body, headers, actor, set } = ctx as typeof ctx & {
       actor: ProtectedAuthContext["actor"];
     };
-    const db = getDb(Resource.PLANETSCALE_DATABASE_URL.value);
-    const workos = createWorkOSClient({
-      apiKey: Resource.WORKOS_API_KEY.value,
-      clientId: Resource.WORKOS_CLIENT_ID.value,
-    });
-    const userRepo = new UserRepo(db);
-    const orgRepo = new OrgRepo(db);
-    const membershipRepo = new MembershipRepo(db);
-    const invitationRepo = new InvitationRepo(db);
-    const auditRepo = new AuditRepo(db);
 
     const auth = await authorizeOrgAccess(
       { actor, paramOrgId: params.orgId },
-      { membershipRepo },
+      { membershipRepo: protectedDeps.membershipRepo },
     );
     if (isAuthFailure(auth)) {
       return auth;
@@ -97,7 +79,13 @@ export const postInvitationsHandler = new Elysia().post(
               kind: "external",
               opportunitySlug: body.opportunitySlug,
             },
-        { workos, userRepo, orgRepo, invitationRepo, auditRepo },
+        {
+          workos: protectedDeps.workos,
+          userRepo: protectedDeps.userRepo,
+          orgRepo: protectedDeps.orgRepo,
+          invitationRepo: protectedDeps.invitationRepo,
+          auditRepo: protectedDeps.auditRepo,
+        },
       );
       set.status = 201;
       return invitation;

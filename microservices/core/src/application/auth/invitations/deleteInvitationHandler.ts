@@ -11,18 +11,12 @@
 // kept as defence in depth.
 
 import Elysia, { status, t } from "elysia";
-import { Resource } from "sst";
-
-import { getDb } from "@ai-data-room/db";
 
 import {
   InvitationError,
   revokeInvitation,
 } from "../../../application/invitations";
-import { AuditRepo } from "../../../infrastructure/db/auditRepo";
-import { InvitationRepo } from "../../../infrastructure/db/invitationRepo";
-import { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
-import { createWorkOSClient } from "../../../infrastructure/workos/client";
+import { protectedDeps } from "../_shared/deps";
 import { authorizeOrgAccess, isAuthFailure } from "../_shared/orgAccess";
 import { buildAuditContext } from "../_shared/auditContext";
 import type { ProtectedAuthContext } from "../guards/authContextTypes";
@@ -33,18 +27,10 @@ export const deleteInvitationHandler = new Elysia().delete(
     const { params, headers, actor } = ctx as typeof ctx & {
       actor: ProtectedAuthContext["actor"];
     };
-    const db = getDb(Resource.PLANETSCALE_DATABASE_URL.value);
-    const workos = createWorkOSClient({
-      apiKey: Resource.WORKOS_API_KEY.value,
-      clientId: Resource.WORKOS_CLIENT_ID.value,
-    });
-    const invitationRepo = new InvitationRepo(db);
-    const membershipRepo = new MembershipRepo(db);
-    const auditRepo = new AuditRepo(db);
 
     const auth = await authorizeOrgAccess(
       { actor, paramOrgId: params.orgId },
-      { membershipRepo },
+      { membershipRepo: protectedDeps.membershipRepo },
     );
     if (isAuthFailure(auth)) {
       return auth;
@@ -61,7 +47,11 @@ export const deleteInvitationHandler = new Elysia().delete(
           actorRole: auth.role,
           audit,
         },
-        { workos, invitationRepo, auditRepo },
+        {
+          workos: protectedDeps.workos,
+          invitationRepo: protectedDeps.invitationRepo,
+          auditRepo: protectedDeps.auditRepo,
+        },
       );
       return invitation;
     } catch (err) {

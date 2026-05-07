@@ -18,19 +18,11 @@
 // run requireOrg on /me or require some param-key trick. Two
 // instances is clearer and matches FDP's separation pattern.
 //
-// Module-scope deps: per FDP convention (and sticky #41 Lambda
-// warm-start cache reuse), the database client and the repos shared
-// across the two `.resolve(resolveActor)` chains are constructed
-// once at module load. SST surfaces `Resource.*` before the Lambda
-// runtime calls into our handler, so module-scope reads are safe.
+// Shared deps live in `_shared/deps.ts` (module scope; per FDP
+// convention + sticky #41 warm-Lambda reuse). The handlers also
+// read from the same module so per-request construction is gone.
 
 import Elysia from "elysia";
-import { Resource } from "sst";
-
-import { getDb } from "@ai-data-room/db";
-
-import { OrgRepo } from "../../infrastructure/db/orgRepo";
-import { UserRepo } from "../../infrastructure/db/userRepo";
 
 import { getAuditEventsHandler } from "./audit-events/getAuditEventsHandler";
 import { requireAuth } from "./guards/requireAuth";
@@ -39,42 +31,38 @@ import { resolveActor } from "./guards/resolveActor";
 import { deleteInvitationHandler } from "./invitations/deleteInvitationHandler";
 import { getInvitationsHandler } from "./invitations/getInvitationsHandler";
 import { postInvitationsHandler } from "./invitations/postInvitationsHandler";
+import { protectedDeps } from "./_shared/deps";
 import { getUserHandler } from "./user/getUserHandler";
 import { postSuspendHandler } from "./users/postSuspendHandler";
 import { postUnsuspendHandler } from "./users/postUnsuspendHandler";
 
-const db = getDb(Resource.PLANETSCALE_DATABASE_URL.value);
-const userRepo = new UserRepo(db);
-const orgRepo = new OrgRepo(db);
+// Elysia's `.resolve()` expects `Record<string, unknown>`; the
+// narrower `ActorContext` shape is structurally a record but TS
+// won't widen automatically — `as unknown as` is the standard
+// workaround in the FDP pattern.
+const resolveActorPlugin = async ({
+  user,
+  organizationId,
+}: {
+  user: Parameters<typeof resolveActor>[0]["user"];
+  organizationId: Parameters<typeof resolveActor>[0]["organizationId"];
+}) =>
+  (await resolveActor(
+    { user, organizationId },
+    {
+      userRepo: protectedDeps.userRepo,
+      orgRepo: protectedDeps.orgRepo,
+    },
+  )) as unknown as Record<string, unknown>;
 
 const meRoutes = new Elysia()
   .resolve(requireAuth)
-  .resolve(
-    async ({ user, organizationId }) =>
-      // Elysia's `.resolve()` expects `Record<string, unknown>`; the
-      // narrower `ActorContext` shape is structurally a record but
-      // TS won't widen automatically — `as unknown as` is the
-      // standard workaround in the FDP pattern.
-      (await resolveActor(
-        { user, organizationId },
-        { userRepo, orgRepo },
-      )) as unknown as Record<string, unknown>,
-  )
+  .resolve(resolveActorPlugin)
   .use(getUserHandler);
 
 const orgScopedRoutes = new Elysia()
   .resolve(requireAuth)
-  .resolve(
-    async ({ user, organizationId }) =>
-      // Elysia's `.resolve()` expects `Record<string, unknown>`; the
-      // narrower `ActorContext` shape is structurally a record but
-      // TS won't widen automatically — `as unknown as` is the
-      // standard workaround in the FDP pattern.
-      (await resolveActor(
-        { user, organizationId },
-        { userRepo, orgRepo },
-      )) as unknown as Record<string, unknown>,
-  )
+  .resolve(resolveActorPlugin)
   .onBeforeHandle(requireOrg)
   .use(postInvitationsHandler)
   .use(getInvitationsHandler)
