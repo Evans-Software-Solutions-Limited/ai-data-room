@@ -153,11 +153,6 @@ through AC-US11 (the suite itself lands in T-021).
     in the file. v0.1 returns every row (fine at Capital Pay
     scale); slice 3 should add `where status = 'active'` + LIMIT
     once external users routinely accumulate dozens of grants.
-11. **Stale merged origin branches** — 7 of them: `feat/auth-and-
-orgs-T-009/T-010/T-011/T-014a/T-016/T-019` and
-    `chore/repos-accept-pgtransaction`. CLAUDE.md says delete
-    after merge; they accumulated. One-off cleanup.
-
 ## Sticky knowledge — kept across handoffs
 
 1. **Drizzle 0.30+ moved bookkeeping into a `drizzle` schema.**
