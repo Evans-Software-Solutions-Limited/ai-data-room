@@ -329,10 +329,9 @@ required fields + strips forbidden fields.
 
 ## T-014 — Handlers: HTTP routes
 
-Status: T-014a `[x]` (PR #19 — public auth routes); T-014b `[~]`
-(in flight in `feat/auth-and-orgs-T-015-session-middleware-and-protected-routes`,
-bundled with T-015 per the FDP precedent — middleware and protected
-routes ship together)
+Status: T-014a `[x]` (PR #19 — public auth routes); T-014b `[x]`
+(PR #21 — protected routes, bundled with T-015 per the FDP
+precedent — middleware and protected routes shipped together)
 **Scope:** Wire the application layer into API Gateway handlers per
 §Interfaces. Public routes (`/auth/*`, `/webhooks/workos`) unauth'd;
 everything else behind session middleware. CSRF double-submit on
@@ -350,11 +349,9 @@ dev stack.
 
 ## T-015 — Session middleware + `/me` (bundled with T-014b)
 
-Status: `[~]` (in flight — branch
-`feat/auth-and-orgs-T-015-session-middleware-and-protected-routes`,
-bundled with T-014b protected routes per the FDP precedent set in
-T-014a — middleware and the routes it protects are tightly coupled
-and ship together)
+Status: `[x]` (PR #21 — bundled with T-014b protected routes per
+the FDP precedent set in T-014a; middleware and the routes it
+protects are tightly coupled and shipped together)
 **Scope:** Three Elysia guards (`requireAuth`, `resolveActor`,
 `requireOrg`) plus the seven protected route handlers from T-014b
 (`GET /me`, invitations CRUD, suspend / unsuspend, audit-events).
