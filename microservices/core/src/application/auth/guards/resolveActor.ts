@@ -108,7 +108,7 @@ async function findOrLazyMirrorUser(
       mfaEnrolledAt: now,
       emailVerifiedAt: workosUser.emailVerified ? now : null,
     });
-  } catch {
+  } catch (err) {
     // Most likely a unique-violation on `workos_user_id` from a
     // concurrent lazy-create (multiple tabs from the same fresh
     // signup). Re-find — the existing row is what we want.
@@ -117,10 +117,13 @@ async function findOrLazyMirrorUser(
       return recovered;
     }
     // We caught a real failure that wasn't a duplicate insert. Throw
-    // and let Elysia 500 — silently returning a stub user would
-    // mask the bug downstream.
+    // and let Elysia 500 — silently returning a stub user would mask
+    // the bug downstream. Attach the original error as `cause` so
+    // CloudWatch sees the underlying connection / schema issue
+    // rather than just the generic wrapper message.
     throw new Error(
       `resolveActor: lazy-mirror failed for workosUserId=${workosUser.id}`,
+      { cause: err },
     );
   }
 }

@@ -211,12 +211,20 @@ describe("resolveActor", () => {
 
     it("throws when create fails AND the re-find also misses (real bug, not a race)", async () => {
       const repos = makeRepos();
+      const originalErr = new Error("connection refused");
       repos.findByWorkosUserId.mockResolvedValue(null);
-      repos.userCreate.mockRejectedValue(new Error("connection refused"));
+      repos.userCreate.mockRejectedValue(originalErr);
 
+      // The wrapper's message + the original error preserved as
+      // `cause` — both checked, because losing `cause` would silently
+      // strip the diagnostic context CloudWatch needs to triage a
+      // real DB outage.
       await expect(
         resolveActor({ user: WORKOS_USER, organizationId: null }, repos),
-      ).rejects.toThrow(/lazy-mirror failed/);
+      ).rejects.toMatchObject({
+        message: expect.stringMatching(/lazy-mirror failed/),
+        cause: originalErr,
+      });
     });
   });
 
