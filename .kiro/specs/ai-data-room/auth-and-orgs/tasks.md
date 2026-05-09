@@ -398,13 +398,18 @@ tampered, duplicate, unknown-type).
 ## T-017 — Minimal web shell: login, signup, MFA enrolment, logout, `/me` page
 
 Status: `[ ]`
-**Scope:** Next.js pages that delegate to WorkOS AuthKit for all auth
-UI. Our `/app` page shows the `/me` payload and a logout button, plus
+**Scope:** React Router routes in the existing Vite SPA
+(`packages/web`) that delegate to WorkOS AuthKit for all auth UI.
+Our `/app` route shows the `/me` payload and a logout button, plus
 the recovery-codes download on MFA enrolment (T-010). Deliberately
-ugly — polish lives in `onboarding-flow`.
-**Files (likely):** `packages/web/app/{login,signup,logout,app,mfa}/page.tsx`.
+ugly — polish lives in `onboarding-flow`. The unprovisioned `/me`
+shape (`role: null, orgId: null`) renders a placeholder pointing
+at slice 9's onboarding flow.
+**Files (likely):** `packages/web/src/pages/{Login,Signup,Logout,App,Mfa}.tsx`
+plus the route table in `packages/web/src/App.tsx`.
 **Definition of done:** Every AC-US\* reachable end-to-end in a browser.
-**Tests required:** Playwright coverage for AC-US1 through AC-US11.
+**Tests required:** Playwright coverage for AC-US1 through AC-US11
+(the suite itself lands in T-021).
 
 ---
 

@@ -21,7 +21,7 @@ same WorkOS integration pattern already proven in
 ```mermaid
 flowchart LR
   subgraph Browser
-    Web[Next.js web app]
+    Web[Vite SPA web app]
   end
 
   subgraph AWS["AWS (SST v4)"]

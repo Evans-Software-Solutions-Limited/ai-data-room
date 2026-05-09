@@ -66,40 +66,28 @@ state with a call-to-action that lands a user in slice 9's
 
 ### What T-017 ships (per `tasks.md`)
 
-Minimal pages in `packages/web/`:
+The frontend stack is locked: **Vite + React + React Router 7 +
+Eden Treaty + Tailwind**, in the existing `packages/web` workspace.
+Spec docs were amended in PR #22 to match.
 
-- `/login` — redirects to `GET /auth/sign-in` (which redirects to
-  AuthKit). Polish lives in `onboarding-flow`.
-- `/signup` — redirects to `GET /auth/sign-up`.
-- `/logout` — calls `POST /auth/sign-out` and redirects.
-- `/app` (or `/me`) — fetches `GET /me`, shows the payload, plus a
-  logout button. Renders the unprovisioned shape (role/orgId null)
-  with a placeholder for the slice-9 onboarding flow.
-- `/mfa` — recovery-codes download UI for fresh enrolment (T-010
-  shipped the API; T-017 wires the front end).
+Minimal routes added to `packages/web/src/pages/`:
+
+- `Login.tsx` — redirects to `GET /auth/sign-in` (which then
+  redirects to AuthKit). Polish lives in `onboarding-flow`.
+- `Signup.tsx` — redirects to `GET /auth/sign-up`.
+- `Logout.tsx` — calls `POST /auth/sign-out` and redirects.
+- `App.tsx` (or `Me.tsx`) — fetches `GET /me` via Eden Treaty,
+  shows the payload, plus a logout button. Renders the
+  unprovisioned shape (`role: null`, `orgId: null`) with a
+  placeholder for the slice-9 onboarding flow.
+- `Mfa.tsx` — recovery-codes download UI for fresh enrolment
+  (T-010 shipped the API; T-017 wires the front end).
+
+Plus the route table in `packages/web/src/App.tsx` mounting them.
 
 DoD: every `AC-US*` from `requirements.md` is reachable end-to-end
 in a browser. Tests required: Playwright coverage for AC-US1
-through AC-US11 (those land in T-021 — T-017 is the implementation).
-
-### Open question to flag with Brad before starting
-
-The spec says **"Next.js pages"** but `packages/web` is set up as a
-Vite + React + Eden Treaty SPA (per `tsconfig.app.json`'s
-`vite/client` types and the SST `infra/web.ts` config). Two paths:
-
-- **(i) Rewrite the spec to "Vite SPA"** (matches reality,
-  cheaper). Front-end pages become React Router routes in
-  `packages/web/src/pages/`. Most v0.1 auth flows redirect off-app
-  to AuthKit anyway, so SSR isn't doing real work for us.
-- **(ii) Migrate `packages/web` to Next.js** (matches the spec,
-  bigger lift). Requires re-deciding hosting since SST is set up
-  for the SPA pattern at `infra/web.ts`.
-
-My read: **(i) is right.** Vite SPA + AuthKit redirects covers
-every AC-US the spec requires for v0.1. Document the divergence in
-the design doc when T-017 starts. Confirm with Brad first — this
-is a slice-architecture call, not an implementation detail.
+through AC-US11 (the suite itself lands in T-021).
 
 ### Faster alternatives if Brad wants to ship something else first
 

@@ -26,7 +26,7 @@ flowchart LR
   Owner[Owner browser]
   External[External browser]
 
-  subgraph Web["Next.js web"]
+  subgraph Web["Vite SPA web"]
     Wizard[/onboarding/owner/[step]]
     Welcome[/onboarding/welcome]
     Sample[/onboarding/sample-room]
@@ -202,9 +202,11 @@ Privacy posture documented in `docs/privacy/posthog.md`.
 
 ## Performance
 
-NFR3 (≤1s p95 page load): each wizard route is a server component,
-single API call to `/onboarding/progress`, cached client-side
-between steps. Lighthouse-CI budget added.
+NFR3 (≤1s p95 page load): each wizard route is a React Router
+entry whose `loader` issues a single API call to
+`/onboarding/progress`; the result is cached client-side between
+steps via the standard data-router cache. Lighthouse-CI budget
+added.
 
 ## Accessibility
 

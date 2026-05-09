@@ -24,7 +24,7 @@ flowchart LR
   Stripe[Stripe<br/>Checkout / Billing Portal]
 
   subgraph AWS["AWS"]
-    Web[Next.js web<br/>/dashboard/settings/billing]
+    Web[Vite SPA web<br/>/dashboard/settings/billing]
     API[microservices/core<br/>billing handlers]
     Webhook[Webhook handler<br/>stripe events]
     DB[(Postgres<br/>org_subscriptions,<br/>plan_overrides,<br/>plan_catalogue)]

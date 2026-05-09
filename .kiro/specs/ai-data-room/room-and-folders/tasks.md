@@ -217,11 +217,13 @@ production, measured via a weekly audit query.
 ## T-013 — Web: folder navigation + document list
 
 Status: `[ ]`
-**Scope:** Next.js page `/room`: renders the six canonical folders +
-`Opportunities/` list. Clicking a folder → list documents. Uses
-`/me` + `/rooms` responses. Deliberately plain UI; polish in
-`admin-dashboard` / `onboarding-flow`.
-**Files (likely):** `packages/web/app/room/**/*.tsx`.
+**Scope:** Vite SPA route `/room` (React Router entry): renders
+the six canonical folders + `Opportunities/` list. Clicking a
+folder → list documents. Uses `/me` + `/rooms` responses.
+Deliberately plain UI; polish in `admin-dashboard` /
+`onboarding-flow`.
+**Files (likely):** `packages/web/src/pages/Room.tsx` plus the
+route-table entry in `packages/web/src/App.tsx`.
 **DoD:** AC-US1 + AC-US8 pass in Playwright.
 **Tests required:** Playwright.
 

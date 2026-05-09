@@ -7,12 +7,12 @@
 
 ## Summary
 
-Pure-UI slice in the existing Next.js `web` package. Nine page
-routes under `/dashboard/*` composed from data-layer helpers that
+Pure-UI slice in the existing Vite SPA `web` package. Nine route
+entries under `/dashboard/*` composed from data-layer helpers that
 call **aggregate** endpoints added to earlier slices where NFR3
 demands it (≤3 calls per page). Shared primitives
 (`DataTable`, `Filters`, `InlineActions`, `StatPill`, `ActivityRow`)
-live in `packages/web/components/dashboard/`. No new backend
+live in `packages/web/src/components/dashboard/`. No new backend
 capability beyond thin **aggregate** BFF endpoints that compose
 existing APIs and a CSV exporter for the audit log. Role gating is
 applied at the route layout level; internal users get a read-only
@@ -22,7 +22,7 @@ variant driven by a single `canWrite(target, capability)` helper.
 
 ```mermaid
 flowchart LR
-  Web[Next.js web<br/>/dashboard/*]
+  Web[Vite SPA web<br/>/dashboard/*]
 
   subgraph BFF["BFF aggregates (microservices/core)"]
     HomeAgg[/dashboard/home]
@@ -156,11 +156,14 @@ explicit.
 
 ## Data-loading pattern
 
-- Pages are **server components** by default (Next.js App Router).
-- Mutations use server actions (`'use server'`) calling the same
-  BFF endpoints to keep data-layer logic colocated.
-- `SWR`-like client hooks (`useDashboardHome`) only where
+- Routes are React Router entries; data is loaded via React Router
+  `loader` callbacks on route entry, falling back to TanStack
+  Query / SWR-style client hooks (`useDashboardHome`) where
   polling-on-focus matters (home + review + activity).
+- Mutations call the BFF endpoints directly via the Eden Treaty
+  client (the same client every other page uses), keeping
+  data-layer logic colocated with the route component.
+- The SPA renders fully client-side; SSR is not in scope for v0.1.
 
 ## Performance budget
 
@@ -168,7 +171,8 @@ explicit.
   seeded org fixture (200 users, 50 grants, 30 slots, 20 activity
   events).
 - Client bundle ≤200KB gzipped on dashboard route (NFR6).
-  Enforced via `next-bundle-analyzer` CI check.
+  Enforced via `vite-bundle-visualizer` (or
+  `rollup-plugin-visualizer`) CI check.
 - No list view issues >3 API calls on first render (NFR3). ESLint
   rule: `max-api-calls-per-page` (custom).
 
@@ -206,10 +210,15 @@ explicit.
   hand-rolled (3 endpoints). GraphQL overhead (schema, resolvers,
   security review) isn't worth it for this surface area.
 
-- **Server components vs. client-heavy SPA** — server components
-  default because most pages render read-mostly data and SEO
-  doesn't matter. Interactive parts (filters, inline actions)
-  upgrade to client components surgically.
+- **Vite SPA rather than an SSR framework** — the original draft
+  scoped server components and server actions. Reality: the
+  monorepo's `packages/web` is a Vite + React Router 7 SPA, every
+  authenticated request goes through API Gateway anyway, and SEO
+  doesn't matter for a logged-in admin surface. Sticking with the
+  SPA keeps the build simple, the deploy story (CloudFront + S3)
+  unchanged, and avoids re-litigating hosting. Read-mostly pages
+  use route-level `loader` data fetches; interactive parts
+  (filters, inline actions) use TanStack Query / SWR-style hooks.
 
 - **Source-of-truth linking (NFR4) vs. duplicated rendering** —
   e.g. clicking a queued document opens the existing
