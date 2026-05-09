@@ -24,13 +24,10 @@ import { InvitationRepo } from "../../../infrastructure/db/invitationRepo";
 import { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
 import { OrgRepo } from "../../../infrastructure/db/orgRepo";
 import { UserRepo } from "../../../infrastructure/db/userRepo";
-import { createWorkOSClient } from "../../../infrastructure/workos/client";
+
+import { workos } from "./workosClient";
 
 const db = getDb(Resource.PLANETSCALE_DATABASE_URL.value);
-const workos = createWorkOSClient({
-  apiKey: Resource.WORKOS_API_KEY.value,
-  clientId: Resource.WORKOS_CLIENT_ID.value,
-});
 
 export const protectedDeps = {
   db,

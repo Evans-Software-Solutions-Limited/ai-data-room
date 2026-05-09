@@ -255,29 +255,10 @@ describe("requireAuth", () => {
     });
   });
 
-  it("returns 500 client_init_failed when the WorkOS SDK constructor throws", async () => {
-    // Mock the SDK class itself to throw at construction. Distinct
-    // from the 401 paths — this is a server-config error (bad
-    // WORKOS_API_KEY / WORKOS_CLIENT_ID), not a user-auth failure.
-    // Keeping them separated is the Bugbot finding from PR #19.
-    vi.doMock("@workos-inc/node", () => ({
-      WorkOS: class {
-        constructor() {
-          throw new Error("invalid api key");
-        }
-      },
-    }));
-    const { cookie, remove } = makeCookie("sealed-blob");
-    const requireAuth = await loadRequireAuth();
-
-    const result = await requireAuth({ cookie });
-
-    // Cookie is NOT cleared on 500 — the user's session is still
-    // valid, the server just couldn't process this request.
-    expect(remove).not.toHaveBeenCalled();
-    expect(result).toMatchObject({
-      code: 500,
-      response: { ok: false, reason: "client_init_failed" },
-    });
-  });
+  // The previous `client_init_failed` 500 test is gone with the
+  // simplify pass: the WorkOS SDK is now constructed at module load
+  // in `_shared/workosClient.ts`, so a malformed API key / client
+  // id throws at Lambda init, not per request. Bad WorkOS config
+  // is a deploy-time issue surfaced by API Gateway's own 5xx, not
+  // a user-recoverable runtime path.
 });

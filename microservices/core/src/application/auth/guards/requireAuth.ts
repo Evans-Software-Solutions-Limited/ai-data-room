@@ -3,26 +3,28 @@
 //
 // Slice 1 / T-015 + T-014b. Mirrors FDP's
 // `application/auth/guards/requireAuth.ts` shape — same authenticate-
-// then-refresh ladder — but constructs the WorkOS client at request
-// scope (sticky #42) and reads `Resource.*` directly so we don't need
-// FDP's `AuthRepositoryService` plugin.
+// then-refresh ladder. Reuses the module-scope WorkOS client from
+// `_shared/workosClient.ts` so each warm-Lambda request hits the
+// SDK without re-allocating it (the simplify pass hoisted handler
+// deps; this guard was the holdout, fixed in response to PR #21
+// review).
 //
-// Three failure modes, three response codes:
+// Two failure modes, two response codes:
 //
 //   - **No cookie** → 401 `no_session`. User isn't signed in.
-//
-//   - **SDK construction failure** → 500 `client_init_failed`. A
-//     misconfigured `WORKOS_API_KEY` / `WORKOS_CLIENT_ID` lands here.
-//     This is a server-config bug, not a user-auth failure — the split
-//     vs. the 401 paths is the same Bugbot finding from PR #19
-//     (sticky #43): conflating them misleads ops dashboards and the
-//     web client's error UX.
 //
 //   - **Sealed-session validation / refresh failure** → 401
 //     `session_expired` (refresh ran and returned `authenticated: false`)
 //     or 401 `session_invalid` (the SDK threw — corrupt blob, bad
 //     cookie password, JWKS hiccup). The cookie is cleared in both
 //     cases so the next request starts clean.
+//
+// (The previous `client_init_failed` 500 branch is gone — the SDK
+// is now constructed at module load, so a malformed
+// `WORKOS_API_KEY` / `WORKOS_CLIENT_ID` fails Lambda init, surfacing
+// as a deploy-time issue rather than a per-request 500. That's the
+// right shape: bad config is a misconfigured stack, not a
+// user-recoverable condition.)
 //
 // On success, returns `{ user, organizationId }` into Elysia's
 // context per `AuthContext`. A successful refresh ALSO writes the
@@ -38,8 +40,8 @@
 import { status, type Context } from "elysia";
 import { Resource } from "sst";
 
-import { createWorkOSClient } from "../../../infrastructure/workos/client";
 import { setSecureCookie, SESSION_COOKIE_MAX_AGE } from "../config/frontendUrl";
+import { workos } from "../_shared/workosClient";
 
 interface RequireAuthInput {
   cookie: Context["cookie"];
@@ -59,24 +61,6 @@ export async function requireAuth({ cookie }: RequireAuthInput) {
   const sessionData = cookie.wos_session.value;
   if (!sessionData || typeof sessionData !== "string") {
     return status(401, { ok: false as const, reason: "no_session" as const });
-  }
-
-  // SDK construction is its own try/catch — sticky #43. A failure
-  // here means a misconfigured WorkOS client (empty / malformed
-  // secrets) and surfaces as 500 + `client_init_failed`. Lumping it
-  // into the same 401 catch as the auth check would mask real
-  // infrastructure problems behind a "you're not logged in" UX.
-  let workos;
-  try {
-    workos = createWorkOSClient({
-      apiKey: Resource.WORKOS_API_KEY.value,
-      clientId: Resource.WORKOS_CLIENT_ID.value,
-    });
-  } catch {
-    return status(500, {
-      ok: false as const,
-      reason: "client_init_failed" as const,
-    });
   }
 
   try {
