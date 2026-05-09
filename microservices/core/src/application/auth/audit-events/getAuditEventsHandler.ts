@@ -49,13 +49,22 @@ export const getAuditEventsHandler = new Elysia().get(
       });
     }
 
-    const before =
-      query.beforeOccurredAt && query.beforeId
-        ? {
-            occurredAt: new Date(query.beforeOccurredAt),
-            id: query.beforeId,
-          }
-        : undefined;
+    let before: { occurredAt: Date; id: string } | undefined;
+    if (query.beforeOccurredAt && query.beforeId) {
+      const occurredAt = new Date(query.beforeOccurredAt);
+      // `new Date("not-a-date")` is an `Invalid Date` whose getTime
+      // returns NaN. Without this guard, the bad value would flow
+      // into Drizzle's `lt(occurredAt, before.occurredAt)` and crash
+      // at the SQL layer with a 500 — wrong code for "your input
+      // was malformed", and a much worse triage signal than 400.
+      if (Number.isNaN(occurredAt.getTime())) {
+        return status(400, {
+          ok: false as const,
+          reason: "invalid_cursor_timestamp" as const,
+        });
+      }
+      before = { occurredAt, id: query.beforeId };
+    }
 
     return protectedDeps.auditRepo.listByOrg(params.orgId, {
       limit: query.limit,

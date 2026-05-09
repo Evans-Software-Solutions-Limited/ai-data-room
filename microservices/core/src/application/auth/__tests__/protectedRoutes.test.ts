@@ -621,5 +621,35 @@ describe("protectedRoutes", () => {
         reason: "incomplete_cursor",
       });
     });
+
+    it("400 invalid_cursor_timestamp when beforeOccurredAt is unparseable", async () => {
+      // Without the in-handler guard, `new Date("not-a-date")` flows
+      // into Drizzle's `lt()` and crashes at the SQL layer with a
+      // 500. We want a 400 with a clear reason instead — same shape
+      // as `incomplete_cursor` so the client can handle both
+      // cursor-validation errors with one branch.
+      mocks.userFindByWorkosUserId.mockResolvedValue(LOCAL_USER);
+      mocks.orgFindByWorkosOrgId.mockResolvedValue(LOCAL_ORG);
+      mocks.membershipFindByOrgUser.mockResolvedValue(OWNER_MEMBERSHIP);
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(
+          `/orgs/${LOCAL_ORG_ID}/audit-events?beforeOccurredAt=not-a-date&beforeId=88888888-8888-4888-8888-888888888888`,
+          { sessionCookie: "sealed-blob" },
+        ),
+      );
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        ok: false,
+        reason: "invalid_cursor_timestamp",
+      });
+      // The auditRepo must NOT have been called — the bad cursor
+      // should short-circuit before the query runs. Pinning this
+      // explicitly so a future regression that lets the Invalid
+      // Date through and crashes at the DB layer is caught here.
+      expect(mocks.auditListByOrg).not.toHaveBeenCalled();
+    });
   });
 });
