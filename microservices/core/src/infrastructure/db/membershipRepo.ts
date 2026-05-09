@@ -24,7 +24,10 @@ export interface CreateMembershipInput {
 }
 
 export class MembershipRepo {
-  constructor(private readonly db: DbOrTx) {}
+  private readonly db: DbOrTx;
+  constructor(db: DbOrTx) {
+    this.db = db;
+  }
 
   withTx(tx: Tx): MembershipRepo {
     return new MembershipRepo(tx);

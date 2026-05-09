@@ -47,7 +47,10 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
 export class AuditRepo {
-  constructor(private readonly db: DbOrTx) {}
+  private readonly db: DbOrTx;
+  constructor(db: DbOrTx) {
+    this.db = db;
+  }
 
   withTx(tx: Tx): AuditRepo {
     return new AuditRepo(tx);

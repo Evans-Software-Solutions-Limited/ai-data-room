@@ -329,10 +329,10 @@ required fields + strips forbidden fields.
 
 ## T-014 — Handlers: HTTP routes
 
-Status: `[~]` (in flight — branch
-`feat/auth-and-orgs-T-014a-public-auth-routes`, public routes
-only; protected routes deferred to T-014b alongside T-015 session
-middleware)
+Status: T-014a `[x]` (PR #19 — public auth routes); T-014b `[~]`
+(in flight in `feat/auth-and-orgs-T-015-session-middleware-and-protected-routes`,
+bundled with T-015 per the FDP precedent — middleware and protected
+routes ship together)
 **Scope:** Wire the application layer into API Gateway handlers per
 §Interfaces. Public routes (`/auth/*`, `/webhooks/workos`) unauth'd;
 everything else behind session middleware. CSRF double-submit on
@@ -348,18 +348,37 @@ dev stack.
 
 ---
 
-## T-015 — Session middleware + `/me`
+## T-015 — Session middleware + `/me` (bundled with T-014b)
 
-Status: `[ ]`
-**Scope:** Middleware that validates the session cookie with WorkOS
-(LRU cache TTL 60s), hydrates `req.session = { userId, orgId, role,
-opportunityScopes[] }`. Remove the T-002 `/_health/workos` handler.
-Implement `GET /me` per FR14.
-**Files (likely):** `microservices/core/middleware/session.ts`,
-`microservices/core/handlers/me.ts`.
+Status: `[~]` (in flight — branch
+`feat/auth-and-orgs-T-015-session-middleware-and-protected-routes`,
+bundled with T-014b protected routes per the FDP precedent set in
+T-014a — middleware and the routes it protects are tightly coupled
+and ship together)
+**Scope:** Three Elysia guards (`requireAuth`, `resolveActor`,
+`requireOrg`) plus the seven protected route handlers from T-014b
+(`GET /me`, invitations CRUD, suspend / unsuspend, audit-events).
+`requireAuth` reads the sealed `wos_session` cookie, calls
+`loadSealedSession().authenticate()`, refreshes on expiry, and writes
+`{ user, organizationId }` into context (no LRU cache — the sealed
+cookie IS the cache; see design.md §Key trade-offs). `resolveActor`
+maps WorkOS-side IDs to local UUIDs via the existing repos and
+lazy-creates a local `users` row on first hit (the post-organic-signup
+path) — org and membership are deferred to slice 9 (`onboarding-flow`).
+`requireOrg` short-circuits with 403 if the resolved context has no
+local org. Remove the T-002 `/_health/workos` handler. Wire
+`protectedRoutes.ts` into `api.ts`.
+**Files (likely):** `microservices/core/src/application/auth/guards/{requireAuth,resolveActor,requireOrg,authContextTypes}.ts`,
+`microservices/core/src/application/auth/{user,invitations,users,audit-events}/*Handler.ts`,
+`microservices/core/src/application/auth/protectedRoutes.ts`,
+`microservices/core/src/api.ts`.
 **Definition of done:** AC-US7 passes in Playwright (browser restart
-within inactivity window stays logged in).
-**Tests required:** Integration + Playwright.
+within inactivity window stays logged in); `/me` returns the documented
+shape with nullable `role` for unprovisioned users; cross-org access
+to invitations / users / audit-events is blocked with 403.
+**Tests required:** Unit (guards + each handler) + integration
+(protectedRoutes mounted under a real Elysia instance) + Playwright
+(deferred to T-021 once T-017 ships the web shell).
 
 ---
 

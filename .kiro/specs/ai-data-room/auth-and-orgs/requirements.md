@@ -117,6 +117,15 @@ Independent of role, every user is in exactly one of:
 - **FR8** — Invite links shall be single-use, cryptographically
   unguessable, and expire 7 days after issuance. Expired invites require
   re-invitation.
+- **FR8b** — External access grants shall carry an expiry timestamp. The
+  default expiry shall be 90 days from grant issuance, with a hard
+  ceiling of 365 days. Expired grants shall be treated as revoked at
+  access-check time. Override and extension are owner/admin-privileged
+  operations whose API surface lands in `access-control` (slice 3);
+  slice 1 populates the 90-day default at grant creation. Rationale:
+  data rooms are typically diligence-bounded — a default of "indefinite
+  unless someone remembers to revoke" is a security smell that
+  accumulates risk over time.
 - **FR9** — On invite acceptance, the system shall require the recipient
   to set a password and verify their email in the same flow (implicit
   verification — the fact they clicked the invite link confirms email
@@ -141,8 +150,11 @@ Independent of role, every user is in exactly one of:
 - **FR13** — The system shall provide a logout endpoint that
   invalidates the current session on the server.
 - **FR14** — The system shall expose a "current user" endpoint
-  returning: user id, email, full name, role, org id (if any), org
-  name (if any), MFA enrolment status, email verification status.
+  returning: user id, email, full name, role (if any), org id (if any),
+  org name (if any), MFA enrolment status, email verification status.
+  `role` and `org id` are jointly nullable for freshly-signed-up users
+  who have been mirrored locally but have not yet been provisioned into
+  an org (org-provisioning flow lands in `onboarding-flow`, slice 9).
 
 ### MFA
 

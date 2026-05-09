@@ -30,7 +30,10 @@ export interface CreateInvitationInput {
 }
 
 export class InvitationRepo {
-  constructor(private readonly db: DbOrTx) {}
+  private readonly db: DbOrTx;
+  constructor(db: DbOrTx) {
+    this.db = db;
+  }
 
   withTx(tx: Tx): InvitationRepo {
     return new InvitationRepo(tx);

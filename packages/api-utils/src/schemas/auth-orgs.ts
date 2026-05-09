@@ -106,11 +106,17 @@ export const InvitationStateSchema = z.enum([
 export const InvitationRoleSchema = z.enum(["admin", "internal"]);
 
 /**
- * External-access-grant status. `active`/`revoked` only at v0.1;
- * revocation flow lives in the `access-control` slice. Forward-compat
- * column on this slice's table.
+ * External-access-grant status. Slice 1 only writes `active`/`revoked`;
+ * the `expired` transition lives in `access-control` (slice 3) and is
+ * driven by the `expiresAt` column per FR8b. Forward-compat at this
+ * slice — keeping the enum closed prevents the slice-3 PR from being
+ * a coupled schema-and-application change.
  */
-export const ExternalAccessGrantStatusSchema = z.enum(["active", "revoked"]);
+export const ExternalAccessGrantStatusSchema = z.enum([
+  "active",
+  "revoked",
+  "expired",
+]);
 
 /**
  * Slug regex for `organizations.slug` and (later) opportunity slugs.
@@ -178,7 +184,8 @@ export const OrgMembershipSchema = z.object({
  * `external_access_grants` row. External users get one or more grants
  * scoped to an Opportunity instead of a membership. `opportunitySlug`
  * is a string at v0.1 — when `room-and-folders` lands it becomes an
- * FK, but we don't take that dependency here.
+ * FK, but we don't take that dependency here. `expiresAt` is FR8b's
+ * 90-day default written by `acceptInvitation`; slice 3 enforces.
  */
 export const ExternalAccessGrantSchema = z.object({
   id: z.string().uuid(),
@@ -187,6 +194,7 @@ export const ExternalAccessGrantSchema = z.object({
   opportunitySlug: SlugSchema,
   grantedBy: z.string().uuid(),
   status: ExternalAccessGrantStatusSchema,
+  expiresAt: z.coerce.date(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });

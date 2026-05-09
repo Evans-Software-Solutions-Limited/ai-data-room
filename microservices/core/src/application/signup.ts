@@ -104,8 +104,10 @@ export interface HandleSignupResult {
 export type SignupErrorReason = "mfa_required";
 
 export class SignupError extends Error {
-  constructor(public readonly reason: SignupErrorReason) {
+  public readonly reason: SignupErrorReason;
+  constructor(reason: SignupErrorReason) {
     super(reason);
+    this.reason = reason;
     this.name = "SignupError";
   }
 }

@@ -37,6 +37,13 @@ describe("ExternalGrantRepo (integration)", () => {
     await destroyTestPool();
   });
 
+  // FR8b — repo's `create()` requires an explicit expiresAt. The DB
+  // also carries a column-level default (`NOW() + 90 days`) as a
+  // defence-in-depth backstop; we still pass the value explicitly
+  // here so the test exercises the application-layer policy path.
+  const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+  const ninetyDaysFromNow = () => new Date(Date.now() + NINETY_DAYS_MS);
+
   it("create() inserts a grant with status=active by default", async () => {
     const { org, user } = await seedOrgAndUser({ orgs, users }, "create");
     const grant = await grants.create({
@@ -44,9 +51,15 @@ describe("ExternalGrantRepo (integration)", () => {
       userId: user.id,
       opportunitySlug: "vendor-a",
       grantedBy: user.id,
+      expiresAt: ninetyDaysFromNow(),
     });
     expect(grant.opportunitySlug).toBe("vendor-a");
     expect(grant.status).toBe("active");
+    // FR8b: the row carries the caller-supplied expiry within ~5s.
+    const driftMs = Math.abs(
+      grant.expiresAt.getTime() - (Date.now() + NINETY_DAYS_MS),
+    );
+    expect(driftMs).toBeLessThan(5_000);
   });
 
   it("listByUser() returns every grant for that user", async () => {
@@ -56,12 +69,14 @@ describe("ExternalGrantRepo (integration)", () => {
       userId: user.id,
       opportunitySlug: "vendor-a",
       grantedBy: user.id,
+      expiresAt: ninetyDaysFromNow(),
     });
     await grants.create({
       orgId: org.id,
       userId: user.id,
       opportunitySlug: "vendor-b",
       grantedBy: user.id,
+      expiresAt: ninetyDaysFromNow(),
     });
     const list = await grants.listByUser(user.id);
     expect(list).toHaveLength(2);
@@ -88,12 +103,14 @@ describe("ExternalGrantRepo (integration)", () => {
       userId: externalA.id,
       opportunitySlug: "vendor-a",
       grantedBy: granter.id,
+      expiresAt: ninetyDaysFromNow(),
     });
     await grants.create({
       orgId: org.id,
       userId: externalB.id,
       opportunitySlug: "vendor-b",
       grantedBy: granter.id,
+      expiresAt: ninetyDaysFromNow(),
     });
     const list = await grants.listByOrg(org.id);
     expect(list).toHaveLength(2);

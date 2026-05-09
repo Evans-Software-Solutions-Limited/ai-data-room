@@ -15,9 +15,9 @@ import { Hono } from "hono";
 import { handle } from "hono/aws-lambda";
 import openapi from "@elysiajs/openapi";
 
+import { protectedRoutes } from "./application/auth/protectedRoutes";
 import { publicRoutes } from "./application/auth/publicRoutes";
 import { getHelloWorldHandler } from "./application/hello-world/get/helloWorldGetHandler";
-import { healthWorkosGetHandler } from "./handlers/auth/healthWorkosGetHandler";
 
 // Slice handlers are mounted here as they land. One line per slice — the
 // handler module owns its own sub-routing.
@@ -25,8 +25,11 @@ const app = new Elysia()
   .use(openapi())
   .use(getHelloWorldHandler)
   .use(publicRoutes) // slice 1 T-014a — public auth routes (sign-in / sign-up / callback / sign-out)
-  .use(healthWorkosGetHandler); // slice 1 T-002 — REMOVED in T-015
-// .use(protectedRoutes)          // slice 1 T-014b / T-015
+  .use(protectedRoutes); // slice 1 T-015 + T-014b — /me + invitations + suspend/unsuspend + audit-events
+// `healthWorkosGetHandler` (slice 1 T-002) was removed in T-015 — its job
+// (smoke-test the WorkOS wrapper) is covered by the protected-routes
+// integration suite, and unauthenticated reachability of any internal-only
+// endpoint is a recon vector we'd rather not ship.
 // .use(orgsHandler)              // slice 1
 // .use(roomsHandler)             // slice 2
 // .use(accessControlHandler)     // slice 3

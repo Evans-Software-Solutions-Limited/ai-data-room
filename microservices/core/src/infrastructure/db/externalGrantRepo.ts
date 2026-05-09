@@ -19,10 +19,18 @@ export interface CreateExternalGrantInput {
   userId: string;
   opportunitySlug: string;
   grantedBy: string;
+  /** FR8b — diligence-bounded grants. Caller (`acceptInvitation`)
+   * computes the timestamp from the FR8b 90-day default. The DB
+   * column also carries a 90-day default as a defence-in-depth
+   * backstop, but the application layer is the policy owner. */
+  expiresAt: Date;
 }
 
 export class ExternalGrantRepo {
-  constructor(private readonly db: DbOrTx) {}
+  private readonly db: DbOrTx;
+  constructor(db: DbOrTx) {
+    this.db = db;
+  }
 
   withTx(tx: Tx): ExternalGrantRepo {
     return new ExternalGrantRepo(tx);
@@ -41,6 +49,11 @@ export class ExternalGrantRepo {
    * users. Returns all grants (active + revoked) — the application
    * layer filters to `status = 'active'` so revocation history is
    * still visible to admin tooling.
+   *
+   * v0.1 returns every row for the user — fine at Capital Pay
+   * scale. Slice 3 (`access-control`) will push the
+   * `status='active'` filter into SQL and add a LIMIT once external
+   * users routinely accumulate dozens of grants across opportunities.
    */
   async listByUser(userId: string): Promise<ExternalAccessGrant[]> {
     const rows = await this.db

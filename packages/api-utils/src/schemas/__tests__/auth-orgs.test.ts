@@ -81,9 +81,10 @@ describe.each([
   {
     name: "ExternalAccessGrantStatusSchema",
     schema: ExternalAccessGrantStatusSchema,
-    valid: ["active", "revoked"],
+    valid: ["active", "revoked", "expired"],
     invalid: "pending",
-    invalidReason: "grants are active on creation",
+    invalidReason:
+      "grants don't have a pending state — they're active on creation, with `expired` reserved for slice-3's lazy transition",
   },
 ])("$name", ({ schema, valid, invalid, invalidReason }) => {
   it.each(valid)("accepts %s", (value) => {
@@ -243,6 +244,9 @@ describe("ExternalAccessGrantSchema", () => {
     opportunitySlug: "vendor-a",
     grantedBy: USER_ID,
     status: "active" as const,
+    expiresAt: new Date(
+      new Date(NOW).getTime() + 90 * 24 * 60 * 60 * 1000,
+    ).toISOString(),
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -257,6 +261,12 @@ describe("ExternalAccessGrantSchema", () => {
     expect(() =>
       ExternalAccessGrantSchema.parse({ ...validGrant, opportunitySlug: "" }),
     ).toThrow();
+  });
+
+  it("requires expiresAt — FR8b", () => {
+    const grantWithoutExpiry: Partial<typeof validGrant> = { ...validGrant };
+    delete grantWithoutExpiry.expiresAt;
+    expect(() => ExternalAccessGrantSchema.parse(grantWithoutExpiry)).toThrow();
   });
 });
 

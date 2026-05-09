@@ -52,7 +52,10 @@ export interface CreateUserInput {
 }
 
 export class UserRepo {
-  constructor(private readonly db: DbOrTx) {}
+  private readonly db: DbOrTx;
+  constructor(db: DbOrTx) {
+    this.db = db;
+  }
 
   /**
    * Returns a new instance bound to a Drizzle transaction handle.

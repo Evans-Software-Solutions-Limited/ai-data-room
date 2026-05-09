@@ -65,6 +65,7 @@ export const orgRole = pgEnum("org_role", ["owner", "admin", "internal"]);
 export const externalGrantStatus = pgEnum("external_grant_status", [
   "active",
   "revoked",
+  "expired",
 ]);
 
 export const invitationKind = pgEnum("invitation_kind", [
@@ -199,6 +200,15 @@ export const externalAccessGrants = pgTable(
       .notNull()
       .references(() => users.id),
     status: externalGrantStatus("status").notNull().default("active"),
+    // FR8b: external access grants are diligence-bounded by default.
+    // Slice 1 stamps `NOW() + 90 days` at creation in `acceptInvitation`;
+    // override / extension knobs land in `access-control` (slice 3).
+    // Column-level default backfills any pre-FR8b rows during the
+    // migration to a 90-day window so the NOT NULL constraint can land
+    // without a manual data sweep.
+    expiresAt: timestamp("expires_at", { withTimezone: true })
+      .notNull()
+      .default(sql`NOW() + INTERVAL '90 days'`),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -212,6 +222,9 @@ export const externalAccessGrants = pgTable(
       t.opportunitySlug,
     ),
     userIdx: index("eag_user_idx").on(t.userId),
+    // Slice 3 will read this index for the lazy `expired` transition
+    // on access checks; declaring it now avoids a follow-up migration.
+    expiresAtIdx: index("eag_expires_at_idx").on(t.expiresAt),
   }),
 );
 

@@ -127,18 +127,22 @@ enforces single-owner-per-org at v0.1.
 ### `external_access_grants`
 
 External users don't have an org membership; they have one or more
-scoped grants. Enforcement lives in `access-control`; this slice only
-records the scope at invite-accept time.
+scoped grants. Enforcement lives in `access-control`; this slice
+records the scope and expiry at invite-accept time. Per FR8b, every
+grant carries a non-null `expires_at` (default 90 days from issuance,
+hard ceiling 365 days); the slice-3 access-check transitions the row
+to `expired` lazily on first read past the deadline.
 
-| Column                      | Type                         | Notes                                                                              |
-| --------------------------- | ---------------------------- | ---------------------------------------------------------------------------------- |
-| `id`                        | `uuid` PK                    |                                                                                    |
-| `org_id`                    | `uuid` FK `organizations.id` | Host org.                                                                          |
-| `user_id`                   | `uuid` FK `users.id`         |                                                                                    |
-| `opportunity_slug`          | `text`                       | E.g., `Vendor_A`. Future FK when Opportunities land in `room-and-folders`.         |
-| `granted_by`                | `uuid` FK `users.id`         |                                                                                    |
-| `status`                    | `enum('active','revoked')`   | Revocation handled in `access-control` slice; state column here is forward-compat. |
-| `created_at` / `updated_at` | `timestamptz`                |                                                                                    |
+| Column                      | Type                                 | Notes                                                                              |
+| --------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------- |
+| `id`                        | `uuid` PK                            |                                                                                    |
+| `org_id`                    | `uuid` FK `organizations.id`         | Host org.                                                                          |
+| `user_id`                   | `uuid` FK `users.id`                 |                                                                                    |
+| `opportunity_slug`          | `text`                               | E.g., `Vendor_A`. Future FK when Opportunities land in `room-and-folders`.         |
+| `granted_by`                | `uuid` FK `users.id`                 |                                                                                    |
+| `status`                    | `enum('active','revoked','expired')` | Slice 1 only writes `active`/`revoked`; the `expired` transition lives in slice 3. |
+| `expires_at`                | `timestamptz` NOT NULL               | FR8b. Slice 1 stamps `NOW() + 90 days` at creation; slice 3 enforces.              |
+| `created_at` / `updated_at` | `timestamptz`                        |                                                                                    |
 
 ### `invitations`
 
@@ -206,8 +210,10 @@ default). Zod schemas in `packages/api-utils/schemas/auth-orgs.ts`.
 ### Authenticated
 
 All authenticated routes require a session cookie validated against
-WorkOS on every request via middleware (with an in-memory LRU cache
-keyed by session token, TTL 60s, to keep p50 latency reasonable).
+WorkOS on every request via middleware. The cookie is a WorkOS sealed
+session blob; validation is local (`loadSealedSession().authenticate()`)
+and the SDK caches JWKS internally on warm Lambdas, so the original
+"60s LRU cache" plan is unnecessary — the cookie itself IS the cache.
 
 | Method   | Path                                   | Purpose                                                                                           |
 | -------- | -------------------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -226,8 +232,8 @@ keyed by session token, TTL 60s, to keep p50 latency reasonable).
   userId: string;
   email: string;
   fullName: string;
-  role: 'owner' | 'admin' | 'internal' | 'external';
-  orgId: string | null;     // null for pure-external users
+  role: 'owner' | 'admin' | 'internal' | 'external' | null;
+  orgId: string | null;     // null for pure-external users + unprovisioned
   orgName: string | null;
   opportunityScopes: string[]; // populated for external users
   emailVerified: boolean;
@@ -235,6 +241,13 @@ keyed by session token, TTL 60s, to keep p50 latency reasonable).
   lifecycleState: 'active' | 'suspended' | 'deleted';
 }
 ```
+
+`role: null` and `orgId: null` together signal a freshly-signed-up user
+who has been mirrored locally (via `resolveActor`'s lazy create) but
+has no org or membership yet — the web shell should redirect them to
+the org-provisioning flow that lands in slice 9 (`onboarding-flow`).
+Until that slice ships, the `/me` payload still validates and the
+client just renders an "org provisioning not yet available" placeholder.
 
 ### Audit event canonical shape
 
@@ -290,11 +303,17 @@ SDK reads are for synchronous flows only.
   session cache only covers session validation). Tradeoff: dual-write
   risk, addressed by treating the webhook as source of truth.
 
-- **Session cache TTL 60s vs. none** — chose a short cache because
-  WorkOS session validation on every request would add ~60–100ms p50
-  to every API call. 60s is short enough that suspension (which calls
-  WorkOS's revoke endpoint) is effective within the FR21 1-minute SLA
-  for session termination. Explicit cache bust on our `suspend` handler.
+- **Session cache: revisited and dropped.** Original plan called for a
+  60s LRU keyed by session token, on the assumption that every request
+  hit WorkOS over the wire. That assumption was wrong: AuthKit ships
+  sealed sessions whose validation is local
+  (`loadSealedSession().authenticate()`), and the SDK caches JWKS
+  internally on warm Lambdas. There's no per-request network round
+  trip to amortise — the sealed cookie blob IS the session state. We
+  also avoid the cache-coherence cost (suspension + password-reset
+  bust the WorkOS-side session immediately on revoke; a local LRU
+  would have to be invalidated in lock-step). Implementation defers
+  to T-015's `requireAuth` guard.
 
 - **Opportunity scope stored as string slug vs. FK now** — string slug
   at v0.1, FK to `opportunities` table when `room-and-folders` lands.
