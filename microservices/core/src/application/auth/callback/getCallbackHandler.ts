@@ -17,21 +17,17 @@
 //
 // What this handler deliberately does NOT do:
 //   - Create / mirror the local `users` row. WorkOS is the source
-//     of truth for identity (ADR-001); the mirror lands via the
-//     `user.created` webhook handler that T-014b / T-015 will
-//     wire. T-008's `handleSignup` / `handleLoginCallback`
-//     functions exist but aren't called from this callback —
-//     they predate the FDP-style thin-callback decision and will
-//     be reshaped for the webhook path in a follow-up.
-//   - Auto-generate an org. Same rationale — org provisioning
-//     happens via the webhook flow (or a future post-signup form
-//     in `onboarding-flow`).
-//
-// The trade-off: a fresh sign-up briefly has a sealed session
-// cookie but no local user mirror until the `user.created`
-// webhook lands (typically <1s). The session middleware (T-015)
-// must handle that race — either by lazy mirror-on-first-`/me`
-// or by returning a transient 202.
+//     of truth for identity (ADR-001); the mirror is created
+//     lazily by `resolveActor` on the first protected request
+//     after this callback redirects (sticky #34). The pre-T-014a
+//     `handleSignup` / `handleLoginCallback` application
+//     functions that took a `workosCode` were retired in slice 1
+//     once lazy-mirror landed — they were never called from the
+//     thin callback and the lazy path covers the same ground.
+//   - Auto-generate an org. Org provisioning is deferred to slice 9
+//     (`onboarding-flow`); the lazy-mirrored user gets `role: null`
+//     and `orgId: null` from `/me` until they go through that
+//     flow.
 
 import Elysia, { t } from "elysia";
 import { Resource } from "sst";
