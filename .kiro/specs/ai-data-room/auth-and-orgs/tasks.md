@@ -329,10 +329,9 @@ required fields + strips forbidden fields.
 
 ## T-014 — Handlers: HTTP routes
 
-Status: T-014a `[x]` (PR #19 — public auth routes); T-014b `[~]`
-(in flight in `feat/auth-and-orgs-T-015-session-middleware-and-protected-routes`,
-bundled with T-015 per the FDP precedent — middleware and protected
-routes ship together)
+Status: T-014a `[x]` (PR #19 — public auth routes); T-014b `[x]`
+(PR #21 — protected routes, bundled with T-015 per the FDP
+precedent — middleware and protected routes shipped together)
 **Scope:** Wire the application layer into API Gateway handlers per
 §Interfaces. Public routes (`/auth/*`, `/webhooks/workos`) unauth'd;
 everything else behind session middleware. CSRF double-submit on
@@ -350,11 +349,9 @@ dev stack.
 
 ## T-015 — Session middleware + `/me` (bundled with T-014b)
 
-Status: `[~]` (in flight — branch
-`feat/auth-and-orgs-T-015-session-middleware-and-protected-routes`,
-bundled with T-014b protected routes per the FDP precedent set in
-T-014a — middleware and the routes it protects are tightly coupled
-and ship together)
+Status: `[x]` (PR #21 — bundled with T-014b protected routes per
+the FDP precedent set in T-014a; middleware and the routes it
+protects are tightly coupled and shipped together)
 **Scope:** Three Elysia guards (`requireAuth`, `resolveActor`,
 `requireOrg`) plus the seven protected route handlers from T-014b
 (`GET /me`, invitations CRUD, suspend / unsuspend, audit-events).
@@ -401,13 +398,18 @@ tampered, duplicate, unknown-type).
 ## T-017 — Minimal web shell: login, signup, MFA enrolment, logout, `/me` page
 
 Status: `[ ]`
-**Scope:** Next.js pages that delegate to WorkOS AuthKit for all auth
-UI. Our `/app` page shows the `/me` payload and a logout button, plus
+**Scope:** React Router routes in the existing Vite SPA
+(`packages/web`) that delegate to WorkOS AuthKit for all auth UI.
+Our `/app` route shows the `/me` payload and a logout button, plus
 the recovery-codes download on MFA enrolment (T-010). Deliberately
-ugly — polish lives in `onboarding-flow`.
-**Files (likely):** `packages/web/app/{login,signup,logout,app,mfa}/page.tsx`.
+ugly — polish lives in `onboarding-flow`. The unprovisioned `/me`
+shape (`role: null, orgId: null`) renders a placeholder pointing
+at slice 9's onboarding flow.
+**Files (likely):** `packages/web/src/pages/{Login,Signup,Logout,App,Mfa}.tsx`
+plus the route table in `packages/web/src/App.tsx`.
 **Definition of done:** Every AC-US\* reachable end-to-end in a browser.
-**Tests required:** Playwright coverage for AC-US1 through AC-US11.
+**Tests required:** Playwright coverage for AC-US1 through AC-US11
+(the suite itself lands in T-021).
 
 ---
 
