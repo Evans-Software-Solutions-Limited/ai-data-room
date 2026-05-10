@@ -14,7 +14,24 @@ import {
 // so we type that one field. Widening to any surface SST passes would
 // require pulling in `.sst/platform/**` which isn't on the typecheck path
 // (see `tsconfig.infra.json` + `infra/_sst-globals.d.ts`).
+// TODO: extract to `infra/domains/` once deployed hostnames land
+// (mirrors FDP's `webOrigin` pattern). Currently duplicated as the
+// CORS allowOrigin and the FRONTEND_URL env literal below.
+const frontendOrigin = $dev
+  ? "http://localhost:5173"
+  : "https://web.ai-data-room.example";
+
+// API-Gateway-level CORS — preflights are answered by the gateway
+// directly so the Hono wrapper never sees them and can't remap the
+// 204 to a 200. `allowCredentials: true` is load-bearing for the
+// SPA's `credentials: "include"` fetches.
 export const coreAPI = new sst.aws.ApiGatewayV2("api-core", {
+  cors: {
+    allowOrigins: [frontendOrigin],
+    allowCredentials: true,
+    allowHeaders: ["Content-Type", "Authorization"],
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  },
   transform: {
     route: {
       handler: (args: { runtime?: string }) => {
@@ -54,9 +71,7 @@ coreAPI.route("$default", {
     // process is `sst dev`; the fallback below is only hit in
     // deployed stages, so flip to the real frontend domain when
     // the web app lands in production.
-    FRONTEND_URL: $dev
-      ? "http://localhost:5173"
-      : "https://web.ai-data-room.example",
+    FRONTEND_URL: frontendOrigin,
     // API_URL: coreAPI.url is its own URL — SST resolves this
     // lazily so the self-reference doesn't deadlock. Used by the
     // sign-in handler to compose `${API_URL}/auth/callback` for

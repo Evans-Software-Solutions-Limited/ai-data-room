@@ -1,21 +1,35 @@
-// Placeholder home page.
-//
-// The real authenticated UI lands in T-017 once WorkOS sign-in is wired
-// up. This page exists today purely so the routing test in App.test.tsx
-// has something to render at "/" and so the hello-world API contract is
-// exercised end-to-end through the Eden client.
+import { Link } from "react-router";
 
-import { useGetHelloWorld } from "@/hooks/api/useGetHelloWorld";
+import { getAuthSignInHref, getAuthSignUpHref } from "@/constants/authUrls";
+import { useGetCurrentUser } from "@/hooks/api/useGetCurrentUser";
 
-export function Home() {
-  const { isLoading, data } = useGetHelloWorld();
+const Home = () => {
+  const { isAuthenticated } = useGetCurrentUser();
 
   return (
-    <main>
-      <h1>Home</h1>
-      {isLoading ? <p>Loading...</p> : <p>{data?.message}</p>}
-    </main>
+    <div className="flex flex-col gap-4">
+      <h1 className="text-2xl font-semibold">AI Data Room</h1>
+      <p className="text-muted-foreground">
+        Secure, AI-native data rooms for diligence workflows.
+      </p>
+      <div className="flex gap-4">
+        {isAuthenticated ? (
+          <Link to="/app" className="underline">
+            Go to your workspace
+          </Link>
+        ) : (
+          <>
+            <a href={getAuthSignInHref()} className="underline">
+              Sign in
+            </a>
+            <a href={getAuthSignUpHref()} className="underline">
+              Sign up
+            </a>
+          </>
+        )}
+      </div>
+    </div>
   );
-}
+};
 
 export default Home;
