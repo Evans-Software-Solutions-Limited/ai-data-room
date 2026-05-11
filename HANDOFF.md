@@ -4,155 +4,168 @@
 > session should pick up. Refreshed at every task transition; delete
 > once steady state ("look at `tasks.md`") is safe to assume.
 
-**Last updated:** 2026-05-09 by Claude Code, post-T-015 + T-014b
-merge. No task currently in flight — branch is clean, `main` is the
-head everywhere. T-014b (protected route handlers) and T-015
-(session middleware) merged together as PR #21; T-014a (public auth
-routes) merged earlier as PR #19.
+**Last updated:** 2026-05-10 by Claude Code, T-017 web shell open as
+PR #24. Branch `feat/auth-and-orgs-T-017-web-shell`. Awaiting `bun
+sst diff` (no AWS creds in the build session) and a manual auth
+smoke before merge.
 
 ## Where we are in slice 1 (auth-and-orgs)
 
-The HTTP surface is fully wired. What's left is the user-visible
-shell, observability, hardening, e2e, and the slice tag.
+The HTTP surface (public + protected) plus the SPA's auth shell are
+landed (or in PR review). What's left: observability, hardening,
+e2e, and the slice tag.
 
-| Task   | Status      | Notes                                                                                   |
-| ------ | ----------- | --------------------------------------------------------------------------------------- |
-| T-001  | ✅          | Repo scaffold.                                                                          |
-| T-002  | ✅          | WorkOS + secrets wiring (PR #1). `/_health/workos` deleted in T-015.                    |
-| T-003  | ✅          | Postgres + Drizzle setup (PR #3).                                                       |
-| T-004  | ✅          | Domain types + zod schemas (PR #4).                                                     |
-| T-005  | ✅          | Postgres-specific DDL augments (PR #5).                                                 |
-| T-006  | ✅          | WorkOS client wrapper + webhook verifier (PR #6).                                       |
-| T-007  | ✅          | Typed Drizzle repositories (PR #7).                                                     |
-| T-013  | ✅          | Application-layer audit event writer (PR #8).                                           |
-| T-008  | ✅          | Signup + login callback flows (PR #9). **Unwired since T-014a; decide retire/reshape.** |
-| T-012  | ✅          | Suspension lifecycle + `WorkOSClient.listSessions` (PR #10).                            |
-| T-011  | ✅          | Password reset (PR #12).                                                                |
-| T-010  | ✅          | MFA enrolment + recovery-code-used audit (PR #13, scope trimmed by ADR-003).            |
-| –      | ✅          | Chore: repos accept `Db \| PgTransaction` + signup wraps multi-write (PR #14).          |
-| T-009  | ✅          | Application: invitations (PR #15).                                                      |
-| T-019  | ✅          | GDPR hard-delete (PR #16).                                                              |
-| T-016  | ✅          | WorkOS webhook routing + dedup ledger (PR #17).                                         |
-| T-014a | ✅          | Public auth routes — sign-in / sign-up / callback / sign-out (PR #19).                  |
-| T-014b | ✅          | Protected routes — /me + invitations CRUD + suspend/unsuspend + audit-events (PR #21).  |
-| T-015  | ✅          | Session middleware — `requireAuth` + `resolveActor` + `requireOrg` (PR #21).            |
-| T-017  | 🎯 **next** | Minimal web shell (login / signup / MFA / `/me` page).                                  |
-| T-018  | ⏳          | Observability — logs / metrics / alerts. Parallelisable with T-017.                     |
-| T-020  | ⏳          | Rate limiting + NFR hardening. Parallelisable with T-017.                               |
-| T-021  | ⏳          | Playwright acceptance suite. Depends on T-017.                                          |
-| T-022  | ⏳          | Slice sign-off + traceability matrix + tag. Last.                                       |
+| Task   | Status       | Notes                                                                                   |
+| ------ | ------------ | --------------------------------------------------------------------------------------- |
+| T-001  | ✅           | Repo scaffold.                                                                          |
+| T-002  | ✅           | WorkOS + secrets wiring (PR #1). `/_health/workos` deleted in T-015.                    |
+| T-003  | ✅           | Postgres + Drizzle setup (PR #3).                                                       |
+| T-004  | ✅           | Domain types + zod schemas (PR #4).                                                     |
+| T-005  | ✅           | Postgres-specific DDL augments (PR #5).                                                 |
+| T-006  | ✅           | WorkOS client wrapper + webhook verifier (PR #6).                                       |
+| T-007  | ✅           | Typed Drizzle repositories (PR #7).                                                     |
+| T-013  | ✅           | Application-layer audit event writer (PR #8).                                           |
+| T-008  | ✅ (retired) | Signup + login callback flows shipped in PR #9, retired in PR #23 — lazy-mirror covers. |
+| T-012  | ✅           | Suspension lifecycle + `WorkOSClient.listSessions` (PR #10).                            |
+| T-011  | ✅           | Password reset (PR #12).                                                                |
+| T-010  | ✅           | MFA enrolment + recovery-code-used audit (PR #13, scope trimmed by ADR-003).            |
+| –      | ✅           | Chore: repos accept `Db \| PgTransaction` + signup wraps multi-write (PR #14).          |
+| T-009  | ✅           | Application: invitations (PR #15).                                                      |
+| T-019  | ✅           | GDPR hard-delete (PR #16).                                                              |
+| T-016  | ✅           | WorkOS webhook routing + dedup ledger (PR #17).                                         |
+| T-014a | ✅           | Public auth routes — sign-in / sign-up / callback / sign-out (PR #19).                  |
+| T-014b | ✅           | Protected routes — /me + invitations CRUD + suspend/unsuspend + audit-events (PR #21).  |
+| T-015  | ✅           | Session middleware — `requireAuth` + `resolveActor` + `requireOrg` (PR #21).            |
+| T-017  | 🎯 **in PR** | Minimal web shell — PR #24, branch `feat/auth-and-orgs-T-017-web-shell`.                |
+| T-018  | ⏳           | Observability — logs / metrics / alerts. Parallelisable with T-017.                     |
+| T-020  | ⏳           | Rate limiting + NFR hardening. Parallelisable with T-017.                               |
+| T-021  | ⏳           | Playwright acceptance suite. Depends on T-017.                                          |
+| T-022  | ⏳           | Slice sign-off + traceability matrix + tag. Last.                                       |
 
-Slice 1 is **~93% done by task count**. The remaining work splits
-into two streams: T-017→T-021→T-022 on the critical path to slice
-sign-off, and T-018 + T-020 in parallel.
+Slice 1 is **~95% done by task count**. Critical path: T-017 merge →
+T-021 → T-022. T-018 + T-020 in parallel any time.
 
-## Recommended next pickup: T-017 — web shell
+## What PR #24 ships (T-017)
 
-### Why T-017 first
+Mirrors FDP's container/hook/eden patterns; visually deliberately
+ugly pending the dedicated UI design pass.
 
-It's the only remaining item that gates the slice tag:
+**Pages** (under `packages/web/src/pages/`):
 
-- T-021 (Playwright e2e) needs T-017 to exist — there's nothing to
-  drive a browser through without the pages.
-- T-022 (sign-off) needs T-021 to be green to claim slice complete.
-- T-018 + T-020 don't gate anything, so they can slot in parallel
-  (or after) without delaying the tag.
+- `Home.tsx` — public landing. Anon: sign-in / sign-up affordances.
+  Authed: link to `/app`.
+- `Login.tsx`, `Signup.tsx`, `Logout.tsx` — full-page redirects to
+  `/auth/{sign-in,sign-up,sign-out}`. `window.location.assign` on
+  mount, not React Router transition (cookie-setting redirect chain
+  needs a real navigation).
+- `AppWorkspace.tsx` — authed `/me` dashboard. Renders userId,
+  email, role, orgId, mfaEnrolled, lifecycleState, opportunityScopes.
+  Branches on `orgId === null` to a slice-9 onboarding placeholder.
+- `Mfa.tsx` — informational. **Departs from the original task line**
+  (which called for a recovery-codes download UI) — ADR-003 delegates
+  the entire view+download UX to AuthKit, so we never see plaintext
+  codes. Page exists so a stale `/mfa` link resolves usefully.
 
-T-017 also unblocks **slice 9 (`onboarding-flow`)** — the lazy-mirror
-`/me` shape now returns `{ role: null, orgId: null, ... }` for
-freshly-signed-up users, and the web shell needs to render that
-state with a call-to-action that lands a user in slice 9's
-"create your org" form once that exists.
+**Layout containers** (mirror FDP):
 
-### What T-017 ships (per `tasks.md`)
+- `containers/LoggedInPageLayout.tsx` — gates protected routes,
+  `<Navigate to="/" />` on unauth.
+- `containers/LoggedOutPageLayout.tsx` — public pages with
+  auth-aware navbar (avoids anon→authed flicker on back-button nav).
 
-The frontend stack is locked: **Vite + React + React Router 7 +
-Eden Treaty + Tailwind**, in the existing `packages/web` workspace.
-Spec docs were amended in PR #22 to match.
+**Plumbing**:
 
-Minimal routes added to `packages/web/src/pages/`:
+- `lib/eden.ts` — adds `fetch: { credentials: "include" }`.
+- `hooks/api/useGetCurrentUser.ts` — `/me` query, `retry: false`,
+  `staleTime: 60_000`.
+- `constants/api.ts` + `constants/authUrls.ts` — `CORE_API_URL`
+  (empty in dev for relative URLs, absolute in prod) + href factories.
+- `lib/userDisplayName.ts` — fullName-or-email helper.
+- `components/Loader.tsx`, `components/NavBar.tsx` — minimal.
+- `vite.config.ts` — dev proxy for `/auth/*`, `/me`, `/orgs/*` →
+  `VITE_PROXY_TARGET`. Caddy-lite: same-origin in dev without the
+  Caddy + `.test` domains FDP uses. Cookies work because
+  `localhost:5173` is both the SPA origin and the proxied API origin.
+- `infra/api.ts` — adds `cors: { allowOrigins: [frontendOrigin],
+allowCredentials: true, ... }` to `coreAPI`. Mirrors FDP. API-GW
+  level (not Elysia middleware) so the gateway answers preflights
+  without invoking the Lambda.
+- `infra/web.ts` — `VITE_CORE_API_URL` empty in dev (relative URLs
+  via proxy), `coreAPI.url` in prod. `VITE_PROXY_TARGET: coreAPI.url`
+  for the dev server.
+- Retires unused `useGetHelloWorld` hook + test.
 
-- `Login.tsx` — redirects to `GET /auth/sign-in` (which then
-  redirects to AuthKit). Polish lives in `onboarding-flow`.
-- `Signup.tsx` — redirects to `GET /auth/sign-up`.
-- `Logout.tsx` — calls `POST /auth/sign-out` and redirects.
-- `App.tsx` (or `Me.tsx`) — fetches `GET /me` via Eden Treaty,
-  shows the payload, plus a logout button. Renders the
-  unprovisioned shape (`role: null`, `orgId: null`) with a
-  placeholder for the slice-9 onboarding flow.
-- `Mfa.tsx` — recovery-codes download UI for fresh enrolment
-  (T-010 shipped the API; T-017 wires the front end).
+**Coverage**: 100% statements / 100% lines / 100% functions / 91%
+branches (above the 90% gate). 47 Vitest tests across pages,
+layouts, hook, NavBar, eden, userDisplayName, authUrls.
 
-Plus the route table in `packages/web/src/App.tsx` mounting them.
+## Open before-merge questions for PR #24
 
-DoD: every `AC-US*` from `requirements.md` is reachable end-to-end
-in a browser. Tests required: Playwright coverage for AC-US1
-through AC-US11 (the suite itself lands in T-021).
+1. **`bun sst diff --stage <dev>`** — couldn't run (no AWS creds in
+   the build session). Per sticky #2, infra typecheck won't catch
+   SST component-name typos. Brad to verify before merge. Risk is
+   low — the `cors` shape on `sst.aws.ApiGatewayV2` matches FDP's
+   `infra/api.ts` exactly.
+2. **Manual sign-in smoke** — needs `bun sst dev` running with
+   WorkOS dev creds + `bun run dev` for the SPA. Brad to verify
+   `signup → AuthKit → callback → /me` round-trip once before merge.
 
-### Faster alternatives if Brad wants to ship something else first
+## Faster alternatives if Brad wants to ship T-018 / T-020 first
 
 - **T-018 (observability)** — pino structured logs + CloudWatch EMF
-  metrics + a small set of alerts. No web work; pure infra +
-  middleware. Can land while the T-017 spec question gets resolved.
-- **T-020 (rate limiting + NFR hardening)** — API Gateway IP-based
-  - per-handler email-based limits. Mostly infra config.
-- **Retire or reshape T-008's `handleSignup` / `handleLoginCallback`**
-  — they've been deadcode since T-014a. Either delete them (the
-  lazy-mirror in `resolveActor` covers the same responsibility for
-  v0.1) or reshape to take an `AuthenticationResponse` so a future
-  `user.created` webhook handler can call them. ~30-min cleanup PR.
-- **Wire `user.created` webhook handler** — currently
-  `ignored: true` in `routeWorkOSWebhook`. With lazy-mirror in
-  place this isn't load-bearing for v0.1, but a defensive backfill
-  for out-of-band WorkOS-side user creates would close a small gap.
-  Small focused PR, ~1 hour.
-- **WorkOS event-name investigation for MFA** — figure out which
-  real events drive `handleMfaEnrolled` / `handleRecoveryCodeUsed`
-  (sticky #21 below).
+  metrics + the five alerts from design.md. Parallelisable with the
+  T-017 review cycle. Sticky #34 (webhook 500-bodies omit error
+  messages) interacts here — the structured logger replaces the
+  forensics `console.error`.
+- **T-020 (rate limiting + NFR hardening)** — API GW IP-based +
+  per-handler email-based limits + the NFR matrix test file +
+  `docs/security.md`. Mostly infra config.
 
 ## Pending follow-ups (not blocking, but worth doing soon)
 
-1. **T-008's `handleSignup` and `handleLoginCallback` are unwired.**
-   They take `workosCode` as input and call `authenticateWithCode`
-   themselves. T-014a's thin callback pattern doesn't use them, and
-   the lazy-mirror in `resolveActor` covers the user-row-creation
-   responsibility for organic signup. Decide: retire (delete +
-   remove from exports) or reshape for a future `user.created`
-   webhook path. Lean toward retire — webhook flow has a real
-   sub-second race between callback redirect and webhook fire that
-   lazy-mirror sidesteps cleanly.
-2. **`AuthFlowError` generic** — `SignupError`, `LoginError`,
-   `SuspensionError`, `PasswordResetRequestError`,
-   `PasswordResetCompletionError`, `InvitationError` are nearly
-   identical class shells (the post-erasable-syntax-sweep field-decl
-   form is even more boilerplate). Could extract a generic
-   `AuthFlowError<R extends string>` to `application/_errors.ts`.
-3. **`revokeAllActiveSessions` helper** — `password-reset.ts` and
+1. **`AuthFlowError` generic** — `SuspensionError`,
+   `PasswordResetRequestError`, `PasswordResetCompletionError`,
+   `InvitationError` are nearly identical class shells (4 left
+   post-PR-#23). Could extract a generic `AuthFlowError<R extends string>`
+   to `application/_errors.ts`.
+2. **`revokeAllActiveSessions` helper** — `password-reset.ts` and
    `suspension.ts` have identical list-then-filter-then-fan-out
    blocks.
-4. **Shared application-test fixtures** — `makeUser` / `makeSession`
+3. **Shared application-test fixtures** — `makeUser` / `makeSession`
    / `makeOrg` etc. duplicate across 8+ test files.
-5. **`scripts/manual-gdpr-delete.ts`** — referenced in
+4. **`scripts/manual-gdpr-delete.ts`** — referenced in
    `ops/runbooks/gdpr-delete.md` as the WorkOS-down fallback;
    doesn't exist yet. Phase 2.
-6. **MFA application handler wiring** — `handleMfaEnrolled` and
+5. **MFA application handler wiring** — `handleMfaEnrolled` and
    `handleRecoveryCodeUsed` exist but aren't reachable by any
    webhook (T-016 acks the relevant event types as `ignored`).
    Wire once the WorkOS event-name investigation lands.
-7. **`AUDIT_REASONS` constants** — stringly-typed `metadata.reason`
+6. **`AUDIT_REASONS` constants** — stringly-typed `metadata.reason`
    literals across 4 application files.
-8. **`lookupUserOrAuditFailureForWebhook` helper** — 5 webhook
+7. **`lookupUserOrAuditFailureForWebhook` helper** — 5 webhook
    callers now (password-reset, mfa-enrolled, recovery-code-used,
    accept-invitation, deletion). Genuinely warranted; cross-aggregate
    refactor PR.
-9. **`sst-env.d.ts` + `infra/api.ts` — production FRONTEND_URL.**
+8. **`sst-env.d.ts` + `infra/api.ts` — production FRONTEND_URL.**
    Currently hardcoded as `https://web.ai-data-room.example` for
    non-`$dev` stages. Swap to the real domain when the web app
-   gets one (likely as part of T-017 if hosting moves).
+   gets one. T-017 also added `frontendOrigin` as a duplicate
+   literal in `infra/api.ts` (CORS allowOrigin + FRONTEND_URL env);
+   both become the same single domain extraction (mirror FDP's
+   `infra/domains/index.ts`).
+9. **`infra/web.ts` Next.js comment is stale.** Per PR #22 the
+   stack is locked to Vite. Remove the "ai-data-room will move to
+   Next.js" paragraph in `infra/web.ts:6-12`.
 10. **Slice-3 LIMIT push for `externalGrantRepo.listByUser`** — TODO
     in the file. v0.1 returns every row (fine at Capital Pay
     scale); slice 3 should add `where status = 'active'` + LIMIT
     once external users routinely accumulate dozens of grants.
+11. **Caddy + `.test` dev domains** — T-017 ships a Vite proxy as
+    Caddy-lite. If the dev experience needs to converge with FDP
+    exactly (e.g. when slice-2 needs cross-subdomain cookie
+    behaviour to match prod), pull in FDP's `infra/domains/index.ts`
+    - Caddy setup.
+
 ## Sticky knowledge — kept across handoffs
 
 1. **Drizzle 0.30+ moved bookkeeping into a `drizzle` schema.**
@@ -215,12 +228,7 @@ through AC-US11 (the suite itself lands in T-021).
 20. **Cursor Bugbot has caught real bugs on every PR with
     multi-step or external-ID flows.** Always read its findings
     before merging; if it flags something, write a regression test
-    that proves the fix before pushing. PR #21 alone took two
-    Bugbot findings (`requireAuth`'s per-request SDK construction;
-    `findOrLazyMirrorUser`'s bare catch dropping the original
-    error's `cause`; the audit-events Invalid Date crashing at the
-    SQL layer). All caught after merge but before deploy — the
-    pattern works.
+    that proves the fix before pushing.
 21. **WorkOS event names ≠ design.md event names.** v8.13 SDK does
     NOT expose `authentication.mfa_enrolled` or
     `authentication.recovery_code_used` as discriminated event
@@ -232,6 +240,7 @@ through AC-US11 (the suite itself lands in T-021).
     WorkOS surfaces response bodies in its delivery log, and
     pg-driver errors can include connection strings or stack
     frame paths. Full error is `console.error`'d for forensics.
+    (T-018's structured logger should replace the `console.error`.)
 24. **Webhook dedup ordering: insert-then-route, NOT route-then-
     insert.** Trade-off: an application-handler exception leaves
     the dedup row in place, so WorkOS retries will short-circuit
@@ -251,8 +260,7 @@ through AC-US11 (the suite itself lands in T-021).
     one handler per nested directory. `publicRoutes.ts` +
     `protectedRoutes.ts` are the two route bundles; one shared
     config helper at `config/frontendUrl.ts`. Deliberately NOT
-    under `handlers/` — the old `handlers/auth/` directory was
-    removed in T-015 (it held only the deleted T-002 health probe).
+    under `handlers/`.
 28. **`setSecureCookie` in `config/frontendUrl.ts` is the
     sanctioned way to set cookies.** Centralises the four invariant
     attributes (`HttpOnly`, `Secure`, `SameSite`, `path`) so adding
@@ -260,35 +268,32 @@ through AC-US11 (the suite itself lands in T-021).
     AND `requireAuth`'s session refresh.
 29. **Web Crypto + `globalThis.process` shim for browser-safe type
     graph.** The `CoreApi` type leaks into `packages/web` via Eden
-    Treaty, and web's tsconfig doesn't include `@types/node`. Use
-    `crypto.randomUUID()` instead of `node:crypto`'s `randomBytes`;
-    access env vars via `globalThis.process` (see `frontendUrl.ts`'s
-    `NodeProcessLike` declaration).
+    Treaty. Use `crypto.randomUUID()` instead of `node:crypto`'s
+    `randomBytes`; access env vars via `globalThis.process` (see
+    `frontendUrl.ts`'s `NodeProcessLike` declaration). Note:
+    `packages/web` now has `@types/node` in devDeps so this is
+    less critical for the web package itself, but the shared-type-
+    graph rule still applies.
 30. **Module-scope deps in `_shared/deps.ts` for protected handlers,
     plus a dedicated `_shared/workosClient.ts`.** The deps module
     constructs `db` + 6 repos + `workos` once at Lambda init; every
     handler imports `protectedDeps.X` so warm requests reuse. The
     WorkOS client is split into its own file so `requireAuth` can
     import it without dragging in the db/repo graph (keeps that
-    guard's test surface narrow). Tests use `vi.doMock(...) +
-vi.resetModules() + dynamic import` — same pattern as
-    `publicRoutes.test.ts`.
+    guard's test surface narrow).
 31. **`client_init_failed` 500 still applies to T-014a's callback,
     NOT to T-015's `requireAuth`.** Callback constructs the WorkOS
     client at request scope (sticky #32) so a config error shows
     up per-request as 500 + `client_init_failed`. `requireAuth`
     moved to module-scope construction in PR #21 review — bad
     config now fails Lambda init (deploy-time) rather than
-    surfacing as a per-request 500. The Bugbot finding (PR #19,
-    sticky #43 of the previous handoff) about splitting the
-    catches still holds for the callback because that handler
-    doesn't have a module-scope alternative — it's deliberately
-    request-scoped for testability.
+    surfacing as a per-request 500.
 32. **Callback handler is intentionally thin.** Validates state,
     exchanges code, sets sealed cookie, redirects. Does NOT mirror
     the local `users` row — that's lazy-created in `resolveActor`
     on first protected request (sticky #34). T-008's `handleSignup`
-    / `handleLoginCallback` are deadcode-ish; pending follow-up #1.
+    / `handleLoginCallback` were retired in PR #23 (they were
+    deadcode-ish since T-014a; the lazy-mirror covers).
 33. **`infra/api.ts` env vars vs `Resource.*` for URLs.** Pass
     `FRONTEND_URL` and `API_URL` as Lambda env vars (set in
     `infra/api.ts`) rather than via `Resource.web.url` /
@@ -297,7 +302,7 @@ vi.resetModules() + dynamic import` — same pattern as
       circular SST dependency.
     - `API_URL` self-references `coreAPI.url`, resolved lazily.
     - `FRONTEND_URL` is hardcoded for non-`$dev` stages until the
-      web app gets a real domain (slice-1 follow-up #9).
+      web app gets a real domain (slice-1 follow-up #8).
 34. **Lazy-mirror in `resolveActor`** — fresh organic AuthKit
     signups have a WorkOS user but no local `users` row until the
     first protected request hits this guard, which `find-or-create`s
@@ -332,7 +337,7 @@ vi.resetModules() + dynamic import` — same pattern as
     rolled into one helper. Returns the `OrgMembership` on success
     or `status(403, ...)` short-circuit; `isAuthFailure(result)`
     narrows. Defence in depth on top of the application function's
-    own cross-org check (sticky #20 — Bugbot finding from PR #15).
+    own cross-org check.
 39. **`buildAuditContext`** extracts `sourceIp` (leftmost
     `x-forwarded-for`) + `userAgent` from headers, both with
     `"unknown"` fallback. Mirrors the webhook Lambda's audit-context
@@ -341,20 +346,51 @@ vi.resetModules() + dynamic import` — same pattern as
 DEFAULT NOW() + INTERVAL '90 days'`** plus an `expired` enum
     value. Slice 1 stamps the column at grant creation
     (`acceptInvitation`); slice 3 enforces (transition to expired,
-    access denial). Hard ceiling is 365 days; override / extension
-    knobs land in slice 3.
+    access denial). Hard ceiling is 365 days.
 41. **Erasable-syntax sweep.** Every `constructor(private readonly x: T)`
     parameter property in the repos, error classes, and
     `RepoNotFoundError` was rewritten as field-decl + assignment
     because `protectedRoutes.ts` exposed core types into
-    `packages/web`'s `erasableSyntaxOnly: true` tsconfig. Behavior
-    identical; future repo / error class additions should follow
-    the field-decl pattern.
+    `packages/web`'s `erasableSyntaxOnly: true` tsconfig. Future
+    repo / error class additions should follow the field-decl pattern.
 42. **Sealed sessions have no separate cache.** AuthKit's sealed-
     session JWKS validation is local + JWKS-cached internally on
     warm Lambdas. The cookie blob IS the session state. Original
-    design.md "60s LRU cache" plan was dropped (see design.md
-    §Key trade-offs amendment).
+    design.md "60s LRU cache" plan was dropped.
+43. **Recovery codes are entirely owned by AuthKit per ADR-003.**
+    Plaintext codes never enter our system. T-017's `Mfa.tsx` page
+    reflects this — informational only, not a download UI.
+44. **Web shell auth-state model is "GET /me on app load, treat 401
+    as anonymous"** (T-017). `useGetCurrentUser` is the single
+    source of truth — TanStack Query dedupes concurrent consumers
+    via shared `["currentUser"]` queryKey + a single `QueryClient`
+    in `App.tsx`. `retry: false` because 401 is a deliberate
+    signal; `staleTime: 60_000` so route changes within the window
+    don't refetch.
+45. **Auth UI redirects use `window.location.assign`, not React
+    Router.** Sealed-session cookies are set via `Set-Cookie`
+    headers on the `/auth/callback` redirect, which only land on a
+    real browser navigation. Login/Signup/Logout pages do
+    `useEffect(() => window.location.assign(href), [])` on mount.
+    StrictMode double-fire is harmless because `location.assign` is
+    idempotent.
+46. **Sign-out is `GET /auth/sign-out`, not POST.** No CSRF token
+    needed because cookie removal is idempotent and the route only
+    touches the caller's own session. Web shell's `Logout.tsx` is a
+    single redirect page.
+47. **Dev cookie strategy = Vite proxy, not Caddy.** FDP makes the
+    API same-origin in dev via Caddy + `.test` domains; we use a
+    Vite dev proxy for `/auth/*`, `/me`, `/orgs/*` targeting
+    `VITE_PROXY_TARGET` (set by `infra/web.ts` to `coreAPI.url`).
+    Production CORS is at API-Gateway level — `infra/api.ts`'s
+    `cors: { allowOrigins: [frontendOrigin], allowCredentials: true }`.
+    Avoid `@elysiajs/cors` middleware: the Hono wrapper remaps
+    the 204 preflight to a 200 (FDP comment in their `api.ts`).
+48. **`packages/web` test fixtures for `/me` should pass the full
+    user shape** — TanStack Query's type narrowing relies on the
+    `data.status === 200` discriminator landing on a complete
+    `MeResponse`. Partial fixtures break the type and won't even
+    compile.
 
 ## Workflow conventions in one paragraph
 

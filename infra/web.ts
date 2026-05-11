@@ -19,6 +19,11 @@ export const frontend = new sst.aws.StaticSite("web", {
   },
   environment: {
     VITE_REGION: region,
-    VITE_CORE_API_URL: coreAPI.url,
+    // Empty in dev so the SPA uses relative URLs caught by the Vite
+    // dev proxy; absolute API Gateway URL in deployed stages.
+    // `VITE_PROXY_TARGET` is read by the proxy itself via Node, not
+    // via `import.meta.env`.
+    VITE_CORE_API_URL: $dev ? "" : coreAPI.url,
+    VITE_PROXY_TARGET: coreAPI.url,
   },
 });

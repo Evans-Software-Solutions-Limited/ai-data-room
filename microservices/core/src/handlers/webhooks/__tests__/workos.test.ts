@@ -460,7 +460,6 @@ describe("routeWorkOSWebhook", () => {
           },
         }),
       });
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
       deps.userDeleted.mockImplementation(() => {
         throw "string thrown directly";
       });

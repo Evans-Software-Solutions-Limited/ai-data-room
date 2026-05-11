@@ -397,7 +397,7 @@ tampered, duplicate, unknown-type).
 
 ## T-017 — Minimal web shell: login, signup, MFA enrolment, logout, `/me` page
 
-Status: `[ ]`
+Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-017-web-shell`)
 **Scope:** React Router routes in the existing Vite SPA
 (`packages/web`) that delegate to WorkOS AuthKit for all auth UI.
 Our `/app` route shows the `/me` payload and a logout button, plus

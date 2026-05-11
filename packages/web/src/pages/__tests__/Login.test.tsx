@@ -1,25 +1,31 @@
 import { render, screen } from "@testing-library/react";
+import { vi } from "vitest";
+
 import Login from "../Login";
 
+vi.mock("@/constants/authUrls", () => ({
+  getAuthSignInHref: () => "http://api.test/auth/sign-in",
+}));
+
+const assign = vi.fn();
+
+beforeEach(() => {
+  vi.stubGlobal("location", {
+    ...window.location,
+    assign,
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  assign.mockReset();
+});
+
 describe("Login", () => {
-  it("should render the login page heading", () => {
+  it("hands the user off to /auth/sign-in via full-page navigation on mount", () => {
     render(<Login />);
 
-    expect(screen.getByText("Login Page")).toBeDefined();
-  });
-
-  it("should render the HMR instructions", () => {
-    render(<Login />);
-
-    expect(screen.getByText(/Edit/)).toBeDefined();
-    expect(screen.getByText("src/App.tsx")).toBeDefined();
-  });
-
-  it("should render the docs link text", () => {
-    render(<Login />);
-
-    expect(
-      screen.getByText("Click on the Vite and React logos to learn more"),
-    ).toBeDefined();
+    expect(assign).toHaveBeenCalledWith("http://api.test/auth/sign-in");
+    expect(screen.getByText(/Redirecting/)).toBeDefined();
   });
 });

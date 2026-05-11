@@ -1,51 +1,72 @@
 import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
+import { MemoryRouter } from "react-router";
+
 import Home from "../Home";
-import { useGetHelloWorld } from "@/hooks/api/useGetHelloWorld";
-import type { UseQueryResult } from "@tanstack/react-query";
+import { useGetCurrentUser } from "@/hooks/api/useGetCurrentUser";
 
-vi.mock("@/hooks/api/useGetHelloWorld");
+vi.mock("@/hooks/api/useGetCurrentUser");
+vi.mock("@/constants/authUrls", () => ({
+  getAuthSignInHref: () => "http://api.test/auth/sign-in",
+  getAuthSignUpHref: () => "http://api.test/auth/sign-up",
+}));
 
-const mockUseGetHelloWorld = vi.mocked(useGetHelloWorld);
+const mockUseGetCurrentUser = vi.mocked(useGetCurrentUser);
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("Home", () => {
-  afterEach(() => {
-    vi.clearAllMocks();
+  it("offers sign-in and sign-up affordances to anonymous visitors", () => {
+    mockUseGetCurrentUser.mockReturnValue({
+      isAuthenticated: false,
+      user: undefined,
+
+      status: "success",
+    });
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("AI Data Room")).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: "Sign in" }).getAttribute("href"),
+    ).toBe("http://api.test/auth/sign-in");
+    expect(
+      screen.getByRole("link", { name: "Sign up" }).getAttribute("href"),
+    ).toBe("http://api.test/auth/sign-up");
   });
 
-  it("should render when data is loaded", () => {
-    mockUseGetHelloWorld.mockReturnValue({
-      isLoading: false,
-      data: { message: "Hello, world!" },
-      error: null,
-    } as unknown as UseQueryResult<{ message: string }>);
+  it("routes authenticated visitors to /app", () => {
+    mockUseGetCurrentUser.mockReturnValue({
+      isAuthenticated: true,
+      user: {
+        userId: "u-1",
+        email: "ada@example.com",
+        fullName: "Ada",
+        role: "owner",
+        orgId: "org-1",
+        orgName: "Acme",
+        opportunityScopes: [],
+        emailVerified: true,
+        mfaEnrolled: true,
+        lifecycleState: "active",
+      },
 
-    render(<Home />);
+      status: "success",
+    });
 
-    expect(screen.getByText("Home")).toBeDefined();
-  });
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
 
-  it("should show loading state", () => {
-    mockUseGetHelloWorld.mockReturnValue({
-      isLoading: true,
-      data: undefined,
-      error: null,
-    } as unknown as UseQueryResult<{ message: string }>);
-
-    render(<Home />);
-
-    expect(screen.getByText("Loading...")).toBeDefined();
-  });
-
-  it("should display the message from the API", () => {
-    mockUseGetHelloWorld.mockReturnValue({
-      isLoading: false,
-      data: { message: "Hello, world!" },
-      error: null,
-    } as unknown as UseQueryResult<{ message: string }>);
-
-    render(<Home />);
-
-    expect(screen.getByText("Hello, world!")).toBeDefined();
+    const link = screen.getByRole("link", { name: "Go to your workspace" });
+    expect(link.getAttribute("href")).toBe("/app");
   });
 });
