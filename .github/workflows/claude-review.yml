@@ -11,8 +11,8 @@ permissions:
   pull-requests: write
   issues: write
   id-token: write
-  statuses: write       # so Brad can post a "Inspector Brad" commit status (the PR check row)
-  checks: write         # tolerated by both Statuses API and any future Checks API use
+  statuses: write
+  checks: write
 
 jobs:
   review:
@@ -24,14 +24,16 @@ jobs:
       )
     runs-on: ubuntu-latest
     steps:
-      # React with 👀 on the trigger comment so you can see it's working.
       - name: Acknowledge with reaction
         env:
-          GH_TOKEN:    ${{ secrets.GITHUB_TOKEN }}
-          COMMENT_ID:  ${{ github.event.comment.id }}
-          REPO:        ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          REPO: ${{ github.repository }}
         run: |
-          gh api -X POST             "repos/${REPO}/issues/comments/${COMMENT_ID}/reactions"             -H "Accept: application/vnd.github+json"             -f content="eyes"
+          gh api -X POST \
+            "repos/${REPO}/issues/comments/${COMMENT_ID}/reactions" \
+            -H "Accept: application/vnd.github+json" \
+            -f content="eyes"
 
       - uses: actions/checkout@v4
         with:
@@ -41,22 +43,16 @@ jobs:
       - id: review
         uses: BradleyEvans96/inspector-brad@v1
         with:
-          oauth-token:  ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          # Optional overrides:
-          # model: claude-opus-4-7
-          # effort: high
-          # extra-instructions: |
-          #   This repo is a Django app. Be strict about N+1 queries.
 
-      # If anything above failed, post a visible comment so you don't have
-      # to dig into the Actions tab to spot the failure.
       - name: Report failure on PR
         if: failure()
         env:
-          GH_TOKEN:   ${{ secrets.GITHUB_TOKEN }}
-          REPO:       ${{ github.repository }}
-          PR_NUMBER:  ${{ github.event.issue.number || github.event.pull_request.number }}
-          RUN_URL:    ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh pr comment "${PR_NUMBER}" --repo "${REPO}" --body "🚨 **Inspector Brad failed to review this PR.** [View logs](${RUN_URL})"
+          gh pr comment "${PR_NUMBER}" --repo "${REPO}" \
+            --body "🚨 **Inspector Brad failed to review this PR.** [View logs](${RUN_URL})"
