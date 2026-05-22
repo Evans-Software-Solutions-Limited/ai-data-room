@@ -116,16 +116,54 @@ new aws.cloudwatch.MetricAlarm("alarm-session-validation-p95", {
 // compliance backbone; a dropped write is a serious gap. `safeAudit`
 // swallows the exception to avoid masking the original outcome, so
 // this metric is the only operator-visible signal that we lost a row.
+//
+// `safeAudit` runs in both Lambdas — the core API (`service:
+// "core-api"`) for online auth flows, and the webhook handler
+// (`service: "workos-webhook"`) for `user.deleted`,
+// `password_reset.succeeded`, and `invitation.accepted` flows.
+// Powertools tags each emission with the source Lambda's service,
+// so the alarm has to aggregate across BOTH services or it silently
+// misses webhook-side failures (Inspector Brad finding #1).
 new aws.cloudwatch.MetricAlarm("alarm-audit-write-failure", {
   name: `${ALARM_PREFIX}-audit-write-failure`,
   ...sharedDefaults("Audit event write failed — compliance gap, investigate"),
-  metricName: "auth.audit.write_failure",
-  dimensions: { service: "core-api" },
-  statistic: "Sum",
-  period: 300,
   evaluationPeriods: 1,
   threshold: 0,
   comparisonOperator: "GreaterThanThreshold",
+  metricQueries: [
+    {
+      id: "core",
+      metricStat: {
+        metric: {
+          metricName: "auth.audit.write_failure",
+          namespace: METRICS_NAMESPACE,
+          dimensions: { service: "core-api" },
+        },
+        period: 300,
+        stat: "Sum",
+      },
+      returnData: false,
+    },
+    {
+      id: "webhook",
+      metricStat: {
+        metric: {
+          metricName: "auth.audit.write_failure",
+          namespace: METRICS_NAMESPACE,
+          dimensions: { service: "workos-webhook" },
+        },
+        period: 300,
+        stat: "Sum",
+      },
+      returnData: false,
+    },
+    {
+      id: "total",
+      expression: "core + webhook",
+      label: "auth.audit.write_failure (all services)",
+      returnData: true,
+    },
+  ],
 });
 
 // 5. MFA failure spike — DEFERRED. AuthKit owns the challenge flow

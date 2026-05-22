@@ -6,13 +6,15 @@
 // proven against real Postgres in
 // `webhookDeliveryRepo.integration.test.ts`.
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   APIGatewayProxyEventV2,
   APIGatewayProxyStructuredResultV2,
 } from "aws-lambda";
+import { MetricUnit } from "@aws-lambda-powertools/metrics";
 
 import { logger } from "../../../infrastructure/logging/logger";
+import { metrics } from "../../../infrastructure/observability/metrics";
 import { routeWorkOSWebhook } from "../workos";
 
 const WEBHOOK_SECRET = "whsec_test_secret";
@@ -117,6 +119,14 @@ function parseBody(result: APIGatewayProxyStructuredResultV2) {
 // ─── Tests ────────────────────────────────────────────────────────────
 
 describe("routeWorkOSWebhook", () => {
+  beforeEach(() => {
+    vi.spyOn(metrics, "addMetric").mockReturnValue(metrics);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe("signature verification", () => {
     it("returns 401 when the signature header is missing", async () => {
       const deps = makeDeps({
@@ -152,6 +162,18 @@ describe("routeWorkOSWebhook", () => {
       // events from being processed.
       expect(deps.markDelivered).not.toHaveBeenCalled();
       expect(deps.userDeleted).not.toHaveBeenCalled();
+      // `received` is counted before verify runs; the failure adds
+      // the invalid_signature count on top.
+      expect(metrics.addMetric).toHaveBeenCalledWith(
+        "auth.webhook.workos.received",
+        MetricUnit.Count,
+        1,
+      );
+      expect(metrics.addMetric).toHaveBeenCalledWith(
+        "auth.webhook.workos.invalid_signature",
+        MetricUnit.Count,
+        1,
+      );
     });
 
     it("treats a truly absent (undefined) signature header the same as an empty one", async () => {
@@ -176,7 +198,7 @@ describe("routeWorkOSWebhook", () => {
       );
     });
 
-    it("returns 401 on invalid_json", async () => {
+    it("returns 401 on invalid_json AND counts the invalid_signature metric (probe signal)", async () => {
       const deps = makeDeps({
         verifyResult: vi
           .fn()
@@ -184,6 +206,29 @@ describe("routeWorkOSWebhook", () => {
       });
       const result = await routeWorkOSWebhook(makeRequest({}), deps);
       expect(result.statusCode).toBe(401);
+      // WorkOS never sends malformed JSON in production, so an
+      // `invalid_json` failure is by definition an unauthorised
+      // caller probing the endpoint — folded into the same
+      // "refused at the door" metric as missing/invalid signature.
+      expect(metrics.addMetric).toHaveBeenCalledWith(
+        "auth.webhook.workos.invalid_signature",
+        MetricUnit.Count,
+        1,
+      );
+    });
+
+    it("counts the metric on missing_signature too", async () => {
+      const deps = makeDeps({
+        verifyResult: vi
+          .fn()
+          .mockResolvedValue({ ok: false, reason: "missing_signature" }),
+      });
+      await routeWorkOSWebhook(makeRequest({}, ""), deps);
+      expect(metrics.addMetric).toHaveBeenCalledWith(
+        "auth.webhook.workos.invalid_signature",
+        MetricUnit.Count,
+        1,
+      );
     });
   });
 

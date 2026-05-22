@@ -119,15 +119,13 @@ export async function routeWorkOSWebhook(
     secret: deps.webhookSecret,
   });
   if (!verify.ok) {
-    if (
-      verify.reason === "invalid_signature" ||
-      verify.reason === "missing_signature"
-    ) {
-      // Either is a "we couldn't trust this caller" signal — alarmed
-      // because both are exfil indicators (bad key OR a spoofed
-      // request that didn't bother to sign). One metric covers both.
-      emitCount("auth.webhook.workos.invalid_signature");
-    }
+    // Every verify failure is a "we refused this caller at the door"
+    // signal — `missing_signature` / `invalid_signature` are spoof
+    // indicators, `invalid_json` is a probe (WorkOS never sends
+    // malformed JSON), and `missing_secret` is an internal
+    // misconfiguration. One metric for all four; the alarm fires on
+    // > 0 because any of them is operator-actionable.
+    emitCount("auth.webhook.workos.invalid_signature");
     return jsonResponse(401, { ok: false, reason: verify.reason });
   }
 

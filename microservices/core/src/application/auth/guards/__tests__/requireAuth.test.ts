@@ -8,6 +8,7 @@
 // guard is a plain async function.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MetricUnit } from "@aws-lambda-powertools/metrics";
 
 const ALL_SECRETS = {
   WORKOS_CLIENT_ID: { value: "client_test_123" },
@@ -261,4 +262,34 @@ describe("requireAuth", () => {
   // id throws at Lambda init, not per request. Bad WorkOS config
   // is a deploy-time issue surfaced by API Gateway's own 5xx, not
   // a user-recoverable runtime path.
+
+  it("emits auth.session.validation.latency on every cookie-bearing request", async () => {
+    // `vi.resetModules()` in beforeEach gives this test a fresh
+    // metrics singleton, but the dynamic import below grabs the
+    // SAME instance `requireAuth` will read from — so the spy is
+    // observable when the guard runs.
+    const metricsMod =
+      await import("../../../../infrastructure/observability/metrics");
+    const addMetricSpy = vi
+      .spyOn(metricsMod.metrics, "addMetric")
+      .mockReturnValue(metricsMod.metrics);
+
+    mockWorkOS({
+      authenticate: vi.fn().mockResolvedValue({
+        authenticated: true,
+        user: MOCK_USER,
+        organizationId: "org_workos_abc",
+      }),
+    });
+    const { cookie } = makeCookie("sealed-blob");
+    const requireAuth = await loadRequireAuth();
+
+    await requireAuth({ cookie });
+
+    expect(addMetricSpy).toHaveBeenCalledWith(
+      "auth.session.validation.latency",
+      MetricUnit.Milliseconds,
+      expect.any(Number),
+    );
+  });
 });

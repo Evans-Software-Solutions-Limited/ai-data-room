@@ -1,68 +1,51 @@
-// Smoke test for slice 1 observability metrics. Per T-018 DoD:
-// "Smoke test asserting each metric name is emitted at least once in
-// a representative run." This file walks each emit site (with deps
-// mocked) and asserts the corresponding `metrics.addMetric` call.
-//
-// We do NOT exercise EMF JSON shaping itself — that's Powertools'
-// contract, not ours. The test is at the call-site boundary so a
-// future refactor that drops one of the `emitCount(...)` calls is
-// caught here rather than only at runtime.
+// Unit tests for the metric-emission wrappers. The "each metric
+// name is emitted at least once in a representative run" smoke from
+// T-018's DoD is asserted inside the existing per-flow tests
+// (publicRoutes / invitations / suspension / requireAuth / workos
+// webhook router / auditContext / invitationRepo) — those exercise
+// the real call sites with mocked deps, so a deleted `emitCount(...)`
+// inside a handler trips its own test rather than relying on this
+// file to walk every site by hand.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MetricUnit } from "@aws-lambda-powertools/metrics";
 
-import { metrics } from "../metrics";
+import { emitCount, emitLatency, flushMetrics, metrics } from "../metrics";
 
-const EXPECTED_METRICS = [
-  // From getCallbackHandler.ts
-  "auth.login.success",
-  "auth.login.failure",
-  // From invitations.ts + invitationRepo.transitionState
-  "auth.invite.sent",
-  "auth.invite.accepted",
-  "auth.invite.expired",
-  // From suspension.ts
-  "auth.suspension.applied",
-  "auth.suspension.revoked",
-  // From requireAuth.ts (latency, not count)
-  "auth.session.validation.latency",
-  // From handlers/webhooks/workos.ts
-  "auth.webhook.workos.received",
-  "auth.webhook.workos.invalid_signature",
-  // From _audit-context.ts safeAudit catch
-  "auth.audit.write_failure",
-] as const;
-
-describe("metrics smoke — each design.md metric name lands via emit*", () => {
+describe("metric wrappers", () => {
   beforeEach(() => {
     vi.spyOn(metrics, "addMetric").mockReturnValue(metrics);
     vi.spyOn(metrics, "publishStoredMetrics").mockReturnValue(metrics);
   });
 
-  it.each(EXPECTED_METRICS)(
-    "emits %s through emitCount or emitLatency",
-    async (metricName) => {
-      const { emitCount, emitLatency } = await import("../metrics");
-      if (metricName === "auth.session.validation.latency") {
-        emitLatency(metricName, 42);
-        expect(metrics.addMetric).toHaveBeenCalledWith(
-          metricName,
-          MetricUnit.Milliseconds,
-          42,
-        );
-      } else {
-        emitCount(metricName);
-        expect(metrics.addMetric).toHaveBeenCalledWith(
-          metricName,
-          MetricUnit.Count,
-          1,
-        );
-      }
-    },
-  );
+  it("emitCount forwards the name + Count unit with default value 1", () => {
+    emitCount("auth.example.count");
+    expect(metrics.addMetric).toHaveBeenCalledWith(
+      "auth.example.count",
+      MetricUnit.Count,
+      1,
+    );
+  });
 
-  it("flushMetrics calls Powertools' publishStoredMetrics once", async () => {
-    const { flushMetrics } = await import("../metrics");
+  it("emitCount accepts an explicit value override", () => {
+    emitCount("auth.example.count", 7);
+    expect(metrics.addMetric).toHaveBeenCalledWith(
+      "auth.example.count",
+      MetricUnit.Count,
+      7,
+    );
+  });
+
+  it("emitLatency forwards the name + Milliseconds unit", () => {
+    emitLatency("auth.example.latency", 42);
+    expect(metrics.addMetric).toHaveBeenCalledWith(
+      "auth.example.latency",
+      MetricUnit.Milliseconds,
+      42,
+    );
+  });
+
+  it("flushMetrics delegates to Powertools' publishStoredMetrics", () => {
     flushMetrics();
     expect(metrics.publishStoredMetrics).toHaveBeenCalledTimes(1);
   });

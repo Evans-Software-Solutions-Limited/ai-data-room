@@ -13,6 +13,7 @@
 // integration deploy where the real env vars are set).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MetricUnit } from "@aws-lambda-powertools/metrics";
 
 type SecretBag = {
   WORKOS_CLIENT_ID: { value: string };
@@ -220,7 +221,13 @@ describe("publicRoutes — getCallbackHandler", () => {
     vi.doUnmock("@workos-inc/node");
   });
 
-  it("exchanges the code, sets wos_session, and redirects to the frontend on the happy path", async () => {
+  it("exchanges the code, sets wos_session, redirects, and emits auth.login.success on the happy path", async () => {
+    const metricsMod =
+      await import("../../../infrastructure/observability/metrics");
+    const addMetricSpy = vi
+      .spyOn(metricsMod.metrics, "addMetric")
+      .mockReturnValue(metricsMod.metrics);
+
     const sdk = mockWorkOS({
       authResponse: { sealedSession: "sealed-blob-success" },
     });
@@ -248,11 +255,22 @@ describe("publicRoutes — getCallbackHandler", () => {
     expect(setCookie).toContain("wos_session=sealed-blob-success");
     expect(setCookie).toMatch(/HttpOnly/i);
     expect(setCookie).toMatch(/SameSite=Lax/i);
+    expect(addMetricSpy).toHaveBeenCalledWith(
+      "auth.login.success",
+      MetricUnit.Count,
+      1,
+    );
   });
 
-  it("returns 400 + drops oauth_state when state and cookie mismatch", async () => {
+  it("returns 400 + drops oauth_state when state and cookie mismatch, emits auth.login.failure", async () => {
     // CSRF defence: an attacker can guess the WorkOS code, but
     // not the state cookie. Mismatch → reject without exchanging.
+    const metricsMod =
+      await import("../../../infrastructure/observability/metrics");
+    const addMetricSpy = vi
+      .spyOn(metricsMod.metrics, "addMetric")
+      .mockReturnValue(metricsMod.metrics);
+
     const sdk = mockWorkOS();
     const routes = await loadPublicRoutes();
 
@@ -266,6 +284,11 @@ describe("publicRoutes — getCallbackHandler", () => {
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ ok: false, reason: "invalid_state" });
     expect(sdk.authenticateWithCode).not.toHaveBeenCalled();
+    expect(addMetricSpy).toHaveBeenCalledWith(
+      "auth.login.failure",
+      MetricUnit.Count,
+      1,
+    );
   });
 
   it("returns 400 when no oauth_state cookie is present at all", async () => {
