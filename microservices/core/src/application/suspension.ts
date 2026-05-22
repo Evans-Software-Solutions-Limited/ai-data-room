@@ -41,6 +41,7 @@ import type { MembershipRepo } from "../infrastructure/db/membershipRepo";
 import type { UserRepo } from "../infrastructure/db/userRepo";
 import type { User } from "@ai-data-room/api-utils/schemas/auth-orgs";
 
+import { emitCount } from "../infrastructure/observability/metrics";
 import { type AuditContext, safeAudit } from "./_audit-context";
 
 /** Shared shape for both `suspendUser` and `unsuspendUser`. */
@@ -127,6 +128,7 @@ export async function suspendUser(
     userAgent: input.audit.userAgent,
     metadata: { revokedSessions: activeSessions.length },
   });
+  emitCount("auth.suspension.applied");
 
   return updated;
 }
@@ -163,6 +165,7 @@ export async function unsuspendUser(
     userAgent: input.audit.userAgent,
     metadata: {},
   });
+  emitCount("auth.suspension.revoked");
 
   return updated;
 }

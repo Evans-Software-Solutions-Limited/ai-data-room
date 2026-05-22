@@ -37,6 +37,8 @@ import type { OrgRepo } from "../../../infrastructure/db/orgRepo";
 import type { UserRepo } from "../../../infrastructure/db/userRepo";
 import type { User } from "@ai-data-room/api-utils/schemas/auth-orgs";
 import type { User as WorkOSUser } from "../../../infrastructure/workos/client";
+import { logger } from "../../../infrastructure/logging/logger";
+import { tracer } from "../../../infrastructure/observability/tracer";
 import type { ActorContext, AuthContext } from "./authContextTypes";
 
 export interface ResolveActorDeps {
@@ -61,20 +63,24 @@ export async function resolveActor(
       //   - Webhook race: `org.created` mirror not yet processed.
       //   - Data inconsistency: real bug worth investigating.
       //
-      // We graceful-degrade to "no org" so /me still works (the user
+      // Graceful-degrade to "no org" so /me still works — the user
       // sees the unprovisioned shape and the slice-9 onboarding flow
-      // can recover). A `console.warn` keeps the breadcrumb visible
-      // in CloudWatch without paging anyone — if it ever fires in
-      // production volume, T-018 will surface it as a metric.
-      console.warn(
-        "[resolveActor] WorkOS organizationId without local mirror",
-        {
-          workosUserId: input.user.id,
-          workosOrgId: input.organizationId,
-        },
-      );
+      // can recover. Structured warn means CloudWatch Insights can
+      // surface this without a dedicated metric/alarm in slice 1.
+      logger.warn("resolveActor.workos_org_without_local_mirror", {
+        workosUserId: input.user.id,
+        workosOrgId: input.organizationId,
+      });
     }
   }
+
+  // X-Ray annotations per design.md §Observability. Both fields are
+  // indexed by X-Ray and can be filtered/aggregated in the console.
+  // `localOrgId` may be null for unprovisioned users — tag as a
+  // sentinel so trace queries can distinguish "no org" from "tag not
+  // set" (Powertools rejects `null` annotation values).
+  tracer.putAnnotation("userId", localUser.id);
+  tracer.putAnnotation("orgId", localOrgId ?? "unprovisioned");
 
   return {
     actor: {

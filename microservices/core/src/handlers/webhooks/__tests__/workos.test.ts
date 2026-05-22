@@ -12,6 +12,7 @@ import type {
   APIGatewayProxyStructuredResultV2,
 } from "aws-lambda";
 
+import { logger } from "../../../infrastructure/logging/logger";
 import { routeWorkOSWebhook } from "../workos";
 
 const WEBHOOK_SECRET = "whsec_test_secret";
@@ -442,14 +443,14 @@ describe("routeWorkOSWebhook", () => {
       );
     });
 
-    it("logs a generic 'unknown' instead of message when a non-Error value is thrown", async () => {
-      // Defends the `err instanceof Error` branch in the catch
-      // block. TS code rarely throws non-Error values, but a
-      // downstream `throw "some string"` shouldn't crash the
-      // handler trying to read .message on a string.
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
+    it("serialises non-Error throws via serializeError", async () => {
+      // `serializeError` normalises a `throw "string"` into
+      // `{ name: "UnknownError", message: "string thrown directly" }`
+      // so the structured log keeps a closed shape even when
+      // downstream code throws a non-Error value.
+      const loggerErrorSpy = vi
+        .spyOn(logger, "error")
+        .mockImplementation(() => undefined);
       const deps = makeDeps({
         verifyResult: vi.fn().mockResolvedValue({
           ok: true,
@@ -467,11 +468,13 @@ describe("routeWorkOSWebhook", () => {
       const result = await routeWorkOSWebhook(makeRequest({}), deps);
 
       expect(result.statusCode).toBe(500);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
         "workos webhook handler_error",
-        expect.objectContaining({ error: "unknown" }),
+        expect.objectContaining({
+          error: { name: "UnknownError", message: "string thrown directly" },
+        }),
       );
-      consoleErrorSpy.mockRestore();
+      loggerErrorSpy.mockRestore();
     });
   });
 

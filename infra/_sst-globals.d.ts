@@ -56,6 +56,14 @@ declare namespace aws {
   const s3: Record<string, new (name: string, args?: any, opts?: any) => any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ec2: Record<string, new (name: string, args?: any, opts?: any) => any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sns: Record<string, new (name: string, args?: any, opts?: any) => any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cloudwatch: Record<
+    string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    new (name: string, args?: any, opts?: any) => any
+  >;
   function getRegionOutput(): { readonly name: string };
 }
 

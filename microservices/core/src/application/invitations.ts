@@ -33,6 +33,7 @@ import type {
   User,
 } from "@ai-data-room/api-utils/schemas/auth-orgs";
 
+import { emitCount } from "../infrastructure/observability/metrics";
 import { type AuditContext, safeAudit } from "./_audit-context";
 
 /** FR8b — default external-access-grant TTL: 90 days from issuance.
@@ -201,6 +202,7 @@ export async function createInvitation(
         : { opportunitySlug: input.opportunitySlug }),
     },
   });
+  emitCount("auth.invite.sent");
 
   return invitation;
 }
@@ -535,6 +537,7 @@ export async function acceptInvitation(
         : { opportunitySlug: invitation.opportunitySlug }),
     },
   });
+  emitCount("auth.invite.accepted");
 
   return result;
 }

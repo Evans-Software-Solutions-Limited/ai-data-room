@@ -16,13 +16,14 @@
   "dependencies": {
     "@ai-data-room/api-utils": "*",
     "@ai-data-room/db": "*",
+    "@aws-lambda-powertools/metrics": "^2.12.0",
+    "@aws-lambda-powertools/tracer": "^2.12.0",
     "@elysiajs/openapi": "^1.4.14",
     "@workos-inc/node": "^8.5.0",
     "drizzle-orm": "^0.36.0",
     "elysia": "^1.4.23",
     "hono": "^4.11.9",
     "jwt-decode": "^4.0.0",
-    "pino": "^9.5.0",
     "sst": "*",
     "zod": "^3.23.8"
   },

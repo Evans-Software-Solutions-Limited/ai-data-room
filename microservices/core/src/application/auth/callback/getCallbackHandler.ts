@@ -33,6 +33,7 @@ import Elysia, { t } from "elysia";
 import { Resource } from "sst";
 
 import { createWorkOSClient } from "../../../infrastructure/workos/client";
+import { emitCount } from "../../../infrastructure/observability/metrics";
 import {
   getPostAuthRedirectUrl,
   SESSION_COOKIE_MAX_AGE,
@@ -50,6 +51,7 @@ export const getCallbackHandler = new Elysia().get(
       // tab) or a state mismatch (CSRF attempt). Same response
       // shape — we don't disambiguate to avoid leaking flow
       // state to a probing client.
+      emitCount("auth.login.failure");
       set.status = 400;
       return { ok: false as const, reason: "invalid_state" as const };
     }
@@ -69,6 +71,7 @@ export const getCallbackHandler = new Elysia().get(
         clientId: Resource.WORKOS_CLIENT_ID.value,
       });
     } catch {
+      emitCount("auth.login.failure");
       set.status = 500;
       return { ok: false as const, reason: "client_init_failed" as const };
     }
@@ -89,6 +92,7 @@ export const getCallbackHandler = new Elysia().get(
         // surfaces a misconfigured cookiePassword (length < 32
         // chars) loudly here rather than as a downstream
         // `loadSealedSession` failure.
+        emitCount("auth.login.failure");
         set.status = 500;
         return { ok: false as const, reason: "no_sealed_session" as const };
       }
@@ -99,11 +103,13 @@ export const getCallbackHandler = new Elysia().get(
         SESSION_COOKIE_MAX_AGE,
       );
 
+      emitCount("auth.login.success");
       return redirect(getPostAuthRedirectUrl());
     } catch {
       // Reaches here only for `authenticateWithCode` failures —
       // expired / replayed / tampered code. That's a user auth
       // failure, 401 is correct.
+      emitCount("auth.login.failure");
       set.status = 401;
       return { ok: false as const, reason: "auth_failed" as const };
     }

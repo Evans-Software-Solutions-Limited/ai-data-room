@@ -4,7 +4,11 @@
 // audit events with per-request context (signup, login, invitations,
 // mfa, password-reset, suspension, deletion).
 
+import { serializeError } from "@ai-data-room/api-utils/logging";
+
 import type { AuditRepo } from "../infrastructure/db/auditRepo";
+import { logger } from "../infrastructure/logging/logger";
+import { emitCount } from "../infrastructure/observability/metrics";
 
 import { recordAuditEvent } from "./audit";
 
@@ -35,7 +39,15 @@ export async function safeAudit(
 ): Promise<void> {
   try {
     await recordAuditEvent(event, { auditRepo: deps.auditRepo });
-  } catch {
-    /* swallowed — see fn doc. */
+  } catch (err) {
+    // Swallowed so the original outcome isn't masked, but the
+    // structured log + metric guarantee an operator can react. The
+    // metric drives the > 0 alarm in `infra/observability.ts`.
+    emitCount("auth.audit.write_failure");
+    logger.error("audit.write_failure", {
+      eventType: event.eventType,
+      outcome: event.outcome,
+      error: serializeError(err),
+    });
   }
 }

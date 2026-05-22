@@ -13,33 +13,45 @@
 import Elysia from "elysia";
 import { Hono } from "hono";
 import { handle } from "hono/aws-lambda";
+import type { Context } from "aws-lambda";
 import openapi from "@elysiajs/openapi";
+import {
+  injectLambdaContext,
+  loggerPlugin,
+} from "@ai-data-room/api-utils/logging";
 
+import { logger } from "./infrastructure/logging/logger";
+import { flushMetrics } from "./infrastructure/observability/metrics";
 import { protectedRoutes } from "./application/auth/protectedRoutes";
 import { publicRoutes } from "./application/auth/publicRoutes";
 import { getHelloWorldHandler } from "./application/hello-world/get/helloWorldGetHandler";
 
-// Slice handlers are mounted here as they land. One line per slice — the
-// handler module owns its own sub-routing.
+// `loggerPlugin` must run before any other `.use()` so its `.derive()` lands
+// the per-request child logger into context before route handlers fire.
 const app = new Elysia()
+  .use(loggerPlugin(logger))
   .use(openapi())
   .use(getHelloWorldHandler)
-  .use(publicRoutes) // slice 1 T-014a — public auth routes (sign-in / sign-up / callback / sign-out)
-  .use(protectedRoutes); // slice 1 T-015 + T-014b — /me + invitations + suspend/unsuspend + audit-events
-// `healthWorkosGetHandler` (slice 1 T-002) was removed in T-015 — its job
-// (smoke-test the WorkOS wrapper) is covered by the protected-routes
-// integration suite, and unauthenticated reachability of any internal-only
-// endpoint is a recon vector we'd rather not ship.
-// .use(orgsHandler)              // slice 1
-// .use(roomsHandler)             // slice 2
-// .use(accessControlHandler)     // slice 3
-// .use(checklistHandler)         // slice 4
-// .use(sensecheckHandler)        // slice 5 (public status + admin overrides)
-// .use(qnaHandler)               // slice 6
-// .use(dashboardHandler)         // slice 7 BFF aggregates
-// .use(billingHandler)           // slice 8
-// .use(onboardingHandler)        // slice 9
+  .use(publicRoutes)
+  .use(protectedRoutes);
 
 export type CoreApi = typeof app;
 
-export const handler = handle(new Hono().mount("/", app.fetch));
+const honoApp = new Hono().mount("/", app.fetch);
+const honoHandler = handle(honoApp);
+
+export const handler = async (
+  event: Parameters<typeof honoHandler>[0],
+  context: Context,
+) => {
+  injectLambdaContext(logger, context);
+  try {
+    return await honoHandler(event, context);
+  } finally {
+    // Coalesce every metric emitted during this invocation into a
+    // single EMF log line. `try/finally` so a thrown handler still
+    // publishes the metrics it managed to add (notably the
+    // `auth.audit.write_failure` count).
+    flushMetrics();
+  }
+};

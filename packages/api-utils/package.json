@@ -5,6 +5,7 @@
   "exports": {
     "./env": "./src/env/index.ts",
     "./jwt": "./src/jwt/index.ts",
+    "./logging": "./src/logging/index.ts",
     "./schemas/*": "./src/schemas/*.ts"
   },
   "scripts": {
@@ -14,6 +15,7 @@
     "test:unit": "vitest run --coverage"
   },
   "dependencies": {
+    "@aws-lambda-powertools/logger": "^2.12.0",
     "elysia": "^1.4.23",
     "jwt-decode": "^4.0.0",
     "sst": "*",
