@@ -6,7 +6,9 @@
 // through.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MetricUnit } from "@aws-lambda-powertools/metrics";
 
+import { metrics } from "../../infrastructure/observability/metrics";
 import type { Session, WorkOSClient } from "../../infrastructure/workos/client";
 import type { AuditRepo } from "../../infrastructure/db/auditRepo";
 import type { MembershipRepo } from "../../infrastructure/db/membershipRepo";
@@ -107,9 +109,11 @@ describe("suspendUser", () => {
 
   beforeEach(() => {
     deps = makeDeps();
+    vi.spyOn(metrics, "addMetric").mockReturnValue(metrics);
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -151,6 +155,11 @@ describe("suspendUser", () => {
           orgId: ORG_ID,
           metadata: expect.objectContaining({ revokedSessions: 2 }),
         }),
+      );
+      expect(metrics.addMetric).toHaveBeenCalledWith(
+        "auth.suspension.applied",
+        MetricUnit.Count,
+        1,
       );
     });
 
@@ -306,9 +315,11 @@ describe("unsuspendUser", () => {
 
   beforeEach(() => {
     deps = makeDeps();
+    vi.spyOn(metrics, "addMetric").mockReturnValue(metrics);
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -330,6 +341,11 @@ describe("unsuspendUser", () => {
         targetUserId: TARGET_ID,
         orgId: ORG_ID,
       }),
+    );
+    expect(metrics.addMetric).toHaveBeenCalledWith(
+      "auth.suspension.revoked",
+      MetricUnit.Count,
+      1,
     );
   });
 

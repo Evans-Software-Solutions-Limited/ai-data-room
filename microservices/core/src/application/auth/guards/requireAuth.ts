@@ -40,6 +40,7 @@
 import { status, type Context } from "elysia";
 import { Resource } from "sst";
 
+import { emitLatency } from "../../../infrastructure/observability/metrics";
 import { setSecureCookie, SESSION_COOKIE_MAX_AGE } from "../config/frontendUrl";
 import { workos } from "../_shared/workosClient";
 
@@ -62,6 +63,13 @@ export async function requireAuth({ cookie }: RequireAuthInput) {
   if (!sessionData || typeof sessionData !== "string") {
     return status(401, { ok: false as const, reason: "no_session" as const });
   }
+
+  // Latency is measured only when we have a cookie to validate —
+  // the "no cookie" branch above is a sub-microsecond check that
+  // would just noise the histogram. Drives the p95 alarm in
+  // `infra/observability.ts`. `try/finally` collapses the emission
+  // into one site that runs on every exit, success or failure.
+  const startedAt = performance.now();
 
   try {
     const session = workos.loadSealedSession({
@@ -112,5 +120,10 @@ export async function requireAuth({ cookie }: RequireAuthInput) {
       ok: false as const,
       reason: "session_invalid" as const,
     });
+  } finally {
+    emitLatency(
+      "auth.session.validation.latency",
+      performance.now() - startedAt,
+    );
   }
 }

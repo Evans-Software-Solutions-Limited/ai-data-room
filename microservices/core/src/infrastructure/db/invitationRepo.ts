@@ -14,6 +14,7 @@ import type {
   InvitationState,
 } from "@ai-data-room/api-utils/schemas/auth-orgs";
 
+import { emitCount } from "../observability/metrics";
 import { firstOrNull, firstOrThrow } from "./_helpers";
 
 const { invitations } = schema;
@@ -134,6 +135,17 @@ export class InvitationRepo {
       })
       .where(and(eq(invitations.id, id), eq(invitations.state, expectedState)))
       .returning();
-    return firstOrNull(rows as Invitation[]);
+    const result = firstOrNull(rows as Invitation[]);
+
+    // Emit the expiry metric here (not at the call site) because all
+    // transitions to `expired` flow through this method — including
+    // the future sweeper cron that hasn't shipped yet. `accepted`
+    // and `revoked` get their own metrics emitted alongside their
+    // audit writes; emitting them here too would double-count.
+    if (result && newState === "expired") {
+      emitCount("auth.invite.expired");
+    }
+
+    return result;
   }
 }

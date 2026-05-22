@@ -26,6 +26,7 @@ export default $config({
     const secrets = await import("./infra/secrets");
     const db = await import("./infra/db");
     const api = await import("./infra/api");
+    const observability = await import("./infra/observability");
     const web = await import("./infra/web");
     return {
       api: api.coreAPI.url,
@@ -36,6 +37,7 @@ export default $config({
       _wiring: {
         secrets: Boolean(secrets),
         db: Boolean(db),
+        observability: Boolean(observability),
       },
     };
   },

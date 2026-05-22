@@ -4,6 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { logger } from "../../../../infrastructure/logging/logger";
 import { resolveActor } from "../resolveActor";
 import type { OrgRepo } from "../../../../infrastructure/db/orgRepo";
 import type { UserRepo } from "../../../../infrastructure/db/userRepo";
@@ -83,7 +84,7 @@ describe("resolveActor", () => {
   let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -270,7 +271,7 @@ describe("resolveActor", () => {
       // observability will surface this as a metric if it ever fires
       // in production volume.
       expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("WorkOS organizationId without local mirror"),
+        "resolveActor.workos_org_without_local_mirror",
         expect.objectContaining({
           workosUserId: WORKOS_USER_ID,
           workosOrgId: WORKOS_ORG_ID,

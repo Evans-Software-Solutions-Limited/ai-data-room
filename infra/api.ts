@@ -49,6 +49,19 @@ export const coreAPI = new sst.aws.ApiGatewayV2("api-core", {
 // Per-stage secret values must be provisioned before this stack will
 // deploy successfully:
 //   bun sst secret set <NAME> <VALUE> --stage <stage>
+// Powertools observability env vars consumed by the singletons at
+// `microservices/core/src/infrastructure/{logging,observability}/`.
+// `INFO` in production keeps log volume sane; `DEBUG` in dev surfaces
+// the structured fields locally without per-developer config drift.
+const POWERTOOLS_LOG_LEVEL = $app.stage === "production" ? "INFO" : "DEBUG";
+const METRICS_NAMESPACE = "AiDataRoom/Auth";
+
+// X-Ray active tracing — the Powertools Tracer singleton at
+// `infrastructure/observability/tracer.ts` is a no-op without this.
+const enableXRay = (args: { tracingConfig?: { mode?: string } }) => {
+  args.tracingConfig = { mode: "Active" };
+};
+
 coreAPI.route("$default", {
   handler: "microservices/core/src/api.handler",
   name: `core-api-${$app.stage}`,
@@ -61,24 +74,16 @@ coreAPI.route("$default", {
   ],
   environment: {
     SST_STAGE: $app.stage,
-    // T-014a — public auth handlers need both URLs to build the
-    // AuthKit redirect URI and to redirect users back to the web
-    // shell after sign-in / sign-out.
-    //
-    // FRONTEND_URL: dev runs Vite at localhost:5173; deployed
-    // stages will gain a real domain once `infra/web.ts` is wired
-    // to a custom domain (post-MVP). `$dev` is true when the
-    // process is `sst dev`; the fallback below is only hit in
-    // deployed stages, so flip to the real frontend domain when
-    // the web app lands in production.
     FRONTEND_URL: frontendOrigin,
-    // API_URL: coreAPI.url is its own URL — SST resolves this
-    // lazily so the self-reference doesn't deadlock. Used by the
-    // sign-in handler to compose `${API_URL}/auth/callback` for
-    // the AuthKit OAuth redirect_uri.
+    // API_URL: coreAPI.url self-references its own output — SST
+    // resolves this lazily so the self-reference doesn't deadlock.
     API_URL: coreAPI.url,
+    POWERTOOLS_SERVICE_NAME: "core-api",
+    POWERTOOLS_LOG_LEVEL,
+    POWERTOOLS_METRICS_NAMESPACE: METRICS_NAMESPACE,
   },
   memory: "512 MB",
+  transform: { function: enableXRay },
 });
 
 // Dedicated webhook handler — sits outside the Hono/Elysia stack so that
@@ -98,8 +103,14 @@ coreAPI.route("POST /webhooks/workos", {
     workos_webhook_secret,
     planetscale_database_url,
   ],
-  environment: { SST_STAGE: $app.stage },
+  environment: {
+    SST_STAGE: $app.stage,
+    POWERTOOLS_SERVICE_NAME: "workos-webhook",
+    POWERTOOLS_LOG_LEVEL,
+    POWERTOOLS_METRICS_NAMESPACE: METRICS_NAMESPACE,
+  },
   memory: "256 MB",
+  transform: { function: enableXRay },
 });
 
 // Async workers. Currently a stub — will host:

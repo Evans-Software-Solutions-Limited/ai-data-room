@@ -415,7 +415,7 @@ plus the route table in `packages/web/src/App.tsx`.
 
 ## T-018 — Observability: logs, metrics, alerts
 
-Status: `[ ]`
+Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-018-observability`)
 **Scope:** Structured logging (pino). CloudWatch EMF metrics per
 design.md §Observability. X-Ray enabled. Terraform/SST alarms created
 for the five alert rules listed.

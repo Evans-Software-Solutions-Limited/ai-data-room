@@ -16,10 +16,15 @@
 import type {
   APIGatewayProxyEventV2,
   APIGatewayProxyStructuredResultV2,
+  Context,
 } from "aws-lambda";
 import { Resource } from "sst";
 
 import { getDb } from "@ai-data-room/db";
+import { injectLambdaContext } from "@ai-data-room/api-utils/logging";
+
+import { logger } from "../../infrastructure/logging/logger";
+import { flushMetrics } from "../../infrastructure/observability/metrics";
 
 import { acceptInvitation } from "../../application/invitations";
 import { handlePasswordResetCompleted } from "../../application/password-reset";
@@ -37,7 +42,10 @@ import { routeWorkOSWebhook } from "./workos";
 
 export async function handler(
   event: APIGatewayProxyEventV2,
+  context: Context,
 ): Promise<APIGatewayProxyStructuredResultV2> {
+  injectLambdaContext(logger, context);
+
   const db = getDb(Resource.PLANETSCALE_DATABASE_URL.value);
   const workos = createWorkOSClient({
     apiKey: Resource.WORKOS_API_KEY.value,
@@ -51,23 +59,28 @@ export async function handler(
   const invitationRepo = new InvitationRepo(db);
   const webhookRepo = new WebhookDeliveryRepo(db);
 
-  return routeWorkOSWebhook(event, {
-    webhookSecret: Resource.WORKOS_WEBHOOK_SECRET.value,
-    webhookRepo,
-    verify: verifyWorkOSWebhook,
-    routes: {
-      userDeleted: (input) => handleUserDeleted(input, { userRepo, auditRepo }),
-      passwordResetCompleted: (input) =>
-        handlePasswordResetCompleted(input, { workos, userRepo, auditRepo }),
-      invitationAccepted: (input) =>
-        acceptInvitation(input, {
-          db,
-          userRepo,
-          membershipRepo,
-          externalGrantRepo,
-          invitationRepo,
-          auditRepo,
-        }),
-    },
-  });
+  try {
+    return await routeWorkOSWebhook(event, {
+      webhookSecret: Resource.WORKOS_WEBHOOK_SECRET.value,
+      webhookRepo,
+      verify: verifyWorkOSWebhook,
+      routes: {
+        userDeleted: (input) =>
+          handleUserDeleted(input, { userRepo, auditRepo }),
+        passwordResetCompleted: (input) =>
+          handlePasswordResetCompleted(input, { workos, userRepo, auditRepo }),
+        invitationAccepted: (input) =>
+          acceptInvitation(input, {
+            db,
+            userRepo,
+            membershipRepo,
+            externalGrantRepo,
+            invitationRepo,
+            auditRepo,
+          }),
+      },
+    });
+  } finally {
+    flushMetrics();
+  }
 }

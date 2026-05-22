@@ -7,7 +7,9 @@
 // the txn-wrapper PR so we can assert atomic multi-write behaviour.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MetricUnit } from "@aws-lambda-powertools/metrics";
 
+import { metrics } from "../../infrastructure/observability/metrics";
 import type {
   Invitation as WorkOSInvitation,
   WorkOSClient,
@@ -258,6 +260,11 @@ describe("createInvitation", () => {
     deps.orgFindById.mockResolvedValue(makeOrg());
     deps.createInvitation.mockResolvedValue(makeWorkosInvitation());
     deps.invitationCreate.mockResolvedValue(makeInvitation());
+    vi.spyOn(metrics, "addMetric").mockReturnValue(metrics);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   afterEach(() => {
@@ -401,6 +408,11 @@ describe("createInvitation", () => {
             email: "invitee@example.com",
           }),
         }),
+      );
+      expect(metrics.addMetric).toHaveBeenCalledWith(
+        "auth.invite.sent",
+        MetricUnit.Count,
+        1,
       );
     });
   });
@@ -785,9 +797,11 @@ describe("acceptInvitation", () => {
     deps.invitationTransitionState.mockResolvedValue(
       makeInvitation({ state: "accepted", acceptedAt: NOW }),
     );
+    vi.spyOn(metrics, "addMetric").mockReturnValue(metrics);
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -838,6 +852,11 @@ describe("acceptInvitation", () => {
           targetUserId: ACCEPTING_USER_ID,
           orgId: ORG_ID,
         }),
+      );
+      expect(metrics.addMetric).toHaveBeenCalledWith(
+        "auth.invite.accepted",
+        MetricUnit.Count,
+        1,
       );
     });
 

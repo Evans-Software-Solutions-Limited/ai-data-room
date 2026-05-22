@@ -44,6 +44,11 @@ import type {
   APIGatewayProxyStructuredResultV2,
 } from "aws-lambda";
 
+import { serializeError } from "@ai-data-room/api-utils/logging";
+
+import { logger } from "../../infrastructure/logging/logger";
+import { emitCount } from "../../infrastructure/observability/metrics";
+import { tracer } from "../../infrastructure/observability/tracer";
 import type {
   AcceptInvitationInput,
   AcceptInvitationResult,
@@ -106,16 +111,26 @@ export async function routeWorkOSWebhook(
   // form we'll ever see in production.
   const signatureHeader = event.headers["workos-signature"] ?? "";
 
+  emitCount("auth.webhook.workos.received");
+
   const verify = await deps.verify({
     rawBody,
     signatureHeader,
     secret: deps.webhookSecret,
   });
   if (!verify.ok) {
+    // Every verify failure is a "we refused this caller at the door"
+    // signal — `missing_signature` / `invalid_signature` are spoof
+    // indicators, `invalid_json` is a probe (WorkOS never sends
+    // malformed JSON), and `missing_secret` is an internal
+    // misconfiguration. One metric for all four; the alarm fires on
+    // > 0 because any of them is operator-actionable.
+    emitCount("auth.webhook.workos.invalid_signature");
     return jsonResponse(401, { ok: false, reason: verify.reason });
   }
 
   const wsEvent = verify.event;
+  tracer.putAnnotation("eventType", wsEvent.event);
 
   // Dedup BEFORE routing. The application handlers themselves are
   // already idempotent for state, but they emit an `outcome:
@@ -216,10 +231,10 @@ export async function routeWorkOSWebhook(
     // error for forensics; expose only a generic reason in the
     // response body so we don't leak internal detail (DB hosts,
     // stack frame paths) to WorkOS's delivery log.
-    console.error("workos webhook handler_error", {
+    logger.error("workos webhook handler_error", {
       eventType: wsEvent.event,
       eventId: wsEvent.id,
-      error: err instanceof Error ? err.message : "unknown",
+      error: serializeError(err),
     });
     return jsonResponse(500, {
       ok: false,
