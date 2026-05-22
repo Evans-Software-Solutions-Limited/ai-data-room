@@ -159,7 +159,15 @@ new aws.cloudwatch.MetricAlarm("alarm-audit-write-failure", {
     },
     {
       id: "total",
-      expression: "core + webhook",
+      // FILL(..., 0) is load-bearing — Powertools only emits the
+      // metric when a failure occurs, so a quiet webhook Lambda
+      // leaves no data points in the window. CloudWatch metric math
+      // propagates missing data through arithmetic
+      // (`5 + nodata = nodata`), and `treatMissingData: "notBreaching"`
+      // would then silently swallow core-side failures. Coerce each
+      // operand to zero before summing so a single-Lambda spike
+      // still trips the alarm.
+      expression: "FILL(core, 0) + FILL(webhook, 0)",
       label: "auth.audit.write_failure (all services)",
       returnData: true,
     },
