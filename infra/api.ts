@@ -25,6 +25,11 @@ const frontendOrigin = $dev
 // directly so the Hono wrapper never sees them and can't remap the
 // 204 to a 200. `allowCredentials: true` is load-bearing for the
 // SPA's `credentials: "include"` fetches.
+//
+// Stage-level throttle is the outer DDoS envelope only. HTTP API v2
+// doesn't accept AWS WAF (REST API / ALB / CloudFront only), so the
+// NFR4 per-IP cap lives at the Elysia layer in
+// `middleware/rateLimit.ts`. CloudFront + WAF is Phase 2.
 export const coreAPI = new sst.aws.ApiGatewayV2("api-core", {
   cors: {
     allowOrigins: [frontendOrigin],
@@ -33,6 +38,22 @@ export const coreAPI = new sst.aws.ApiGatewayV2("api-core", {
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   },
   transform: {
+    api: (args: {
+      defaultRouteSettings?: {
+        throttlingBurstLimit?: number;
+        throttlingRateLimit?: number;
+      };
+    }) => {
+      args.defaultRouteSettings = {
+        // 100 req/sec sustained, 200 req/sec burst is far above
+        // legitimate steady-state load for v0.1 (single tenant,
+        // tens of users) but bounds a runaway client / scraper /
+        // probe well below the Lambda concurrent-invocation
+        // ceiling. Raise per stage if/when traffic grows.
+        throttlingRateLimit: 100,
+        throttlingBurstLimit: 200,
+      };
+    },
     route: {
       handler: (args: { runtime?: string }) => {
         args.runtime ??= "nodejs22.x";
