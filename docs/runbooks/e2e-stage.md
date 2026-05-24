@@ -44,6 +44,41 @@ CI, optional: `dev` for local runs):
    `.skip`'d in `_deferred.spec.ts` but worth seeding now so future
    unskip is one-line.
 
+### Expected `/me` shape for the bootstrap user
+
+The bootstrap user **starts unprovisioned**: it has a WorkOS
+identity but no local org membership in our Postgres until slice 9
+(`onboarding-flow`) ships the org-creation surface. That means
+`resolveActor`'s lazy-mirror creates the `users` row on first
+protected request, but `localOrgId` stays `null` and `/me` returns
+`{ orgId: null, role: null, ... }`. The web shell renders the
+"Welcome to AI Data Room" placeholder rather than the workspace
+payload.
+
+The active AC-US1 spec is built to pass against this state — it
+asserts the authenticated navbar (sign-out anchor visible +
+absolute), not the placeholder content. The provisioned-user
+branch gets coverage when slice 9 lands.
+
+If you need to short-circuit slice 9 to test the provisioned
+branch before then, the operator path is a one-off SQL insert
+against the staging DB:
+
+```sql
+-- Replace the WorkOS IDs with the values from your test tenant.
+INSERT INTO organizations (id, workos_org_id, name, slug, status, created_at, updated_at)
+VALUES (gen_random_uuid(), 'org_workos_id_here', 'E2E Staging Org', 'e2e-staging', 'active', now(), now());
+
+INSERT INTO org_memberships (id, org_id, user_id, role, created_at, updated_at)
+SELECT gen_random_uuid(), o.id, u.id, 'owner', now(), now()
+FROM organizations o, users u
+WHERE o.workos_org_id = 'org_workos_id_here'
+  AND u.workos_user_id = 'user_workos_id_here';
+```
+
+Also wire the test user into the WorkOS organization via the
+dashboard so the sealed session carries `organizationId`.
+
 ---
 
 ## 2. `E2E_AUTH_SECRET` per stage

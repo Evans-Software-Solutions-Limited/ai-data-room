@@ -89,7 +89,13 @@ describe("postE2EAuthLoginHandler", () => {
     delete process.env.SST_STAGE;
   });
 
-  it("returns 404 with reason=not_found when SST_STAGE is production", async () => {
+  it("returns Elysia's default 404 in production — the route is conditionally unmounted", async () => {
+    // The handler is mounted by `publicRoutes` only when
+    // `isProduction === false`, so in production the route
+    // literally doesn't exist. The default Elysia router 404
+    // ("NOT_FOUND" text body) is indistinguishable from hitting
+    // any other unrouted path — no schema validation, no custom
+    // body, no fingerprint that this URL was ever a real route.
     process.env.SST_STAGE = "production";
     mockWorkOS();
     const routes = await loadPublicRoutes();
@@ -102,7 +108,29 @@ describe("postE2EAuthLoginHandler", () => {
     );
 
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ ok: false, reason: "not_found" });
+    expect(await res.text()).toBe("NOT_FOUND");
+  });
+
+  it("returns the same NOT_FOUND shape on malformed requests in production (no 422 fingerprint)", async () => {
+    // The bug the conditional-mount closes: when the handler was
+    // mounted unconditionally, Elysia's schema validator ran
+    // before the `isProduction` gate and a malformed request
+    // returned 422 — distinguishable from a router miss and
+    // fingerprinting the endpoint's existence. The conditional
+    // mount means malformed and well-formed requests both get
+    // the router-default 404 in production.
+    process.env.SST_STAGE = "production";
+    mockWorkOS();
+    const routes = await loadPublicRoutes();
+
+    const malformed = new Request("http://localhost/e2e/auth/login", {
+      method: "POST",
+      headers: { "x-forwarded-for": "203.0.113.5" },
+    });
+    const res = await routes.handle(malformed);
+
+    expect(res.status).toBe(404);
+    expect(await res.text()).toBe("NOT_FOUND");
   });
 
   it("returns 503 when E2E_AUTH_SECRET is undeclared on the stage", async () => {
