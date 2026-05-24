@@ -49,12 +49,20 @@ describe("NFR1 — authenticated endpoints require a valid session", () => {
 describe("NFR2 — passwords never enter our system in plaintext", () => {
   it("has no `password:` field on any application/domain type", () => {
     // AuthKit owns the password lifecycle entirely. The assertion
-    // is that no shape in our types declares a `password` property.
-    // The WorkOS SDK's input types in `node_modules` are out of
-    // scope — we never call those paths.
+    // is that no shape in our types declares a `password` property
+    // for storage / domain transport. The WorkOS SDK boundary is a
+    // single deliberate exception — `workos/client.ts` types the
+    // `authenticateWithPassword` payload because the SDK requires
+    // one, and `e2e-bootstrap/postE2EAuthLoginHandler.ts` forwards
+    // the test fixture's password straight through (no storage,
+    // no logging, gated 404-in-prod). Both are excluded by path.
     const offenders = grepRepo(/\bpassword\s*:\s*(z\.|string|String)/, {
       includeGlobs: ["microservices/**/*.ts", "packages/**/*.ts"],
-      excludeGlobs: TEST_AND_FIXTURE_GLOBS,
+      excludeGlobs: [
+        ...TEST_AND_FIXTURE_GLOBS,
+        "**/infrastructure/workos/client.ts",
+        "**/application/auth/e2e-bootstrap/**",
+      ],
     });
     expect(
       offenders,

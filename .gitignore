@@ -44,3 +44,5 @@ packages/db/.drizzle
 # playwright
 /playwright-report
 /test-results
+/.auth
+/.env.e2e

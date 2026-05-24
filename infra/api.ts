@@ -8,6 +8,7 @@ import {
   workos_webhook_secret,
   workos_cookie_password,
   planetscale_database_url,
+  e2e_auth_secret,
 } from "./secrets";
 
 // `args` is SST's Lambda function input shape. We only touch `runtime`,
@@ -87,6 +88,10 @@ const enableXRay = (args: { tracingConfig?: { mode?: string } }) => {
   args.tracingConfig = { mode: "Active" };
 };
 
+// `e2e_auth_secret` is `undefined` in production (the bootstrap
+// handler also returns 404 there as defence-in-depth — see
+// `application/auth/e2e-bootstrap/postE2EAuthLoginHandler.ts`).
+// Spread-conditional inclusion keeps the link list valid either way.
 coreAPI.route("$default", {
   handler: "microservices/core/src/api.handler",
   name: `core-api-${$app.stage}`,
@@ -96,6 +101,7 @@ coreAPI.route("$default", {
     workos_webhook_secret,
     workos_cookie_password,
     planetscale_database_url,
+    ...(e2e_auth_secret ? [e2e_auth_secret] : []),
   ],
   environment: {
     SST_STAGE: $app.stage,

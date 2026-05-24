@@ -6,11 +6,18 @@
 
 declare module "sst" {
   export interface Resource {
-    // MANUAL ENTRY (T-016) — pending first `bun sst dev` regen.
-    // The secret is real (declared in `infra/secrets.ts` and linked
+    // MANUAL ENTRY (T-016 / T-021) — pending first `bun sst dev` regen.
+    // The secrets are real (declared in `infra/secrets.ts` and linked
     // in `infra/api.ts`); this stanza is here so typecheck passes
     // before SST has been re-run locally to refresh this file. Safe
     // to delete on the next regen — it'll come back identical.
+    // Throws on `.value` access in production (secret undeclared) —
+    // see `application/auth/e2e-bootstrap/postE2EAuthLoginHandler.ts`
+    // for the try/catch that maps the throw to 503.
+    "E2E_AUTH_SECRET": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "PLANETSCALE_DATABASE_URL": {
       "type": "sst.sst.Secret"
       "value": string

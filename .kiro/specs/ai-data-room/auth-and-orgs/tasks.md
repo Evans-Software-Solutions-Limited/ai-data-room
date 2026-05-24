@@ -458,7 +458,11 @@ test file. Document the matrix in `docs/security.md`.
 
 ## T-021 — Playwright acceptance suite
 
-Status: `[ ]`
+Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-021-playwright-e2e`).
+Minimal scope per Brad's call: framework + e2e-bootstrap endpoint +
+3 representative specs (AC-US1 / US7 / US8). Other 8 ACs as
+`.skip()` placeholders in `_deferred.spec.ts` pending mailbox /
+audit-query / hosted-UI harnesses — see `docs/runbooks/e2e-stage.md`.
 **Scope:** One Playwright test per AC (`AC-US1` through `AC-US11`).
 Runs against a dedicated e2e stage. Tagged so they can run on PR +
 nightly.
