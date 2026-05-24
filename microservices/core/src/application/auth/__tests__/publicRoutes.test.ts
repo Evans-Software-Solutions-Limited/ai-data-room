@@ -102,6 +102,20 @@ async function loadPublicRoutes() {
   return mod.publicRoutes;
 }
 
+// Helper: every Elysia request through `publicRoutes` flows through
+// the rate-limit plugin, which refuses to serve any request without
+// an x-forwarded-for header (the IP source it trusts — API Gateway
+// always appends to XFF in production). Tests that exercise the
+// route handlers don't care about the rate-limit gating but still
+// need to satisfy it, so this helper synthesises a stable XFF.
+function makeAuthRequest(url: string, init: RequestInit = {}): Request {
+  const headers = new Headers(init.headers);
+  if (!headers.has("x-forwarded-for")) {
+    headers.set("x-forwarded-for", "203.0.113.5");
+  }
+  return new Request(url, { ...init, headers });
+}
+
 describe("publicRoutes — getSignInHandler", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -120,7 +134,7 @@ describe("publicRoutes — getSignInHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/sign-in"),
+      makeAuthRequest("http://localhost/auth/sign-in"),
     );
 
     expect(res.status).toBe(302);
@@ -142,7 +156,7 @@ describe("publicRoutes — getSignInHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/sign-in"),
+      makeAuthRequest("http://localhost/auth/sign-in"),
     );
 
     const setCookie = res.headers.get("set-cookie");
@@ -174,7 +188,7 @@ describe("publicRoutes — getSignInHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/sign-in"),
+      makeAuthRequest("http://localhost/auth/sign-in"),
     );
 
     expect(res.status).toBe(500);
@@ -200,7 +214,7 @@ describe("publicRoutes — getSignUpHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/sign-up"),
+      makeAuthRequest("http://localhost/auth/sign-up"),
     );
 
     expect(res.status).toBe(302);
@@ -234,9 +248,12 @@ describe("publicRoutes — getCallbackHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/callback?code=auth_code&state=tok-1", {
-        headers: { cookie: "oauth_state=tok-1" },
-      }),
+      makeAuthRequest(
+        "http://localhost/auth/callback?code=auth_code&state=tok-1",
+        {
+          headers: { cookie: "oauth_state=tok-1" },
+        },
+      ),
     );
 
     expect(res.status).toBe(302);
@@ -275,7 +292,7 @@ describe("publicRoutes — getCallbackHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request(
+      makeAuthRequest(
         "http://localhost/auth/callback?code=auth_code&state=attacker-state",
         { headers: { cookie: "oauth_state=legit-state" } },
       ),
@@ -299,7 +316,9 @@ describe("publicRoutes — getCallbackHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/callback?code=auth_code&state=tok-1"),
+      makeAuthRequest(
+        "http://localhost/auth/callback?code=auth_code&state=tok-1",
+      ),
     );
 
     expect(res.status).toBe(400);
@@ -314,9 +333,12 @@ describe("publicRoutes — getCallbackHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/callback?code=auth_code&state=tok-1", {
-        headers: { cookie: "oauth_state=tok-1" },
-      }),
+      makeAuthRequest(
+        "http://localhost/auth/callback?code=auth_code&state=tok-1",
+        {
+          headers: { cookie: "oauth_state=tok-1" },
+        },
+      ),
     );
 
     expect(res.status).toBe(500);
@@ -331,9 +353,12 @@ describe("publicRoutes — getCallbackHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/callback?code=auth_code&state=tok-1", {
-        headers: { cookie: "oauth_state=tok-1" },
-      }),
+      makeAuthRequest(
+        "http://localhost/auth/callback?code=auth_code&state=tok-1",
+        {
+          headers: { cookie: "oauth_state=tok-1" },
+        },
+      ),
     );
 
     expect(res.status).toBe(401);
@@ -357,9 +382,12 @@ describe("publicRoutes — getCallbackHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/callback?code=auth_code&state=tok-1", {
-        headers: { cookie: "oauth_state=tok-1" },
-      }),
+      makeAuthRequest(
+        "http://localhost/auth/callback?code=auth_code&state=tok-1",
+        {
+          headers: { cookie: "oauth_state=tok-1" },
+        },
+      ),
     );
 
     expect(res.status).toBe(500);
@@ -374,7 +402,7 @@ describe("publicRoutes — getCallbackHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/callback"),
+      makeAuthRequest("http://localhost/auth/callback"),
     );
 
     // Elysia returns a validation error status (422 by default).
@@ -403,7 +431,7 @@ describe("publicRoutes — getSignOutHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/sign-out", {
+      makeAuthRequest("http://localhost/auth/sign-out", {
         headers: { cookie: "wos_session=sealed-blob-current" },
       }),
     );
@@ -434,7 +462,7 @@ describe("publicRoutes — getSignOutHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/sign-out"),
+      makeAuthRequest("http://localhost/auth/sign-out"),
     );
 
     expect(sdk.loadSealedSession).not.toHaveBeenCalled();
@@ -451,7 +479,7 @@ describe("publicRoutes — getSignOutHandler", () => {
     const routes = await loadPublicRoutes();
 
     const res = await routes.handle(
-      new Request("http://localhost/auth/sign-out", {
+      makeAuthRequest("http://localhost/auth/sign-out", {
         headers: { cookie: "wos_session=corrupt-blob" },
       }),
     );

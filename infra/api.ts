@@ -38,7 +38,11 @@ export const coreAPI = new sst.aws.ApiGatewayV2("api-core", {
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   },
   transform: {
-    api: (args: {
+    // `defaultRouteSettings` belongs to `aws.apigatewayv2.Stage`,
+    // NOT `aws.apigatewayv2.Api` — putting it on `transform.api`
+    // results in AWS silently dropping the unknown property and the
+    // throttle never landing.
+    stage: (args: {
       defaultRouteSettings?: {
         throttlingBurstLimit?: number;
         throttlingRateLimit?: number;
