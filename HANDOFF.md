@@ -4,16 +4,16 @@
 > session should pick up. Refreshed at every task transition; delete
 > once steady state ("look at `tasks.md`") is safe to assume.
 
-**Last updated:** 2026-05-10 by Claude Code, T-017 web shell open as
-PR #24. Branch `feat/auth-and-orgs-T-017-web-shell`. Awaiting `bun
-sst diff` (no AWS creds in the build session) and a manual auth
-smoke before merge.
+**Last updated:** 2026-05-22 by Claude Code, T-020 starting. Branch
+`feat/auth-and-orgs-T-020-rate-limit-nfr-hardening`. T-017 + T-018
+both merged. Slice 1 at 19/22 tasks complete (~86%) — T-020, T-021,
+T-022 remaining.
 
 ## Where we are in slice 1 (auth-and-orgs)
 
-The HTTP surface (public + protected) plus the SPA's auth shell are
-landed (or in PR review). What's left: observability, hardening,
-e2e, and the slice tag.
+Auth surface + web shell + observability all shipped. What's left:
+rate-limit hardening, Playwright e2e against a real stage, and the
+sign-off tag.
 
 | Task   | Status       | Notes                                                                                   |
 | ------ | ------------ | --------------------------------------------------------------------------------------- |
@@ -36,90 +36,49 @@ e2e, and the slice tag.
 | T-014a | ✅           | Public auth routes — sign-in / sign-up / callback / sign-out (PR #19).                  |
 | T-014b | ✅           | Protected routes — /me + invitations CRUD + suspend/unsuspend + audit-events (PR #21).  |
 | T-015  | ✅           | Session middleware — `requireAuth` + `resolveActor` + `requireOrg` (PR #21).            |
-| T-017  | 🎯 **in PR** | Minimal web shell — PR #24, branch `feat/auth-and-orgs-T-017-web-shell`.                |
-| T-018  | ⏳           | Observability — logs / metrics / alerts. Parallelisable with T-017.                     |
-| T-020  | ⏳           | Rate limiting + NFR hardening. Parallelisable with T-017.                               |
-| T-021  | ⏳           | Playwright acceptance suite. Depends on T-017.                                          |
+| T-017  | ✅           | Minimal web shell — PR #24.                                                             |
+| T-018  | ✅           | Observability — Powertools logger + EMF metrics + X-Ray + 4 alarms (PR #25).            |
+| T-020  | 🎯 **in PR** | Rate limiting + NFR hardening. Critical path to T-022.                                  |
+| T-021  | ⏳           | Playwright acceptance suite. Depends on T-017 (landed) + a provisioned e2e stage.       |
 | T-022  | ⏳           | Slice sign-off + traceability matrix + tag. Last.                                       |
 
-Slice 1 is **~95% done by task count**. Critical path: T-017 merge →
-T-021 → T-022. T-018 + T-020 in parallel any time.
+Slice 1 is **~86% done by task count**. Critical path to slice tag:
+T-020 (in flight) → T-021 → T-022. T-021 has an external dependency
+(deployed e2e stage + WorkOS test tenant); T-020 is self-contained.
 
-## What PR #24 ships (T-017)
+## What T-020 ships (in flight)
 
-Mirrors FDP's container/hook/eden patterns; visually deliberately
-ugly pending the dedicated UI design pass.
+NFR4 rate limiting + an executable NFR checklist + the security doc.
 
-**Pages** (under `packages/web/src/pages/`):
+- **Stage-level throttle** on `infra/api.ts` for gross DDoS
+  protection (not per-IP — HTTP API v2 doesn't natively support
+  per-IP rate limits without WAF, which only attaches to REST API
+  / ALB / CloudFront, not HTTP API. Phase 2: WAF in front via
+  CloudFront).
+- **Elysia rate-limit plugin** at
+  `microservices/core/src/middleware/rateLimit.ts`. In-memory LRU
+  keyed on IP, applied to public auth routes only (`/auth/*`).
+  Documents the cold-start / multi-instance limitation in the
+  module header — for exact NFR4 compliance across concurrent
+  Lambdas we'd need DDB- or Redis-backed state, flagged as Phase 2.
+- **Per-email rate limit** — AuthKit owns the actual login flow, so
+  "per-target-email" rate limiting at our layer is largely moot (we
+  never see the email before AuthKit has already validated the
+  code). Documented in `docs/security.md` as delegated to AuthKit.
+- **`microservices/core/src/security/__tests__/nfr-matrix.test.ts`** —
+  14 assertions covering NFR1-11. Mix of behavioural (cookie attrs
+  for NFR7, rate-limit kicks in for NFR4) and code-grep (NFR8
+  forbidden-pattern audit, NFR10 audit-write append-only check).
+- **`docs/security.md`** — NFR matrix table: each NFR → impl site →
+  verification site.
 
-- `Home.tsx` — public landing. Anon: sign-in / sign-up affordances.
-  Authed: link to `/app`.
-- `Login.tsx`, `Signup.tsx`, `Logout.tsx` — full-page redirects to
-  `/auth/{sign-in,sign-up,sign-out}`. `window.location.assign` on
-  mount, not React Router transition (cookie-setting redirect chain
-  needs a real navigation).
-- `AppWorkspace.tsx` — authed `/me` dashboard. Renders userId,
-  email, role, orgId, mfaEnrolled, lifecycleState, opportunityScopes.
-  Branches on `orgId === null` to a slice-9 onboarding placeholder.
-- `Mfa.tsx` — informational. **Departs from the original task line**
-  (which called for a recovery-codes download UI) — ADR-003 delegates
-  the entire view+download UX to AuthKit, so we never see plaintext
-  codes. Page exists so a stale `/mfa` link resolves usefully.
+## Open before-merge questions for PR #25 (T-020)
 
-**Layout containers** (mirror FDP):
-
-- `containers/LoggedInPageLayout.tsx` — gates protected routes,
-  `<Navigate to="/" />` on unauth.
-- `containers/LoggedOutPageLayout.tsx` — public pages with
-  auth-aware navbar (avoids anon→authed flicker on back-button nav).
-
-**Plumbing**:
-
-- `lib/eden.ts` — adds `fetch: { credentials: "include" }`.
-- `hooks/api/useGetCurrentUser.ts` — `/me` query, `retry: false`,
-  `staleTime: 60_000`.
-- `constants/api.ts` + `constants/authUrls.ts` — `CORE_API_URL`
-  (empty in dev for relative URLs, absolute in prod) + href factories.
-- `lib/userDisplayName.ts` — fullName-or-email helper.
-- `components/Loader.tsx`, `components/NavBar.tsx` — minimal.
-- `vite.config.ts` — dev proxy for `/auth/*`, `/me`, `/orgs/*` →
-  `VITE_PROXY_TARGET`. Caddy-lite: same-origin in dev without the
-  Caddy + `.test` domains FDP uses. Cookies work because
-  `localhost:5173` is both the SPA origin and the proxied API origin.
-- `infra/api.ts` — adds `cors: { allowOrigins: [frontendOrigin],
-allowCredentials: true, ... }` to `coreAPI`. Mirrors FDP. API-GW
-  level (not Elysia middleware) so the gateway answers preflights
-  without invoking the Lambda.
-- `infra/web.ts` — `VITE_CORE_API_URL` empty in dev (relative URLs
-  via proxy), `coreAPI.url` in prod. `VITE_PROXY_TARGET: coreAPI.url`
-  for the dev server.
-- Retires unused `useGetHelloWorld` hook + test.
-
-**Coverage**: 100% statements / 100% lines / 100% functions / 91%
-branches (above the 90% gate). 47 Vitest tests across pages,
-layouts, hook, NavBar, eden, userDisplayName, authUrls.
-
-## Open before-merge questions for PR #24
-
-1. **`bun sst diff --stage <dev>`** — couldn't run (no AWS creds in
-   the build session). Per sticky #2, infra typecheck won't catch
-   SST component-name typos. Brad to verify before merge. Risk is
-   low — the `cors` shape on `sst.aws.ApiGatewayV2` matches FDP's
-   `infra/api.ts` exactly.
-2. **Manual sign-in smoke** — needs `bun sst dev` running with
-   WorkOS dev creds + `bun run dev` for the SPA. Brad to verify
-   `signup → AuthKit → callback → /me` round-trip once before merge.
-
-## Faster alternatives if Brad wants to ship T-018 / T-020 first
-
-- **T-018 (observability)** — pino structured logs + CloudWatch EMF
-  metrics + the five alerts from design.md. Parallelisable with the
-  T-017 review cycle. Sticky #34 (webhook 500-bodies omit error
-  messages) interacts here — the structured logger replaces the
-  forensics `console.error`.
-- **T-020 (rate limiting + NFR hardening)** — API GW IP-based +
-  per-handler email-based limits + the NFR matrix test file +
-  `docs/security.md`. Mostly infra config.
+1. **`bun sst diff --stage <dev>`** — for the stage-throttle infra
+   change. No AWS creds in this session, Brad to verify.
+2. **Manual smoke** — burst 100 requests/sec from a single IP against
+   the deployed stage's `/auth/sign-in` and confirm 429s start
+   landing within a few seconds.
 
 ## Pending follow-ups (not blocking, but worth doing soon)
 

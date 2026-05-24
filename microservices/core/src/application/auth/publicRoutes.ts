@@ -1,22 +1,21 @@
-// Public auth route bundle — Slice 1 / T-014a.
+// Public auth route bundle.
 //
-// All four routes here are unauthenticated by design — they're
-// the ingress / egress for the AuthKit OAuth flow itself, so
-// requiring a session would be circular. Wired into the core API
-// at `microservices/core/src/api.ts` via `.use(publicRoutes)`.
-//
-// Future T-014b / T-015 work introduces protected routes; those
-// land in a separate `protectedRoutes.ts` bundle behind a
-// `requireAuth` resolve guard, mirroring FDP.
+// All four routes are unauthenticated by design — they're the
+// ingress / egress for the AuthKit OAuth flow, so requiring a
+// session would be circular. The `rateLimit` plugin (NFR4) gates
+// the bundle on a per-IP counter; the in-memory store's limits
+// are documented in `middleware/rateLimit.ts`.
 
 import Elysia from "elysia";
 
+import { LOGIN_RATE_LIMIT, rateLimit } from "../../middleware/rateLimit";
 import { getCallbackHandler } from "./callback/getCallbackHandler";
 import { getSignInHandler } from "./sign-in/getSignInHandler";
 import { getSignOutHandler } from "./sign-out/getSignOutHandler";
 import { getSignUpHandler } from "./sign-up/getSignUpHandler";
 
 export const publicRoutes = new Elysia()
+  .use(rateLimit(LOGIN_RATE_LIMIT))
   .use(getSignInHandler)
   .use(getSignUpHandler)
   .use(getCallbackHandler)

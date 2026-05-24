@@ -241,7 +241,7 @@ returns a user without MFA for any role).
 
 ## T-009 — Application layer: invitations
 
-Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-009-invitations`)
+Status: `[x]` — closed 2026-05-04 on PR #15
 **Scope:** `createInvitation` (internal + external variants),
 `listInvitations`, `revokeInvitation`, `acceptInvitation`. Enforce
 FR6–FR10. Only owner/admin can invite; only owner can invite an admin;
@@ -256,7 +256,7 @@ expiry + revoke-after-accept rejection.
 
 ## T-010 — Application layer: MFA enrolment hook + recovery-code-used audit
 
-Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-010-mfa-enrolment`)
+Status: `[x]` — closed 2026-05-03 on PR #13 (scope trimmed by ADR-003)
 
 **Scope (trimmed by [ADR-003](../../../adr/003-recovery-codes-delegated-to-authkit.md)):**
 WorkOS AuthKit handles every part of recovery-codes UX (view +
@@ -287,7 +287,7 @@ null, not throw, so webhook redelivery is safe).
 
 ## T-011 — Application layer: password reset
 
-Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-011-password-reset`)
+Status: `[x]` — closed 2026-05-02 on PR #12
 **Scope:** `requestPasswordReset` delegates to WorkOS's password-reset
 email flow. On `password_reset_completed` webhook, invalidate all
 sessions for the user via WorkOS `session.revoke`, write audit event.
@@ -381,7 +381,7 @@ to invitations / users / audit-events is blocked with 403.
 
 ## T-016 — WorkOS webhook handler
 
-Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-016-webhook-routing`)
+Status: `[x]` — closed 2026-05-07 on PR #17
 **Scope:** `POST /webhooks/workos`. Verify signature (T-006). Route
 each event type to the appropriate application function (`user.created`
 → mirror user, `authentication.*` → audit writer, `session.revoked`
@@ -397,7 +397,7 @@ tampered, duplicate, unknown-type).
 
 ## T-017 — Minimal web shell: login, signup, MFA enrolment, logout, `/me` page
 
-Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-017-web-shell`)
+Status: `[x]` — closed 2026-05-11 on PR #24
 **Scope:** React Router routes in the existing Vite SPA
 (`packages/web`) that delegate to WorkOS AuthKit for all auth UI.
 Our `/app` route shows the `/me` payload and a logout button, plus
@@ -415,7 +415,7 @@ plus the route table in `packages/web/src/App.tsx`.
 
 ## T-018 — Observability: logs, metrics, alerts
 
-Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-018-observability`)
+Status: `[x]` — closed 2026-05-22 on PR #25
 **Scope:** Structured logging (pino). CloudWatch EMF metrics per
 design.md §Observability. X-Ray enabled. Terraform/SST alarms created
 for the five alert rules listed.
@@ -430,7 +430,7 @@ at least once in a representative run.
 
 ## T-019 — GDPR hard-delete path
 
-Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-019-gdpr-delete`)
+Status: `[x]` — closed 2026-05-05 on PR #16
 **Scope:** On `user.deleted` webhook: (1) scrub PII from `users` row,
 (2) set `lifecycle_state='deleted'`, (3) preserve `workos_user_id` and
 all `audit_events.target_user_id` references, (4) audit event for the
@@ -445,7 +445,7 @@ and asserts PII is gone but audit joins still resolve.
 
 ## T-020 — Rate limiting + NFR hardening pass
 
-Status: `[ ]`
+Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-020-rate-limit-nfr-hardening`)
 **Scope:** Implement NFR4 at API Gateway (IP-based) and handler layer
 (email-based). Verify NFR2, NFR3, NFR5, NFR7, NFR8 via a checklist
 test file. Document the matrix in `docs/security.md`.
