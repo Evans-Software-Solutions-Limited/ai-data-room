@@ -79,7 +79,7 @@ postE2EAuthLoginHandler.ts`. Mirrors FDP verbatim:
 - **`_deferred.spec.ts`** — 8 `test.skip(...)` placeholders. Each
   has the AC text + a one-liner on what's blocking the unskip.
 - **`.github/workflows/e2e.yml`** — runs on `workflow_dispatch` or
-  after `Staging Deploy` succeeds. Self-skips with a `::warning::`
+  after `Deploy Staging` succeeds. Self-skips with a `::warning::`
   if any required secret is missing. Uploads `playwright-report/`
   as an artifact.
 - **`docs/runbooks/e2e-stage.md`** — full provisioning steps for

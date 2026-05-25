@@ -3,7 +3,7 @@ name: Playwright E2E
 # Two trigger surfaces:
 #   - `workflow_dispatch` for manual runs against any deployed stage,
 #     pass `stage_base_url` + `stage_api_url` as inputs.
-#   - `workflow_run` after `Staging Deploy` succeeds, so every push
+#   - `workflow_run` after `Deploy Staging` succeeds, so every push
 #     to `main` that lands in staging gets browser-level coverage as
 #     a regression backstop (the "nightly cadence" half of T-021's
 #     scope — staging deploys are the natural nightly heartbeat).
@@ -23,7 +23,11 @@ on:
         description: "API URL (e.g. https://api-pr-42.dev.ai-data-room.example)"
         required: true
   workflow_run:
-    workflows: ["Staging Deploy"]
+    # Must match the upstream workflow's `name:` field exactly,
+    # case-sensitive — `staging-deploy.yml` declares
+    # `name: Deploy Staging`. A reversed-word or differently-cased
+    # value silently no-ops (GitHub doesn't surface the mismatch).
+    workflows: ["Deploy Staging"]
     types: [completed]
 
 permissions:

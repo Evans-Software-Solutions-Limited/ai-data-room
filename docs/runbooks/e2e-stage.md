@@ -135,7 +135,7 @@ Repository **variables** (same settings page, Variables tab):
 - `STAGING_API_URL` — the matching API URL.
 
 Once all five are present, the `Playwright E2E` workflow runs after
-every successful `Staging Deploy`. Without any of them the workflow
+every successful `Deploy Staging`. Without any of them the workflow
 emits a `::warning::` and exits 0 — fork PRs keep going green.
 
 ---
