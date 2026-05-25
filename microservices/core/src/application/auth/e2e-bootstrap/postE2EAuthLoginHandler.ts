@@ -20,8 +20,14 @@ export const postE2EAuthLoginHandler = new Elysia().post(
   "/e2e/auth/login",
   async ({ headers, body, cookie, set }) => {
     if (isProduction) {
+      // Match Elysia's default unrouted-path 404 (text body
+      // `NOT_FOUND`, `text/plain` content-type) so a future
+      // refactor that accidentally removes the conditional mount
+      // in `publicRoutes.ts` doesn't re-introduce the
+      // body-shape fingerprint the conditional mount eliminates.
       set.status = 404;
-      return { ok: false as const, reason: "not_found" as const };
+      set.headers["content-type"] = "text/plain;charset=utf-8";
+      return "NOT_FOUND";
     }
 
     // SST throws on `.value` access when the secret is unlinked /

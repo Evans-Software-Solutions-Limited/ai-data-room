@@ -59,4 +59,18 @@ test.describe("AC-US deferred", () => {
     // assert in CI against a real Lambda. Lower-layer:
     // `suspension.test.ts` + protectedRoutes 401 paths.
   });
+
+  test.skip("AC-US8 — post-logout /me returns 401 (revocation observable)", () => {
+    // [audit-api] `requireAuth.authenticate()` is a LOCAL JWT
+    // signature + expiry check — it doesn't consult WorkOS for
+    // revocation. After a logout the cookie blob stays
+    // cryptographically valid until the access-token TTL expires
+    // (minutes), so a fresh-context replay of the pre-logout
+    // cookie hits 200 not 401. To genuinely assert "session is
+    // invalid" at the browser layer we need an audit-API check
+    // for the `user_signed_out` row, OR to wait out the TTL.
+    // Browser-observable half (cookie cleared, sign-in returns)
+    // lives in `ac-us8-logout.spec.ts`. Lower-layer 401 coverage:
+    // `getSignOutHandler.test.ts` + protectedRoutes 401 paths.
+  });
 });
