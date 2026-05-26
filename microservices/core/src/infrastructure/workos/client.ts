@@ -86,6 +86,18 @@ export interface WorkOSClient {
   authenticateWithCode(
     payload: AuthenticateWithCodeOptions,
   ): Promise<AuthenticationResponse>;
+  /**
+   * Direct password authentication — bypasses the AuthKit hosted UI.
+   * Wired only into the T-021 `/e2e/auth/login` bootstrap endpoint,
+   * which is gated by `E2E_AUTH_SECRET` + 404-in-production. Production
+   * traffic never reaches this code path.
+   */
+  authenticateWithPassword(payload: {
+    email: string;
+    password: string;
+    sealSession: true;
+    cookiePassword: string;
+  }): Promise<AuthenticationResponse>;
   getUser(userId: string): Promise<User>;
   deleteUser(userId: string): Promise<void>;
   createInvitation(payload: SendInvitationOptions): Promise<Invitation>;
@@ -139,6 +151,16 @@ export function createWorkOSClient(config: WorkOSClientConfig): WorkOSClient {
   return {
     getAuthorizationUrl: (options) => um.getAuthorizationUrl(options),
     authenticateWithCode: (payload) => um.authenticateWithCode(payload),
+    authenticateWithPassword: (payload) =>
+      um.authenticateWithPassword({
+        clientId: config.clientId,
+        email: payload.email,
+        password: payload.password,
+        session: {
+          sealSession: payload.sealSession,
+          cookiePassword: payload.cookiePassword,
+        },
+      }),
     getUser: (userId) => um.getUser(userId),
     deleteUser: (userId) => um.deleteUser(userId),
     createInvitation: (payload) => um.sendInvitation(payload),

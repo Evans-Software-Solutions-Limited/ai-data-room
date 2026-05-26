@@ -4,16 +4,15 @@
 > session should pick up. Refreshed at every task transition; delete
 > once steady state ("look at `tasks.md`") is safe to assume.
 
-**Last updated:** 2026-05-22 by Claude Code, T-020 starting. Branch
-`feat/auth-and-orgs-T-020-rate-limit-nfr-hardening`. T-017 + T-018
-both merged. Slice 1 at 19/22 tasks complete (~86%) — T-020, T-021,
-T-022 remaining.
+**Last updated:** 2026-05-24 by Claude Code, T-021 starting. Branch
+`feat/auth-and-orgs-T-021-playwright-e2e`. T-017 / T-018 / T-020 all
+merged. Slice 1 at 20/22 tasks complete (~91%) — T-021 + T-022 left.
 
 ## Where we are in slice 1 (auth-and-orgs)
 
-Auth surface + web shell + observability all shipped. What's left:
-rate-limit hardening, Playwright e2e against a real stage, and the
-sign-off tag.
+Auth surface + web shell + observability + rate-limit hardening all
+shipped. What's left: Playwright e2e structure (this PR) + the
+slice sign-off tag.
 
 | Task   | Status       | Notes                                                                                   |
 | ------ | ------------ | --------------------------------------------------------------------------------------- |
@@ -38,47 +37,79 @@ sign-off tag.
 | T-015  | ✅           | Session middleware — `requireAuth` + `resolveActor` + `requireOrg` (PR #21).            |
 | T-017  | ✅           | Minimal web shell — PR #24.                                                             |
 | T-018  | ✅           | Observability — Powertools logger + EMF metrics + X-Ray + 4 alarms (PR #25).            |
-| T-020  | 🎯 **in PR** | Rate limiting + NFR hardening. Critical path to T-022.                                  |
-| T-021  | ⏳           | Playwright acceptance suite. Depends on T-017 (landed) + a provisioned e2e stage.       |
+| T-020  | ✅           | Rate limiting + NFR1-11 hardening matrix (PR #26).                                      |
+| T-021  | 🎯 **in PR** | Playwright e2e — minimal scope per Brad's call. 3 active specs + 8 deferred.            |
 | T-022  | ⏳           | Slice sign-off + traceability matrix + tag. Last.                                       |
 
-Slice 1 is **~86% done by task count**. Critical path to slice tag:
-T-020 (in flight) → T-021 → T-022. T-021 has an external dependency
-(deployed e2e stage + WorkOS test tenant); T-020 is self-contained.
+Slice 1 is **~91% done by task count**. Only T-022 remaining after
+this lands. T-021's full DoD ("11 specs green on CI") needs a
+deployed e2e stage + WorkOS test tenant — provisioning steps live
+in `docs/runbooks/e2e-stage.md` and are Brad's post-merge follow-up.
 
-## What T-020 ships (in flight)
+## What T-021 ships (in flight)
 
-NFR4 rate limiting + an executable NFR checklist + the security doc.
+Playwright framework + e2e-bootstrap endpoint + 3 representative
+specs. The other 8 ACs sit as `test.skip(...)` placeholders in
+`_deferred.spec.ts` with notes on what's needed to unskip
+(mailbox harness for invitation / verification / password-reset
+flows, audit-query endpoint for AC-US10/11, hosted-UI scriptability
+for AC-US4/9 which is owned by AuthKit).
 
-- **Stage-level throttle** on `infra/api.ts` for gross DDoS
-  protection (not per-IP — HTTP API v2 doesn't natively support
-  per-IP rate limits without WAF, which only attaches to REST API
-  / ALB / CloudFront, not HTTP API. Phase 2: WAF in front via
-  CloudFront).
-- **Elysia rate-limit plugin** at
-  `microservices/core/src/middleware/rateLimit.ts`. In-memory LRU
-  keyed on IP, applied to public auth routes only (`/auth/*`).
-  Documents the cold-start / multi-instance limitation in the
-  module header — for exact NFR4 compliance across concurrent
-  Lambdas we'd need DDB- or Redis-backed state, flagged as Phase 2.
-- **Per-email rate limit** — AuthKit owns the actual login flow, so
-  "per-target-email" rate limiting at our layer is largely moot (we
-  never see the email before AuthKit has already validated the
-  code). Documented in `docs/security.md` as delegated to AuthKit.
-- **`microservices/core/src/security/__tests__/nfr-matrix.test.ts`** —
-  14 assertions covering NFR1-11. Mix of behavioural (cookie attrs
-  for NFR7, rate-limit kicks in for NFR4) and code-grep (NFR8
-  forbidden-pattern audit, NFR10 audit-write append-only check).
-- **`docs/security.md`** — NFR matrix table: each NFR → impl site →
-  verification site.
+- **Playwright infra** at the repo root: `playwright.config.ts`,
+  `e2e/global-setup.ts`, `e2e/helpers/{session,emptyStorageState}.ts`.
+- **`/e2e/auth/login` bootstrap** at
+  `microservices/core/src/application/auth/e2e-bootstrap/
+postE2EAuthLoginHandler.ts`. Mirrors FDP verbatim:
+  - 404 in production regardless of any other config.
+  - 503 when `E2E_AUTH_SECRET` isn't linked to the Lambda.
+  - 401 when the caller's `x-e2e-key` doesn't match.
+  - On success: calls `workos.authenticateWithPassword` and sets the
+    sealed `wos_session` cookie. Mounted on `publicRoutes`.
+- **`E2E_AUTH_SECRET` infra plumbing** — declared in
+  `infra/secrets.ts` only when `$app.stage !== "production"`,
+  link-included in `coreAPI` `$default` via spread-conditional so
+  the link list stays valid in prod.
+- **3 active specs** at `e2e/specs/auth-and-orgs/`:
+  - `ac-us1-authenticated-app.spec.ts` — workspace shell renders the
+    `/me` payload + the sign-out anchor is absolute.
+  - `ac-us7-session-persistence.spec.ts` — reload preserves auth,
+    new context with same storageState lands authenticated.
+  - `ac-us8-logout.spec.ts` — sign-out clears the cookie + a
+    subsequent `/me` request returns 401.
+- **`_deferred.spec.ts`** — 8 `test.skip(...)` placeholders. Each
+  has the AC text + a one-liner on what's blocking the unskip.
+- **`.github/workflows/e2e.yml`** — runs on `workflow_dispatch` or
+  after `Deploy Staging` succeeds. Self-skips with a `::warning::`
+  if any required secret is missing. Uploads `playwright-report/`
+  as an artifact.
+- **`docs/runbooks/e2e-stage.md`** — full provisioning steps for
+  Brad: WorkOS test tenant + seeded users, `E2E_AUTH_SECRET` per
+  stage, GitHub secrets + variables, the manual-smoke procedure.
 
-## Open before-merge questions for PR #25 (T-020)
+## Open before-merge questions for PR #27 (T-021)
 
-1. **`bun sst diff --stage <dev>`** — for the stage-throttle infra
-   change. No AWS creds in this session, Brad to verify.
-2. **Manual smoke** — burst 100 requests/sec from a single IP against
-   the deployed stage's `/auth/sign-in` and confirm 429s start
-   landing within a few seconds.
+1. **Manual run against `bun sst dev`** — needs Brad to set
+   `.env.e2e` and run `bun run test:e2e:install && bun run test:e2e`.
+   The handler tests cover the bootstrap endpoint contract; the
+   3 specs need a real backend to assert against.
+2. **Stage provisioning** — `docs/runbooks/e2e-stage.md` step 1
+   (WorkOS test tenant + verified test user) and step 2
+   (`bun sst secret set E2E_AUTH_SECRET ...`) are post-merge
+   actions for Brad. The CI workflow self-skips until these land.
+
+## What's left in slice 1 after T-021 merges
+
+Just **T-022**:
+
+- Lift the test↔NFR matrix from `docs/security.md` into a
+  comprehensive FR↔NFR↔AC↔test matrix at
+  `docs/slices/auth-and-orgs.md`.
+- Verify every FR1-24 + NFR1-11 + AC-US1-11 has at least one test.
+- Run the `engineering:deploy-checklist` skill.
+- Tag `v0.1.0-auth-and-orgs`.
+
+T-022 doesn't ship code — it's a review gate. Estimate: ~half-day
+for the matrix + the deploy-checklist pass.
 
 ## Pending follow-ups (not blocking, but worth doing soon)
 

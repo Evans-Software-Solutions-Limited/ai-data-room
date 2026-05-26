@@ -1,0 +1,91 @@
+name: Playwright E2E
+
+# Two trigger surfaces:
+#   - `workflow_dispatch` for manual runs against any deployed stage,
+#     pass `stage_base_url` + `stage_api_url` as inputs.
+#   - `workflow_run` after `Deploy Staging` succeeds, so every push
+#     to `main` that lands in staging gets browser-level coverage as
+#     a regression backstop (the "nightly cadence" half of T-021's
+#     scope — staging deploys are the natural nightly heartbeat).
+#
+# Skips entirely when the required secrets are missing, so a fork
+# without access can still see CI go green. See docs/runbooks/e2e-stage.md
+# for the provisioning steps (WorkOS test tenant, `E2E_AUTH_SECRET`,
+# seeded test users).
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage_base_url:
+        description: "Web base URL (e.g. https://web-pr-42.dev.ai-data-room.example)"
+        required: true
+      stage_api_url:
+        description: "API URL (e.g. https://api-pr-42.dev.ai-data-room.example)"
+        required: true
+  workflow_run:
+    # Must match the upstream workflow's `name:` field exactly,
+    # case-sensitive — `staging-deploy.yml` declares
+    # `name: Deploy Staging`. A reversed-word or differently-cased
+    # value silently no-ops (GitHub doesn't surface the mismatch).
+    workflows: ["Deploy Staging"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    # On `workflow_run`, only run after a successful upstream run.
+    # On `workflow_dispatch`, this condition is true by default.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    timeout-minutes: 20
+    env:
+      # `workflow_dispatch` reads from inputs, `workflow_run` reads
+      # from repository variables Brad pins to whichever URL is
+      # canonical for staging.
+      PLAYWRIGHT_BASE_URL: ${{ github.event.inputs.stage_base_url || vars.STAGING_WEB_URL }}
+      VITE_CORE_API_URL: ${{ github.event.inputs.stage_api_url || vars.STAGING_API_URL }}
+      E2E_AUTH_SECRET: ${{ secrets.E2E_AUTH_SECRET }}
+      E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+      E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if secrets are unconfigured
+        id: gate
+        run: |
+          missing=""
+          [ -z "${PLAYWRIGHT_BASE_URL}" ] && missing="$missing PLAYWRIGHT_BASE_URL"
+          [ -z "${VITE_CORE_API_URL}" ] && missing="$missing VITE_CORE_API_URL"
+          [ -z "${E2E_AUTH_SECRET}" ] && missing="$missing E2E_AUTH_SECRET"
+          [ -z "${E2E_TEST_EMAIL}" ] && missing="$missing E2E_TEST_EMAIL"
+          [ -z "${E2E_TEST_PASSWORD}" ] && missing="$missing E2E_TEST_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::warning::Skipping E2E — missing:$missing. See docs/runbooks/e2e-stage.md."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup
+        if: steps.gate.outputs.skip == 'false'
+        uses: ./.github/actions/setup
+
+      - name: Install Playwright browsers
+        if: steps.gate.outputs.skip == 'false'
+        run: bun run test:e2e:install
+
+      - name: Run Playwright
+        if: steps.gate.outputs.skip == 'false'
+        run: bun run test:e2e
+
+      - name: Upload Playwright report
+        if: steps.gate.outputs.skip == 'false' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

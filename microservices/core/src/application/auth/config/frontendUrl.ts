@@ -64,6 +64,9 @@ export function getOAuthRedirectUri(): string {
  */
 export const isSecureOrigin = proc?.env.SST_DEV !== "true";
 
+/** True only on the production stage; used by the e2e-bootstrap 404 gate. */
+export const isProduction = proc?.env.SST_STAGE === "production";
+
 // ─── Cookie config ───────────────────────────────────────────────
 // Centralised so a future change to the security defaults
 // (e.g. `sameSite: "strict"`) only edits one file. Each handler

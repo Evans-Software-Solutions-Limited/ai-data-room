@@ -26,6 +26,15 @@ export const workos_webhook_secret = new sst.Secret("WORKOS_WEBHOOK_SECRET");
 // WorkOS dashboard; you mint it yourself. Don't reuse across stages.
 export const workos_cookie_password = new sst.Secret("WORKOS_COOKIE_PASSWORD");
 
+// Shared secret guarding the `/e2e/auth/login` bootstrap endpoint
+// (T-021 Playwright suite). Declared only outside production so the
+// production stack never has a value to misconfigure — the handler
+// also short-circuits to 404 in production as defence-in-depth.
+// Provision per non-prod stage with `bun sst secret set
+// E2E_AUTH_SECRET <random-string> --stage <stage>`.
+export const e2e_auth_secret =
+  $app.stage === "production" ? undefined : new sst.Secret("E2E_AUTH_SECRET");
+
 // ── auth-and-orgs T-003 (DB setup, ADR-002 Postgres + Drizzle) ─────────
 // PlanetScale Postgres connection string for the canonical domain DB.
 // Format: postgres://user:pass@host:5432/db?sslmode=require
