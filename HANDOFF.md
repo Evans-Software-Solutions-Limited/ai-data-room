@@ -4,10 +4,48 @@
 > session should pick up. Refreshed at every task transition; delete
 > once steady state ("look at `tasks.md`") is safe to assume.
 
-**Last updated:** 2026-05-26 by Claude Code, T-022 starting. Branch
-`feat/auth-and-orgs-T-022-sign-off-and-tag`. T-021 merged on
-2026-05-26 (PR #27, commit `356dd6e`). Slice 1 at 21/22 tasks
-complete (~95%) — only T-022 (review gate + tag) remaining.
+**Last updated:** 2026-05-26 by Claude Code, T-022 PR open, prototype
+shipped. Branch `feat/auth-and-orgs-T-022-sign-off-and-tag` (PR #28
+— open, mergeable, CI green; docs-only so `Detect Changes` correctly
+skipped jobs). T-021 merged on 2026-05-26 (PR #27, commit `356dd6e`).
+Slice 1 at 21/22 tasks complete (~95%) — only T-022 (review gate +
+tag) remaining.
+
+**Side-channel: v1 MVP design prototype.** Static HTML/CSS prototype
+of the v1.0-mvp surface lives on branch `proto/v1-mvp-design` in a
+worktree at `.claude/worktrees/agent-a1755586759c0e9df/`. Six
+screens: workspace home, `02_Financials` folder, cited Q&A, Stripe
+Inc. opportunity room, admin dashboard, 4-step onboarding wizard.
+NOT pushed to remote. Brad opens
+`prototypes/v1-mvp-design/index.html` in a browser. Three design
+questions in the commit body (wordmark, `#b8742a` amber accent vs
+Capital Pay brand, no dark mode). Not blocking the slice tag.
+
+**ACCOUNT HANDOFF (2026-05-26):** Brad is switching Claude Code
+accounts mid-stream. State preserved on disk + in PR #28. Next
+session: read this file, then resolve the four open decisions
+below. None of the prior session's chat or skill context survives
+the switch — the only persistent state is git + this file + the
+worktree.
+
+## Open decisions awaiting Brad (post-account-switch)
+
+1. **PR #28 review + merge.** Docs-only. Then `git tag -a
+v0.1.0-auth-and-orgs <merge-sha> -m "Slice 1 — auth-and-orgs"`
+   and `git push origin v0.1.0-auth-and-orgs`.
+2. **Push `proto/v1-mvp-design`?** Currently local-only on a
+   worktree. Either push it as a draft PR for design feedback +
+   broader review, or keep local until the design questions are
+   resolved.
+3. **Next slice: 2 (room-and-folders) vs 8 (billing-subscription)?**
+   Slice 2 unlocks 4/5/6 in parallel — highest leverage from one
+   slice. Recommend slice 2. All nine slices already have full
+   kiro specs drafted (`.kiro/specs/ai-data-room/<slice>/{req,
+design,tasks}.md`); pick the lowest-numbered task and branch.
+4. **The 11 HANDOFF follow-ups below.** Per Brad's prior call,
+   each gets its own kiro mini-spec + background task — NOT
+   bundled into anything. Spawn them when there's capacity; none
+   are blocking.
 
 ## Where we are in slice 1 (auth-and-orgs)
 
