@@ -65,13 +65,22 @@ export const getSignOutHandler = new Elysia().get(
         cookiePassword: Resource.WORKOS_COOKIE_PASSWORD.value,
       });
 
-      // Authenticate first so we have a workos user id to resolve
-      // to a local UUID for the audit row. If authenticate returns
-      // `{ authenticated: false }` (expired access token but cookie
-      // still decodes) we skip the audit emission rather than fan
-      // out to a refresh — sign-out is best-effort and an expired
-      // session is exactly the case where AC-US8's "audit event
-      // records the logout" is least informative.
+      // Authenticate first so we know whether to emit the AC-US8
+      // audit row. Two cases on the emit side:
+      //
+      //   - `authenticated: true` + local mirror exists → audit row
+      //     with `actor_user_id = target_user_id = local UUID`.
+      //   - `authenticated: true` + no local mirror yet (fresh
+      //     signup who signs out before ever hitting a protected
+      //     route, sticky #34) → audit row with `actor_user_id =
+      //     target_user_id = NULL`, `workosUserId` in metadata so
+      //     the row stays joinable for forensics.
+      //
+      // `authenticated: false` (expired access token, cookie still
+      // decodes) skips the audit — the session was already invalid
+      // upstream, so there's no verified actor to credit and AC-US8's
+      // "audit event records the logout" doesn't apply (no logout
+      // happened from an authenticated state).
       const authResult = await session.authenticate();
       const logoutUrl = await session.getLogoutUrl({ returnTo });
 
@@ -80,22 +89,20 @@ export const getSignOutHandler = new Elysia().get(
         const userRepo = new UserRepo(db);
         const auditRepo = new AuditRepo(db);
         const localUser = await userRepo.findByWorkosUserId(authResult.user.id);
-        if (localUser) {
-          await safeAudit(
-            { auditRepo },
-            {
-              eventType: "logout",
-              outcome: "success",
-              actorUserId: localUser.id,
-              targetUserId: localUser.id,
-              sourceIp:
-                request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-                "unknown",
-              userAgent: request.headers.get("user-agent") ?? "unknown",
-              metadata: { workosUserId: authResult.user.id },
-            },
-          );
-        }
+        await safeAudit(
+          { auditRepo },
+          {
+            eventType: "logout",
+            outcome: "success",
+            actorUserId: localUser?.id ?? null,
+            targetUserId: localUser?.id ?? null,
+            sourceIp:
+              request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+              "unknown",
+            userAgent: request.headers.get("user-agent") ?? "unknown",
+            metadata: { workosUserId: authResult.user.id },
+          },
+        );
       }
 
       cookie.wos_session.remove();

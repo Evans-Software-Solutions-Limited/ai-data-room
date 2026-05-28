@@ -587,6 +587,63 @@ describe("publicRoutes — getSignOutHandler", () => {
     );
   });
 
+  it("emits a `logout` audit with actorUserId=null when the user has no local mirror yet (fresh-signup sign-out)", async () => {
+    // Fresh signup → callback set sealed cookie → user signs out
+    // before ever hitting a protected route → no lazy-mirror row
+    // exists (sticky #34). AC-US8 still requires the audit row.
+    // Schema permits null actor_user_id; `metadata.workosUserId`
+    // carries the joinable id.
+    const auditWrite = vi.fn().mockResolvedValue({
+      id: "00000000-0000-0000-0000-0000000000aa",
+      occurredAt: new Date(),
+    });
+    vi.doMock("../../../infrastructure/db/auditRepo", () => ({
+      AuditRepo: class {
+        write = auditWrite;
+      },
+    }));
+    const userFindByWorkosUserId = vi.fn().mockResolvedValue(null);
+    vi.doMock("../../../infrastructure/db/userRepo", () => ({
+      UserRepo: class {
+        findByWorkosUserId = userFindByWorkosUserId;
+      },
+    }));
+
+    const sdk = mockWorkOS({
+      sessionAuthResult: {
+        authenticated: true,
+        user: { id: "user_wos_freshly_signed_up" },
+        organizationId: null,
+      },
+      logoutUrl: "https://authkit.example/logout?return=http://localhost:5173",
+    });
+    const routes = await loadPublicRoutes();
+
+    const res = await routes.handle(
+      makeAuthRequest("http://localhost/auth/sign-out", {
+        headers: { cookie: "wos_session=sealed-blob-fresh" },
+      }),
+    );
+
+    expect(res.headers.get("location")).toBe(
+      "https://authkit.example/logout?return=http://localhost:5173",
+    );
+    expect(sdk.authenticate).toHaveBeenCalledTimes(1);
+    expect(userFindByWorkosUserId).toHaveBeenCalledWith(
+      "user_wos_freshly_signed_up",
+    );
+    expect(auditWrite).toHaveBeenCalledTimes(1);
+    expect(auditWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "logout",
+        outcome: "success",
+        actorUserId: null,
+        targetUserId: null,
+        metadata: { workosUserId: "user_wos_freshly_signed_up" },
+      }),
+    );
+  });
+
   it("skips audit emission when the sealed session is expired (authenticated: false)", async () => {
     // Default mockWorkOS returns authenticate → { authenticated: false }.
     // Sign-out still succeeds (the cookie is still parseable, getLogoutUrl
