@@ -36,6 +36,7 @@ import { Resource } from "sst";
 import { getDb } from "@ai-data-room/db";
 
 import { AuditRepo } from "../../../infrastructure/db/auditRepo";
+import { OrgRepo } from "../../../infrastructure/db/orgRepo";
 import { UserRepo } from "../../../infrastructure/db/userRepo";
 import { createWorkOSClient } from "../../../infrastructure/workos/client";
 import { safeAudit } from "../../_audit-context";
@@ -87,8 +88,19 @@ export const getSignOutHandler = new Elysia().get(
       if (authResult.authenticated) {
         const db = getDb(Resource.PLANETSCALE_DATABASE_URL.value);
         const userRepo = new UserRepo(db);
+        const orgRepo = new OrgRepo(db);
         const auditRepo = new AuditRepo(db);
         const localUser = await userRepo.findByWorkosUserId(authResult.user.id);
+        // Resolve the local org UUID so the audit row is returned by
+        // `GET /orgs/:orgId/audit-events` (AC-US10's canonical query
+        // filters strictly on `org_id`). Only attempt the lookup when
+        // the WorkOS session carries an organizationId and we have a
+        // local user mirror — fresh-signup-pre-onboarding sessions
+        // legitimately have neither.
+        const localOrg =
+          localUser && authResult.organizationId
+            ? await orgRepo.findByWorkosOrgId(authResult.organizationId)
+            : null;
         await safeAudit(
           { auditRepo },
           {
@@ -96,6 +108,7 @@ export const getSignOutHandler = new Elysia().get(
             outcome: "success",
             actorUserId: localUser?.id ?? null,
             targetUserId: localUser?.id ?? null,
+            orgId: localOrg?.id ?? null,
             sourceIp:
               request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
               "unknown",

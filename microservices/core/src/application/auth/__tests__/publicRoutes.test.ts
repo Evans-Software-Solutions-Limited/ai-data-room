@@ -151,6 +151,7 @@ describe("publicRoutes — getSignInHandler", () => {
     vi.doUnmock("@workos-inc/node");
     vi.doUnmock("@ai-data-room/db");
     vi.doUnmock("../../../infrastructure/db/userRepo");
+    vi.doUnmock("../../../infrastructure/db/orgRepo");
     vi.doUnmock("../../../infrastructure/db/auditRepo");
   });
 
@@ -234,6 +235,7 @@ describe("publicRoutes — getSignUpHandler", () => {
     vi.doUnmock("@workos-inc/node");
     vi.doUnmock("@ai-data-room/db");
     vi.doUnmock("../../../infrastructure/db/userRepo");
+    vi.doUnmock("../../../infrastructure/db/orgRepo");
     vi.doUnmock("../../../infrastructure/db/auditRepo");
   });
 
@@ -265,6 +267,7 @@ describe("publicRoutes — getCallbackHandler", () => {
     vi.doUnmock("@workos-inc/node");
     vi.doUnmock("@ai-data-room/db");
     vi.doUnmock("../../../infrastructure/db/userRepo");
+    vi.doUnmock("../../../infrastructure/db/orgRepo");
     vi.doUnmock("../../../infrastructure/db/auditRepo");
   });
 
@@ -457,6 +460,7 @@ describe("publicRoutes — getSignOutHandler", () => {
     vi.doUnmock("@workos-inc/node");
     vi.doUnmock("@ai-data-room/db");
     vi.doUnmock("../../../infrastructure/db/userRepo");
+    vi.doUnmock("../../../infrastructure/db/orgRepo");
     vi.doUnmock("../../../infrastructure/db/auditRepo");
   });
 
@@ -524,11 +528,14 @@ describe("publicRoutes — getSignOutHandler", () => {
     expect(res.headers.get("set-cookie") ?? "").toContain("wos_session=");
   });
 
-  it("emits a `logout` audit event tied to the local user on a valid sign-out (FR13 / AC-US8)", async () => {
+  it("emits a `logout` audit event tied to the local user + org on a valid sign-out (FR13 / AC-US8 / AC-US10 org-scoped query)", async () => {
     // FR13 + AC-US8 require an audit row keyed to the user signing
-    // out. The handler resolves the local UUID via
-    // `userRepo.findByWorkosUserId` and emits via `safeAudit`; this
-    // test mocks both deps and asserts the canonical shape.
+    // out, with the local org UUID populated so AC-US10's
+    // `GET /orgs/:orgId/audit-events` query (which filters strictly
+    // on `org_id`) can return it. The handler resolves both the
+    // local user UUID via `userRepo.findByWorkosUserId` AND the
+    // local org UUID via `orgRepo.findByWorkosOrgId` (using
+    // `authResult.organizationId`, which is WorkOS-side per sticky #16).
     const auditWrite = vi.fn().mockResolvedValue({
       id: "00000000-0000-0000-0000-000000000099",
       occurredAt: new Date(),
@@ -548,12 +555,22 @@ describe("publicRoutes — getSignOutHandler", () => {
         findByWorkosUserId = userFindByWorkosUserId;
       },
     }));
+    const orgFindByWorkosOrgId = vi.fn().mockResolvedValue({
+      id: "22222222-2222-4222-8222-222222222222",
+      workosOrgId: "org_wos_capitalpay",
+      name: "Capital Pay",
+    });
+    vi.doMock("../../../infrastructure/db/orgRepo", () => ({
+      OrgRepo: class {
+        findByWorkosOrgId = orgFindByWorkosOrgId;
+      },
+    }));
 
     const sdk = mockWorkOS({
       sessionAuthResult: {
         authenticated: true,
         user: { id: "user_wos_42" },
-        organizationId: null,
+        organizationId: "org_wos_capitalpay",
       },
       logoutUrl: "https://authkit.example/logout?return=http://localhost:5173",
     });
@@ -573,6 +590,7 @@ describe("publicRoutes — getSignOutHandler", () => {
     );
     expect(sdk.authenticate).toHaveBeenCalledTimes(1);
     expect(userFindByWorkosUserId).toHaveBeenCalledWith("user_wos_42");
+    expect(orgFindByWorkosOrgId).toHaveBeenCalledWith("org_wos_capitalpay");
     expect(auditWrite).toHaveBeenCalledTimes(1);
     expect(auditWrite).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -580,6 +598,7 @@ describe("publicRoutes — getSignOutHandler", () => {
         outcome: "success",
         actorUserId: "11111111-1111-4111-8111-111111111111",
         targetUserId: "11111111-1111-4111-8111-111111111111",
+        orgId: "22222222-2222-4222-8222-222222222222",
         sourceIp: "203.0.113.5",
         userAgent: "test-agent",
         metadata: { workosUserId: "user_wos_42" },
@@ -587,12 +606,14 @@ describe("publicRoutes — getSignOutHandler", () => {
     );
   });
 
-  it("emits a `logout` audit with actorUserId=null when the user has no local mirror yet (fresh-signup sign-out)", async () => {
+  it("emits a `logout` audit with actorUserId=null + orgId=null when the user has no local mirror yet (fresh-signup sign-out)", async () => {
     // Fresh signup → callback set sealed cookie → user signs out
     // before ever hitting a protected route → no lazy-mirror row
     // exists (sticky #34). AC-US8 still requires the audit row.
-    // Schema permits null actor_user_id; `metadata.workosUserId`
-    // carries the joinable id.
+    // Schema permits null actor_user_id + org_id; `metadata.workosUserId`
+    // carries the joinable id. Org lookup is skipped because the
+    // resolution is gated on `localUser && organizationId`, and
+    // neither is true here.
     const auditWrite = vi.fn().mockResolvedValue({
       id: "00000000-0000-0000-0000-0000000000aa",
       occurredAt: new Date(),
@@ -606,6 +627,12 @@ describe("publicRoutes — getSignOutHandler", () => {
     vi.doMock("../../../infrastructure/db/userRepo", () => ({
       UserRepo: class {
         findByWorkosUserId = userFindByWorkosUserId;
+      },
+    }));
+    const orgFindByWorkosOrgId = vi.fn();
+    vi.doMock("../../../infrastructure/db/orgRepo", () => ({
+      OrgRepo: class {
+        findByWorkosOrgId = orgFindByWorkosOrgId;
       },
     }));
 
@@ -632,6 +659,7 @@ describe("publicRoutes — getSignOutHandler", () => {
     expect(userFindByWorkosUserId).toHaveBeenCalledWith(
       "user_wos_freshly_signed_up",
     );
+    expect(orgFindByWorkosOrgId).not.toHaveBeenCalled();
     expect(auditWrite).toHaveBeenCalledTimes(1);
     expect(auditWrite).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -639,6 +667,7 @@ describe("publicRoutes — getSignOutHandler", () => {
         outcome: "success",
         actorUserId: null,
         targetUserId: null,
+        orgId: null,
         metadata: { workosUserId: "user_wos_freshly_signed_up" },
       }),
     );
