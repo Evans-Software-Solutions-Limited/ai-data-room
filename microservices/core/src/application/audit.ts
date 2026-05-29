@@ -15,10 +15,14 @@
 //      stripped from metadata as defense-in-depth, even if a
 //      callsite forgets and includes one.
 //
-// The DoD test for T-013 is "every of the 21 FR24 event types is
-// produced by some callsite" — that's a slice-level assertion that
-// only becomes meaningful once T-008+ land, so it lives in T-022's
-// sign-off (the traceability matrix), not in this file's tests.
+// T-013 ships the canonical writer. The slice-level question of
+// how many of the 21 FR24 event types currently have a production
+// callsite lives in the T-022 sign-off matrix's "FR24 event-type
+// coverage" sub-section (`docs/slices/auth-and-orgs.md`) — that's
+// the source of truth for callsite exhaustiveness. Slice 1 ships
+// 11 of 21 (9 production-reachable, 2 awaiting HANDOFF #5); the
+// remaining 10 are owned per-event by future slices + the WorkOS
+// event-name investigation.
 
 import { z } from "zod";
 
