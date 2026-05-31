@@ -56,7 +56,7 @@ correctly, with the owner attached and the canonical room provisioned.
   `room-and-folders` consumes to create the six canonical folders (the room
   provisioning logic lives in `room-and-folders`; this slice owns the trigger).
 - **FR4** — After creation, `/me` shall resolve to the new `{ orgId, role:
-  'owner' }` (replacing the slice-1 `{ orgId: null }` lazy-mirror state).
+'owner' }` (replacing the slice-1 `{ orgId: null }` lazy-mirror state).
 - **FR5** — A user who already has a membership shall be rejected from creating
   another org (FR-aligned with the slice-1 max-one-membership invariant).
 - **FR6** — Org creation shall emit audit events (`org.created`,
@@ -79,7 +79,7 @@ correctly, with the owner attached and the canonical room provisioned.
 - **AC-US1** — A signed-up user with `orgId: null` creates an org named
   "Acme Ltd"; the call succeeds and returns the new org.
 - **AC-US2** — Immediately after, `/me` returns `{ orgId: <uuid>, role:
-  'owner' }`.
+'owner' }`.
 - **AC-US3** — The canonical six-folder room exists for the new org (verified
   via `room-and-folders` listing) within seconds of creation.
 - **AC-US4** — A user who already belongs to an org is rejected when attempting

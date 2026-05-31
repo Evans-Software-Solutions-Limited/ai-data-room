@@ -2,14 +2,14 @@
 
 **Status:** draft (authored 2026-05-31, from a competitive scan of the 2026 UK
 VDR market). Owner: Bradley. Companion to the
-[brief](../briefs/ai-data-room.md) — the brief says *what* we build; this says
-*why we win*.
+[brief](../briefs/ai-data-room.md) — the brief says _what_ we build; this says
+_why we win_.
 
 ## One-line thesis
 
 **The data room that answers back.** Incumbents store and lock documents and
-help the *seller* with AI (bulk redaction, bidder analytics). We help the
-*reader* — the vendor, buyer, or investor — get answers grounded in the
+help the _seller_ with AI (bulk redaction, bidder analytics). We help the
+_reader_ — the vendor, buyer, or investor — get answers grounded in the
 documents, with inline citations they can audit. Trust is the moat.
 
 ## Who we're for
@@ -26,18 +26,18 @@ pricing.
 Source: comparison data on datarooms.org.uk (2026 edition) plus provider
 positioning. Treat ratings as indicative, not gospel.
 
-| Provider | Segment | AI today | Table-stakes security |
-| --- | --- | --- | --- |
-| Ideals | M&A / general | Bulk AI redaction | ISO 27001, SOC 1/2/3, 8-level perms, fence view |
-| Datasite | M&A | AI redaction, diligence trackers | SOC 2, ISO 27001, fence view |
-| Intralinks | M&A / banking | AI deal analytics | Bank-grade, SSO, fence view |
-| Ansarada | M&A | Predictive bidder analytics (claims 97%), bulk AI redaction | Strong; free pre-deal prep |
-| Drooms | Real estate / EU | "Drooms AI Assistant", AI redaction | GDPR (CH/DE hosting) |
-| Imprima | M&A | AI redaction, translation, contract summarisation, bidder heatmaps | GDPR |
-| Dealroom | M&A lifecycle | AI contract analysis, diligence workflows | Standard |
-| Box | Generic content cloud | Box AI agents + multi-doc Q&A, 1,500+ integrations | Broad, not deal-specialised |
-| Papermark | Indie / open-source | Doc sharing + tracking | Lightweight |
-| HighQ (Thomson Reuters) | Legal | AI doc collaboration | ISO 27001 |
+| Provider                | Segment               | AI today                                                           | Table-stakes security                           |
+| ----------------------- | --------------------- | ------------------------------------------------------------------ | ----------------------------------------------- |
+| Ideals                  | M&A / general         | Bulk AI redaction                                                  | ISO 27001, SOC 1/2/3, 8-level perms, fence view |
+| Datasite                | M&A                   | AI redaction, diligence trackers                                   | SOC 2, ISO 27001, fence view                    |
+| Intralinks              | M&A / banking         | AI deal analytics                                                  | Bank-grade, SSO, fence view                     |
+| Ansarada                | M&A                   | Predictive bidder analytics (claims 97%), bulk AI redaction        | Strong; free pre-deal prep                      |
+| Drooms                  | Real estate / EU      | "Drooms AI Assistant", AI redaction                                | GDPR (CH/DE hosting)                            |
+| Imprima                 | M&A                   | AI redaction, translation, contract summarisation, bidder heatmaps | GDPR                                            |
+| Dealroom                | M&A lifecycle         | AI contract analysis, diligence workflows                          | Standard                                        |
+| Box                     | Generic content cloud | Box AI agents + multi-doc Q&A, 1,500+ integrations                 | Broad, not deal-specialised                     |
+| Papermark               | Indie / open-source   | Doc sharing + tracking                                             | Lightweight                                     |
+| HighQ (Thomson Reuters) | Legal                 | AI doc collaboration                                               | ISO 27001                                       |
 
 **What everyone has (table stakes):** AES-256, granular permissions, 2FA/SSO,
 audit trails, dynamic watermarking, fence-view screenshot prevention, OCR
@@ -57,7 +57,7 @@ search, NDA gates, custom branding, remote wipe.
    slow setup — all wrong for a quarterly vendor/RFP pack. We're self-serve,
    subscription-priced, minutes-to-value.
 4. **Incumbent AI is reactive.** Our sense-check (flagging a wrong-folder upload
-   *at upload time*) and checklist completion are *proactive* quality gates —
+   _at upload time_) and checklist completion are _proactive_ quality gates —
    novel in the category.
 
 ## How we win (and where we must not lose)
@@ -74,7 +74,7 @@ search, NDA gates, custom branding, remote wipe.
 **Fast-follow table stakes (absence loses deals even when our AI is better):**
 
 - **Document redaction** — manual + AI-assisted. Currently absent from every
-  spec (only *log* redaction exists). See production-readiness register.
+  spec (only _log_ redaction exists). See production-readiness register.
 - **Watermarking + fence-view preview** — consciously Phase 2 today
   (`room-and-folders` NFR6, `access-control` exclusions). **Decision needed
   (see below).**

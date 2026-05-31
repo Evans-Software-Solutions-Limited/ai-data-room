@@ -30,7 +30,7 @@ entire value proposition is confidentiality.
 - **Primary beneficiary:** every org (tenant) — the guarantee that no other
   tenant can ever read its rows.
 - **Primary implementer audience:** engineers writing repositories in any
-  later slice. The mechanism must make the *safe* path the *default* path.
+  later slice. The mechanism must make the _safe_ path the _default_ path.
 - **Roles (from `auth-and-orgs`):** `owner`, `admin`, `internal`, `external`.
   Isolation is org-level and sits beneath role-level authorisation.
 
@@ -124,7 +124,7 @@ entire value proposition is confidentiality.
 
 - Postgres RLS policies → deferred (ADR-011 Option A; revisit before SOC 2).
 - Role-level / document-level authorisation → `access-control` (this slice is
-  org-level isolation *beneath* role checks).
+  org-level isolation _beneath_ role checks).
 - Multi-region / data-residency partitioning → Phase 2.
 - Per-tenant encryption keys → Phase 2 (compliance track).
 

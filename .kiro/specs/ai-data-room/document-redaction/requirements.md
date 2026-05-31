@@ -14,7 +14,7 @@
 
 Every incumbent VDR (Ideals, Datasite, Ansarada, Drooms, Imprima) ships
 document redaction, and most now ship **AI-assisted** redaction. Our specs
-currently cover only *log* redaction — there is no way to black out sensitive
+currently cover only _log_ redaction — there is no way to black out sensitive
 content in a document before an external party sees it. For the
 vendor/RFP/security-pack wedge this is table stakes: a customer sharing
 financials or contracts with a counterparty must be able to redact salaries,

@@ -65,33 +65,33 @@ flowchart LR
 
 Editable region definitions (the source of truth an admin revises).
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | tenant-scoped (`tenant-isolation`). |
-| `document_id` | `uuid` FK | |
-| `document_version_id` | `uuid` FK | the version the regions anchor to. |
-| `regions` | `jsonb` | `Array<{page, box{x,y,w,h}} | {kind:'text', start, end}>`. |
-| `source` | `enum('manual','ai_suggested','ai_confirmed')` | provenance. |
-| `status` | `enum('draft','published','superseded')` | |
-| `created_by` / `updated_by` | `uuid` FK `users.id` | |
-| `created_at` / `updated_at` | `timestamptz` | |
+| Column                      | Type                                           | Notes                               |
+| --------------------------- | ---------------------------------------------- | ----------------------------------- | ---------------------------- |
+| `id`                        | `uuid` PK                                      |                                     |
+| `org_id`                    | `uuid` FK                                      | tenant-scoped (`tenant-isolation`). |
+| `document_id`               | `uuid` FK                                      |                                     |
+| `document_version_id`       | `uuid` FK                                      | the version the regions anchor to.  |
+| `regions`                   | `jsonb`                                        | `Array<{page, box{x,y,w,h}}         | {kind:'text', start, end}>`. |
+| `source`                    | `enum('manual','ai_suggested','ai_confirmed')` | provenance.                         |
+| `status`                    | `enum('draft','published','superseded')`       |                                     |
+| `created_by` / `updated_by` | `uuid` FK `users.id`                           |                                     |
+| `created_at` / `updated_at` | `timestamptz`                                  |                                     |
 
 ### `document_renditions`
 
 The flattened, externally-served artifact.
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | tenant-scoped. |
-| `document_id` | `uuid` FK | |
-| `redaction_id` | `uuid` FK `redactions.id` | which region set produced it. |
-| `s3_key` | `text` | private; served only via pre-signed URL. |
-| `kind` | `enum('redacted')` | reserved for future rendition kinds. |
-| `status` | `enum('current','superseded')` | |
-| `sha256` | `text` | integrity. |
-| `created_at` | `timestamptz` | |
+| Column         | Type                           | Notes                                    |
+| -------------- | ------------------------------ | ---------------------------------------- |
+| `id`           | `uuid` PK                      |                                          |
+| `org_id`       | `uuid` FK                      | tenant-scoped.                           |
+| `document_id`  | `uuid` FK                      |                                          |
+| `redaction_id` | `uuid` FK `redactions.id`      | which region set produced it.            |
+| `s3_key`       | `text`                         | private; served only via pre-signed URL. |
+| `kind`         | `enum('redacted')`             | reserved for future rendition kinds.     |
+| `status`       | `enum('current','superseded')` |                                          |
+| `sha256`       | `text`                         | integrity.                               |
+| `created_at`   | `timestamptz`                  |                                          |
 
 Index: `(document_id, status)` — fast "current rendition for doc" lookup.
 
@@ -132,13 +132,13 @@ overlaying a black box (the classic redaction bug) is explicitly forbidden.
 All under `/orgs/:orgId/documents/:documentId/redactions`, owner/admin only
 (except none are exposed to external roles).
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/redactions` | Current region set + rendition status. |
-| `POST` | `/redactions` | Create/replace draft regions (manual). |
-| `POST` | `/redactions/suggest` | Enqueue AI suggestion job. |
-| `POST` | `/redactions/publish` | Flatten + publish a rendition. |
-| `DELETE` | `/redactions/:regionId` | Drop a region. |
+| Method   | Path                    | Purpose                                |
+| -------- | ----------------------- | -------------------------------------- |
+| `GET`    | `/redactions`           | Current region set + rendition status. |
+| `POST`   | `/redactions`           | Create/replace draft regions (manual). |
+| `POST`   | `/redactions/suggest`   | Enqueue AI suggestion job.             |
+| `POST`   | `/redactions/publish`   | Flatten + publish a rendition.         |
+| `DELETE` | `/redactions/:regionId` | Drop a region.                         |
 
 Download stays owned by `access-control`; this slice provides
 `resolveServedObject(doc, grant)` → original vs. current rendition (FR8/FR9).

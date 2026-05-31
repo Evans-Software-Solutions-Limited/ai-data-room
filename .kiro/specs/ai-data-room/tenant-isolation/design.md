@@ -23,7 +23,7 @@ Conforms to the patterns slice 1 shipped (`auth-and-orgs` HANDOFF stickies):
 - **Audit** via `safeAudit`/`recordAuditEvent` only (#13–14). Add
   `tenancy.violation` to `AuditEventTypeSchema` (`application/audit.ts`) for the
   defence-in-depth runtime catch (FR8).
-- **No new tables** — this slice *is* the scoped-access mechanism; it backfills
+- **No new tables** — this slice _is_ the scoped-access mechanism; it backfills
   the slice-1 org-scoped repos onto the factory and provides it to all later
   slices. (Future slices' tables still each add their `EXPECTED_TABLES`
   one-liner, #25.)
@@ -96,16 +96,24 @@ A single source of truth in code:
 ```ts
 // infrastructure/db/tenancy.ts
 export const TENANT_SCOPED_TABLES = [
-  'users', 'org_memberships', 'invitations', 'external_access_grants',
-  'audit_events', 'documents', 'document_versions', 'opportunities',
+  "users",
+  "org_memberships",
+  "invitations",
+  "external_access_grants",
+  "audit_events",
+  "documents",
+  "document_versions",
+  "opportunities",
   // ...extended as each slice adds tables
 ] as const;
 export const TENANT_AGNOSTIC_TABLES = [
-  'orgs', 'webhook_deliveries', 'plan_catalogue',
+  "orgs",
+  "webhook_deliveries",
+  "plan_catalogue",
 ] as const;
 ```
 
-`orgs` itself is tenant-agnostic at the row level (the org *is* the tenant) but
+`orgs` itself is tenant-agnostic at the row level (the org _is_ the tenant) but
 lookups by id are still constrained to the caller's own org at the application
 layer.
 
@@ -151,8 +159,8 @@ No new tables. The slice adds:
 - **The invariant:** under org A's context, no query returns a row with
   `org_id ≠ A`. Enforced by the factory, guarded by the tripwire, proven by the
   property test.
-- **Defence in depth:** this sits *beneath* `access-control`'s role checks and
-  is the *first* of `ai-search-qna`'s two filters. A bug in any one layer is
+- **Defence in depth:** this sits _beneath_ `access-control`'s role checks and
+  is the _first_ of `ai-search-qna`'s two filters. A bug in any one layer is
   caught by another.
 - **System scope is explicit:** no implicit cross-org reads; every system
   operation names its org and is audited (FR8).

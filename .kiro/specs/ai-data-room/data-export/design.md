@@ -56,29 +56,29 @@ flowchart LR
 
 ### `export_jobs`
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | tenant-scoped. |
-| `requested_by` | `uuid` FK `users.id` | |
-| `scope` | `enum('org','opportunity','folder')` | FR4. |
-| `scope_ref` | `text` nullable | opportunity id / folder. |
-| `include_versions` | `boolean` | FR5. |
-| `status` | `enum('pending','running','ready','failed','expired')` | |
-| `bundle_s3_key` | `text` nullable | |
-| `manifest_version` | `text` | FR-NFR5. |
-| `expires_at` | `timestamptz` | bundle TTL (NFR3). |
-| `created_at` / `ready_at` | `timestamptz` | |
+| Column                    | Type                                                   | Notes                    |
+| ------------------------- | ------------------------------------------------------ | ------------------------ |
+| `id`                      | `uuid` PK                                              |                          |
+| `org_id`                  | `uuid` FK                                              | tenant-scoped.           |
+| `requested_by`            | `uuid` FK `users.id`                                   |                          |
+| `scope`                   | `enum('org','opportunity','folder')`                   | FR4.                     |
+| `scope_ref`               | `text` nullable                                        | opportunity id / folder. |
+| `include_versions`        | `boolean`                                              | FR5.                     |
+| `status`                  | `enum('pending','running','ready','failed','expired')` |                          |
+| `bundle_s3_key`           | `text` nullable                                        |                          |
+| `manifest_version`        | `text`                                                 | FR-NFR5.                 |
+| `expires_at`              | `timestamptz`                                          | bundle TTL (NFR3).       |
+| `created_at` / `ready_at` | `timestamptz`                                          |                          |
 
 ### `org_lifecycle`
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `org_id` | `uuid` PK | |
-| `state` | `enum('active','offboarding','purged')` | |
-| `grace_until` | `timestamptz` nullable | purge schedule. |
-| `final_export_job_id` | `uuid` nullable | |
-| `updated_at` | `timestamptz` | |
+| Column                | Type                                    | Notes           |
+| --------------------- | --------------------------------------- | --------------- |
+| `org_id`              | `uuid` PK                               |                 |
+| `state`               | `enum('active','offboarding','purged')` |                 |
+| `grace_until`         | `timestamptz` nullable                  | purge schedule. |
+| `final_export_job_id` | `uuid` nullable                         |                 |
+| `updated_at`          | `timestamptz`                           |                 |
 
 ## Export worker
 
@@ -103,13 +103,13 @@ flowchart LR
 
 ## Interfaces
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `POST` | `/exports` | Request an export (scope + options). |
-| `GET` | `/exports` | List own org's export jobs + status. |
-| `GET` | `/exports/:id/download` | Signed URL when `ready`. |
-| `GET` | `/lifecycle` | Org lifecycle state + grace window (owner/admin). |
-| `POST` | `/lifecycle/reactivate` | Reactivate during grace (owner). |
+| Method | Path                    | Purpose                                           |
+| ------ | ----------------------- | ------------------------------------------------- |
+| `POST` | `/exports`              | Request an export (scope + options).              |
+| `GET`  | `/exports`              | List own org's export jobs + status.              |
+| `GET`  | `/exports/:id/download` | Signed URL when `ready`.                          |
+| `GET`  | `/lifecycle`            | Org lifecycle state + grace window (owner/admin). |
+| `POST` | `/lifecycle/reactivate` | Reactivate during grace (owner).                  |
 
 ## Security
 

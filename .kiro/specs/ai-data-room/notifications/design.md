@@ -23,7 +23,7 @@ Conforms to the patterns slice 1 shipped (`auth-and-orgs` HANDOFF stickies):
 - **Subscribes** to existing domain events (it adds no new `AuditEventTypeSchema`
   entries) — but its own admin-relevant actions (e.g. preference change) that
   warrant audit go through `safeAudit`/`recordAuditEvent` (#13–14), never
-  `AuditRepo.write`. Notification *sends* are logged separately (not audit).
+  `AuditRepo.write`. Notification _sends_ are logged separately (not audit).
 - **New tables** `notifications`, `notification_preferences`,
   `notification_sends`, `email_suppressions` each need the one-line
   `EXPECTED_TABLES` update in `migrate.integration.test.ts` (#25).
@@ -53,38 +53,38 @@ flowchart LR
 
 ### `notifications` (in-app feed)
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | tenant-scoped. |
-| `user_id` | `uuid` FK | recipient. |
-| `category` | `enum('access','ai','checklist','membership','billing')` | |
-| `event_type` | `text` | source event name. |
-| `payload` | `jsonb` | title, body, deep-link target. |
-| `read_at` | `timestamptz` nullable | |
-| `created_at` | `timestamptz` | |
+| Column       | Type                                                     | Notes                          |
+| ------------ | -------------------------------------------------------- | ------------------------------ |
+| `id`         | `uuid` PK                                                |                                |
+| `org_id`     | `uuid` FK                                                | tenant-scoped.                 |
+| `user_id`    | `uuid` FK                                                | recipient.                     |
+| `category`   | `enum('access','ai','checklist','membership','billing')` |                                |
+| `event_type` | `text`                                                   | source event name.             |
+| `payload`    | `jsonb`                                                  | title, body, deep-link target. |
+| `read_at`    | `timestamptz` nullable                                   |                                |
+| `created_at` | `timestamptz`                                            |                                |
 
 Index `(user_id, created_at)` for feed; partial `(user_id) WHERE read_at IS NULL`
 for unread badge.
 
 ### `notification_preferences`
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `user_id` | `uuid` PK part | |
-| `category` | enum PK part | |
+| Column           | Type                               | Notes         |
+| ---------------- | ---------------------------------- | ------------- |
+| `user_id`        | `uuid` PK part                     |               |
+| `category`       | enum PK part                       |               |
 | `channel_policy` | `enum('immediate','digest','off')` | per category. |
-| `updated_at` | `timestamptz` | |
+| `updated_at`     | `timestamptz`                      |               |
 
 ### `notification_sends` (idempotency + outcome)
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `event_id` | `text` PK part | source event id. |
-| `user_id` | `uuid` PK part | |
-| `channel` | `enum('inapp','email')` PK part | |
-| `outcome` | `enum('sent','suppressed','coalesced','failed')` | |
-| `sent_at` | `timestamptz` | |
+| Column     | Type                                             | Notes            |
+| ---------- | ------------------------------------------------ | ---------------- |
+| `event_id` | `text` PK part                                   | source event id. |
+| `user_id`  | `uuid` PK part                                   |                  |
+| `channel`  | `enum('inapp','email')` PK part                  |                  |
+| `outcome`  | `enum('sent','suppressed','coalesced','failed')` |                  |
+| `sent_at`  | `timestamptz`                                    |                  |
 
 ### `email_suppressions`
 
@@ -119,13 +119,13 @@ NFR4); skips users with zero relevant activity (no empty digests).
 
 ## Interfaces
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/notifications` | Paged in-app feed (own). |
-| `POST` | `/notifications/read` | Mark one/all read. |
-| `GET` | `/notifications/preferences` | Read prefs. |
-| `PUT` | `/notifications/preferences` | Update prefs. |
-| `GET` | `/notifications/unsubscribe/:token` | One-click manage/suppress (signed token). |
+| Method | Path                                | Purpose                                   |
+| ------ | ----------------------------------- | ----------------------------------------- |
+| `GET`  | `/notifications`                    | Paged in-app feed (own).                  |
+| `POST` | `/notifications/read`               | Mark one/all read.                        |
+| `GET`  | `/notifications/preferences`        | Read prefs.                               |
+| `PUT`  | `/notifications/preferences`        | Update prefs.                             |
+| `GET`  | `/notifications/unsubscribe/:token` | One-click manage/suppress (signed token). |
 
 ## Security
 

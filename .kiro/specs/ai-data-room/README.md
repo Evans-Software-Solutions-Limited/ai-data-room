@@ -14,25 +14,25 @@ cross-session coordination.
 
 ## Slice order (dependency-correct)
 
-| #   | Slice                  | Depends on | Status                        | Why it's first/later                                                                   |
-| --- | ---------------------- | ---------- | ----------------------------- | -------------------------------------------------------------------------------------- |
-| 1   | `auth-and-orgs`        | —          | reqs + design + tasks drafted | Foundation. Every other slice touches org tenancy + user identity.                     |
-| 2   | `room-and-folders`     | 1          | reqs + design + tasks drafted | The canonical six-folder room + Opportunities subrooms. Upload/list/delete primitives. |
-| 3   | `access-control`       | 1, 2       | reqs + design + tasks drafted | Date-expiring invites, revocable, tiered permissions, NDA gate, audit log.             |
-| 4   | `doc-checklist`        | 2          | reqs + design + tasks drafted | Fixed per-folder checklist templates; drives self-service completion UX.               |
-| 5   | `ai-doc-sensecheck`    | 2, 4       | reqs + design + tasks drafted | On-upload Claude classification vs. the slot's expected criteria.                      |
-| 6   | `ai-search-qna`        | 2          | reqs + design + tasks drafted | Cited Q&A chat grounded in uploaded docs.                                              |
-| 7   | `admin-dashboard`      | 1–6        | reqs + design + tasks drafted | Aggregates every earlier slice into the admin UX.                                      |
-| 8   | `billing-subscription` | 1          | reqs + design + tasks drafted | Stripe. Can run in parallel with 2–6 once 1 is done.                                   |
-| 9   | `onboarding-flow`      | 1–4, 17    | reqs + design + tasks drafted | Self-serve signup + first-room setup wizard. **Wraps slice 17's org-creation mechanism in guided UX — no longer owns provisioning.** |
-| 10  | `tenant-isolation`     | 1          | reqs + design + tasks drafted | Cross-cutting hardening (ADR-011). **Must land before slice 2's document-bearing tasks.** Listed at 10 to avoid renumbering, but executes between 1 and 2. |
-| 11  | `document-redaction`   | 2, 3 (+5 for AI-assist) | reqs + design + tasks drafted | Manual + AI-assisted redaction. Table-stakes vs. incumbents. |
-| 12  | `document-viewer`      | 2, 3       | reqs + design + tasks drafted | Read-only in-app PDF/Office viewer. **Prerequisite for slice 11** (region drawing); enhances slice 6 (citation → source view). |
-| 13  | `notifications`        | 1 (consumes 2–6 events) | reqs + design + tasks drafted | Product email + in-app notifications (digests, access alerts, NDA, flags). Leaf dependency — can land mid-stream. |
-| 14  | `search-ocr`           | 2, 5       | reqs + design + tasks drafted | OCR (so scanned docs are usable) + keyword full-text search beside semantic Q&A. |
-| 15  | `data-export`          | 1, 2       | reqs + design + tasks drafted | Per-org room export + GDPR portability + offboarding/purge lifecycle. |
-| 16  | `virus-scanning`       | 2          | reqs + design + tasks drafted | Scan-on-upload + quarantine. Clean-gate every consumer. Land early in slice 2's life. |
-| 17  | `org-provisioning`     | 1          | reqs + design + tasks drafted | Owner creates org → first membership → fires `org.created` so the canonical room provisions; flips `/me` from `orgId:null`. **Executes right after slice 1, before 10 + 2.** Pulled forward out of slice 9 (which now wraps it in UX). |
+| #   | Slice                  | Depends on              | Status                        | Why it's first/later                                                                                                                                                                                                                   |
+| --- | ---------------------- | ----------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `auth-and-orgs`        | —                       | reqs + design + tasks drafted | Foundation. Every other slice touches org tenancy + user identity.                                                                                                                                                                     |
+| 2   | `room-and-folders`     | 1                       | reqs + design + tasks drafted | The canonical six-folder room + Opportunities subrooms. Upload/list/delete primitives.                                                                                                                                                 |
+| 3   | `access-control`       | 1, 2                    | reqs + design + tasks drafted | Date-expiring invites, revocable, tiered permissions, NDA gate, audit log.                                                                                                                                                             |
+| 4   | `doc-checklist`        | 2                       | reqs + design + tasks drafted | Fixed per-folder checklist templates; drives self-service completion UX.                                                                                                                                                               |
+| 5   | `ai-doc-sensecheck`    | 2, 4                    | reqs + design + tasks drafted | On-upload Claude classification vs. the slot's expected criteria.                                                                                                                                                                      |
+| 6   | `ai-search-qna`        | 2                       | reqs + design + tasks drafted | Cited Q&A chat grounded in uploaded docs.                                                                                                                                                                                              |
+| 7   | `admin-dashboard`      | 1–6                     | reqs + design + tasks drafted | Aggregates every earlier slice into the admin UX.                                                                                                                                                                                      |
+| 8   | `billing-subscription` | 1                       | reqs + design + tasks drafted | Stripe. Can run in parallel with 2–6 once 1 is done.                                                                                                                                                                                   |
+| 9   | `onboarding-flow`      | 1–4, 17                 | reqs + design + tasks drafted | Self-serve signup + first-room setup wizard. **Wraps slice 17's org-creation mechanism in guided UX — no longer owns provisioning.**                                                                                                   |
+| 10  | `tenant-isolation`     | 1                       | reqs + design + tasks drafted | Cross-cutting hardening (ADR-011). **Must land before slice 2's document-bearing tasks.** Listed at 10 to avoid renumbering, but executes between 1 and 2.                                                                             |
+| 11  | `document-redaction`   | 2, 3 (+5 for AI-assist) | reqs + design + tasks drafted | Manual + AI-assisted redaction. Table-stakes vs. incumbents.                                                                                                                                                                           |
+| 12  | `document-viewer`      | 2, 3                    | reqs + design + tasks drafted | Read-only in-app PDF/Office viewer. **Prerequisite for slice 11** (region drawing); enhances slice 6 (citation → source view).                                                                                                         |
+| 13  | `notifications`        | 1 (consumes 2–6 events) | reqs + design + tasks drafted | Product email + in-app notifications (digests, access alerts, NDA, flags). Leaf dependency — can land mid-stream.                                                                                                                      |
+| 14  | `search-ocr`           | 2, 5                    | reqs + design + tasks drafted | OCR (so scanned docs are usable) + keyword full-text search beside semantic Q&A.                                                                                                                                                       |
+| 15  | `data-export`          | 1, 2                    | reqs + design + tasks drafted | Per-org room export + GDPR portability + offboarding/purge lifecycle.                                                                                                                                                                  |
+| 16  | `virus-scanning`       | 2                       | reqs + design + tasks drafted | Scan-on-upload + quarantine. Clean-gate every consumer. Land early in slice 2's life.                                                                                                                                                  |
+| 17  | `org-provisioning`     | 1                       | reqs + design + tasks drafted | Owner creates org → first membership → fires `org.created` so the canonical room provisions; flips `/me` from `orgId:null`. **Executes right after slice 1, before 10 + 2.** Pulled forward out of slice 9 (which now wraps it in UX). |
 
 **Execution order ≠ index number.** The numbers are a stable index, not the run
 order. True run order starts: **1 → 17 (org-provisioning) → 10 (tenant-isolation)
@@ -112,7 +112,7 @@ given its own slice.**
 - ma-workflow / rfp-response
 - internal-kb-mode
 - storage-sync (onedrive/gdrive)
-- watermark-preview-drm — *decision pending:* hold at Phase 2 if we stay in the
+- watermark-preview-drm — _decision pending:_ hold at Phase 2 if we stay in the
   SME vendor/RFP lane; pull forward only if chasing regulated M&A (see
   `docs/product/positioning.md`).
 - soc2-iso27001 (compliance track)

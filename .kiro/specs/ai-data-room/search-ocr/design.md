@@ -52,20 +52,20 @@ flowchart LR
 
 ### `fts_pages`
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | tenant-scoped. |
-| `document_id` | `uuid` FK | |
-| `document_version_id` | `uuid` FK | |
-| `opportunity_id` | `uuid` nullable | scope. |
-| `canonical_folder` | `text` nullable | scope. |
-| `page` | `int` | |
-| `text` | `text` | extracted or OCR'd page text. |
-| `tsv` | `tsvector` | generated from `text` (language config `english`). |
-| `text_source` | `enum('native','ocr')` | provenance. |
-| `ocr_status` | `enum('n/a','ok','failed')` | for the health view. |
-| `indexed_at` | `timestamptz` | |
+| Column                | Type                        | Notes                                              |
+| --------------------- | --------------------------- | -------------------------------------------------- |
+| `id`                  | `uuid` PK                   |                                                    |
+| `org_id`              | `uuid` FK                   | tenant-scoped.                                     |
+| `document_id`         | `uuid` FK                   |                                                    |
+| `document_version_id` | `uuid` FK                   |                                                    |
+| `opportunity_id`      | `uuid` nullable             | scope.                                             |
+| `canonical_folder`    | `text` nullable             | scope.                                             |
+| `page`                | `int`                       |                                                    |
+| `text`                | `text`                      | extracted or OCR'd page text.                      |
+| `tsv`                 | `tsvector`                  | generated from `text` (language config `english`). |
+| `text_source`         | `enum('native','ocr')`      | provenance.                                        |
+| `ocr_status`          | `enum('n/a','ok','failed')` | for the health view.                               |
+| `indexed_at`          | `timestamptz`               |                                                    |
 
 Indexes: `GIN (tsv)` for FTS; `(org_id, opportunity_id, canonical_folder)` for
 the scope pre-filter; `(document_id)` for cascade delete.
@@ -96,10 +96,10 @@ the scope pre-filter; `(document_id)` for cascade delete.
 
 ## Interfaces
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/search` | Keyword search (scope-filtered, ranked, highlighted). |
-| `GET` | `/search/ocr-health` | Admin: documents with `ocr_failed` pages. |
+| Method | Path                 | Purpose                                               |
+| ------ | -------------------- | ----------------------------------------------------- |
+| `GET`  | `/search`            | Keyword search (scope-filtered, ranked, highlighted). |
+| `GET`  | `/search/ocr-health` | Admin: documents with `ocr_failed` pages.             |
 
 A unified search bar in the web app offers two modes — "search" (this slice)
 and "ask" (`ai-search-qna`) — over the same scope.
@@ -126,7 +126,7 @@ and "ask" (`ai-search-qna`) — over the same scope.
 - **Postgres FTS over a dedicated search engine (Elastic/OpenSearch).** Same DB
   we already run, same per-row scoping as pgvector, far fewer moving parts.
   Accept the ceiling; revisit if scale or relevance needs demand it.
-- **Reuse the shared extractor + indexing bus.** OCR is an *augmentation* of the
+- **Reuse the shared extractor + indexing bus.** OCR is an _augmentation_ of the
   existing pipeline, not a parallel one — one source of truth for page text
   across sense-check, Q&A, search, redaction.
 - **Keyword beside semantic, not instead.** Users want both "find the file with

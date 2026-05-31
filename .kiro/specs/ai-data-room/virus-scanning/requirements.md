@@ -89,7 +89,7 @@ downloadable or AI-processable until it has passed a malware scan.
 ## Non-goals (for this slice)
 
 - Content / DLP inspection (detecting sensitive data) → that's `document-
-  redaction` + sense-check, not malware scanning.
+redaction` + sense-check, not malware scanning.
 - Scanning of AI-generated renditions/renders (they derive from already-scanned
   originals) → not required.
 - Email-attachment scanning → out of scope.

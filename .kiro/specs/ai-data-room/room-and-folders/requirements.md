@@ -54,7 +54,7 @@ that sits on top of each folder — that's `doc-checklist`.
 ### Room provisioning
 
 - **FR1** — On org creation (handled in `org-provisioning`, slice 17 — which
-  emits `org.created`; slice 1 ships the org *model* but defers self-serve
+  emits `org.created`; slice 1 ships the org _model_ but defers self-serve
   provisioning), the system shall provision a room with the canonical
   structure. The provisioning subscriber MUST be idempotent on `org_id` (a
   redelivered `org.created` must not duplicate folders):

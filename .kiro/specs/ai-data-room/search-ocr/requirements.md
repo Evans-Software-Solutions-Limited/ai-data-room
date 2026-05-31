@@ -14,7 +14,7 @@
 incumbent ships are still missing: **OCR** (so scanned / image-only PDFs become
 text at all) and **classic keyword / full-text search** (exact-match lookup
 across the room). Without OCR, a scanned contract or photographed document is
-invisible to sense-check, Q&A *and* redaction — a silent quality cliff. Without
+invisible to sense-check, Q&A _and_ redaction — a silent quality cliff. Without
 keyword search, users can't do the "just find me the file that mentions X"
 lookup that complements AI answers. This slice delivers both: an OCR step in
 the ingestion pipeline and a Postgres full-text search index + API.
@@ -54,7 +54,7 @@ the ingestion pipeline and a Postgres full-text search index + API.
 ### Keyword / full-text search
 
 - **FR4** — The system shall maintain a Postgres full-text index over extracted
-  + OCR'd document text, scoped by `org_id` (and opportunity/folder).
+  - OCR'd document text, scoped by `org_id` (and opportunity/folder).
 - **FR5** — A search API shall accept a query string and return matching
   documents with the matching page(s) and a highlighted snippet, ranked by
   relevance (`ts_rank` or equivalent).

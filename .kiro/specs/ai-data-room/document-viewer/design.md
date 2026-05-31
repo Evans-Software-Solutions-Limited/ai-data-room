@@ -51,18 +51,18 @@ flowchart LR
 Cache of rendered page assets per document version (and per rendition for
 redaction-scoped serving).
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | tenant-scoped. |
-| `document_id` | `uuid` FK | |
-| `source_kind` | `enum('original','rendition')` | which artifact was rendered. |
-| `source_id` | `uuid` | `document_version_id` or `rendition_id`. |
-| `page_count` | `int` | |
-| `page_dims` | `jsonb` | `[{page, w, h}]` — for region anchoring (FR2). |
-| `s3_prefix` | `text` | private; pages under `…/p{n}.png`. |
-| `status` | `enum('pending','ready','failed')` | |
-| `created_at` | `timestamptz` | |
+| Column        | Type                               | Notes                                          |
+| ------------- | ---------------------------------- | ---------------------------------------------- |
+| `id`          | `uuid` PK                          |                                                |
+| `org_id`      | `uuid` FK                          | tenant-scoped.                                 |
+| `document_id` | `uuid` FK                          |                                                |
+| `source_kind` | `enum('original','rendition')`     | which artifact was rendered.                   |
+| `source_id`   | `uuid`                             | `document_version_id` or `rendition_id`.       |
+| `page_count`  | `int`                              |                                                |
+| `page_dims`   | `jsonb`                            | `[{page, w, h}]` — for region anchoring (FR2). |
+| `s3_prefix`   | `text`                             | private; pages under `…/p{n}.png`.             |
+| `status`      | `enum('pending','ready','failed')` |                                                |
+| `created_at`  | `timestamptz`                      |                                                |
 
 Index `(document_id, source_kind, source_id)` — one render per artifact.
 
@@ -81,10 +81,10 @@ Index `(document_id, source_kind, source_id)` — one render per artifact.
 
 All under `/orgs/:orgId/documents/:documentId`, behind `access-control`.
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/view` | Render status + page count + dims + signed page URLs. |
-| `GET` | `/view/page/:n` | Signed URL for one page (lazy paging). |
+| Method | Path            | Purpose                                               |
+| ------ | --------------- | ----------------------------------------------------- |
+| `GET`  | `/view`         | Render status + page count + dims + signed page URLs. |
+| `GET`  | `/view/page/:n` | Signed URL for one page (lazy paging).                |
 
 The client shell is a `packages/web` component exposing
 `<DocumentViewer documentId overlay={…} initialPage />`. `overlay` is the

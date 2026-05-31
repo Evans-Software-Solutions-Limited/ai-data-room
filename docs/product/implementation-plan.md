@@ -20,14 +20,14 @@ and the [spec index](../../.kiro/specs/ai-data-room/README.md).
 
 These gate clean implementation and let us sign off "docs + foundation current."
 
-| Item | Action | Owner | Blocking? |
-| --- | --- | --- | --- |
-| Sign off [ADR-011](../../adr/011-multi-tenant-isolation.md) | Accept (or amend) row-level tenant isolation as a slice-2 prerequisite. | Bradley | Yes — gates slice 2 |
-| Redaction scope call | Decide: document redaction in MVP (proposed) vs Phase 2. | Bradley | Yes — gates the slice-2 task list |
-| Watermark/fence-view call | Confirm Phase 2 (SME lane) or pull forward (M&A). | Bradley | No |
-| Merge T-022 (PR #28) | Finish slice-1 sign-off + tag `v0.1.0-auth-and-orgs`. | Bradley | No (parallel) |
-| RB-2 — e2e stage | Provision e2e env + WorkOS test tenant so slice-1 Playwright actually runs. | Bradley | No (before GA) |
-| RB-4 — delete `hello-world` cruft | Remove template scaffolding from `core` + `workers`. | chore PR | No |
+| Item                                                        | Action                                                                      | Owner    | Blocking?                         |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------- | -------- | --------------------------------- |
+| Sign off [ADR-011](../../adr/011-multi-tenant-isolation.md) | Accept (or amend) row-level tenant isolation as a slice-2 prerequisite.     | Bradley  | Yes — gates slice 2               |
+| Redaction scope call                                        | Decide: document redaction in MVP (proposed) vs Phase 2.                    | Bradley  | Yes — gates the slice-2 task list |
+| Watermark/fence-view call                                   | Confirm Phase 2 (SME lane) or pull forward (M&A).                           | Bradley  | No                                |
+| Merge T-022 (PR #28)                                        | Finish slice-1 sign-off + tag `v0.1.0-auth-and-orgs`.                       | Bradley  | No (parallel)                     |
+| RB-2 — e2e stage                                            | Provision e2e env + WorkOS test tenant so slice-1 Playwright actually runs. | Bradley  | No (before GA)                    |
+| RB-4 — delete `hello-world` cruft                           | Remove template scaffolding from `core` + `workers`.                        | chore PR | No                                |
 
 ## Phase 1 — the showcase loop
 
@@ -36,12 +36,13 @@ auditable answer** loop. Sequenced for demo value within the spec's dependency
 rules (4/5/6 each need 2).
 
 0a. **Slice 17 — `org-provisioning`** (T-001 → T-006). Runs first: nothing
-   self-serve creates an `org_id` until this lands (slice 1 left `/me.orgId =
+self-serve creates an `org_id` until this lands (slice 1 left `/me.orgId =
    null`). Owner-creates-org → first membership → `org.created` → flips `/me`.
-   Slices 10 + 2 attach to the org it creates.
+Slices 10 + 2 attach to the org it creates.
 0b. **Slice 10 — `tenant-isolation`** (T-001 → T-008). Cross-cutting hardening;
-   gates document storage. ADR-011 moves to `accepted` on its T-006 (property
-   test) green.
+gates document storage. ADR-011 moves to `accepted` on its T-006 (property
+test) green.
+
 1. **Slice 2 — `room-and-folders`** (T-001 → T-020). The foundation: S3 + KMS,
    four tables, repos, upload/list/download, opportunity subrooms, web folder
    nav + dropzone. Its document-bearing tasks (T-006+) depend on slice 10.

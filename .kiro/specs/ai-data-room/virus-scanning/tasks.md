@@ -80,11 +80,12 @@ delete.
 
 Status: `[ ]`
 **Scope:** Verdict/latency/backlog/retry/quarantine metrics; alarms (backlog
->300s, any infected, scan_failed accumulation); tenant-scope + fail-closed
-hardening pass.
-**Files (likely):** `infrastructure/observability/metrics.ts`, `infra/*`.
-**DoD:** Metrics emit; alarms wired; NFR matrix complete.
-**Tests required:** Unit — metric emission; fail-closed assertion.
+
+> 300s, any infected, scan_failed accumulation); tenant-scope + fail-closed
+> hardening pass.
+> **Files (likely):** `infrastructure/observability/metrics.ts`, `infra/*`.
+> **DoD:** Metrics emit; alarms wired; NFR matrix complete.
+> **Tests required:** Unit — metric emission; fail-closed assertion.
 
 ---
 

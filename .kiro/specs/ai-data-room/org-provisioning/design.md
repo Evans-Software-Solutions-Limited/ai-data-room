@@ -15,7 +15,7 @@ local `orgs` row, creates the creator's `owner` membership, and emits
 `org.created` to provision the canonical six folders (idempotently). After this,
 `resolveActor`/`/me` resolves a real `{ orgId, role: 'owner' }` instead of the
 slice-1 `{ orgId: null }` lazy-mirror state. This slice deliberately owns only
-the *mechanism*; `onboarding-flow` (slice 9) wraps it in guided UX.
+the _mechanism_; `onboarding-flow` (slice 9) wraps it in guided UX.
 
 ## Architecture
 
@@ -61,8 +61,8 @@ columns. (The `org.created` event payload is `{ orgId, workosOrgId, ownerUserId
 
 ## Interfaces
 
-| Method | Path | Purpose |
-| --- | --- | --- |
+| Method | Path    | Purpose                                                      |
+| ------ | ------- | ------------------------------------------------------------ |
 | `POST` | `/orgs` | Create the caller's organisation (name in body). `meRoutes`. |
 
 Returns `{ orgId, role: 'owner' }`. Subsequent `/me` reflects the same.
@@ -71,10 +71,10 @@ Returns `{ orgId, role: 'owner' }`. Subsequent `/me` reflects the same.
 
 `createOrg` runs inside `withTx` (sticky #15), awaits sequential:
 
-1. `workos.createOrganization(name)` → WorkOS org id. *(External call —
+1. `workos.createOrganization(name)` → WorkOS org id. _(External call —
    performed before the DB writes; if the DB tx then fails, a compensating
    cleanup or an accepted orphaned-WorkOS-org is logged. Resolve the exact
-   ordering in T-002 — see open questions.)*
+   ordering in T-002 — see open questions.)_
 2. `orgRepo.withTx(tx).create({ workosOrgId, name })` → local UUID (mirror per
    sticky #16).
 3. `membershipRepo.withTx(tx).create({ userId, orgId, role: 'owner' })`.

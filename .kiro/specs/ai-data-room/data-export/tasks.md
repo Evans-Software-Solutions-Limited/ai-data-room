@@ -90,10 +90,11 @@ reactivate during grace.
 
 Status: `[ ]`
 **Scope:** Export/offboarding/purge metrics; `residual_rows>0` alarm; bundle TTL
-+ tenant-scope hardening pass.
-**Files (likely):** `infrastructure/observability/metrics.ts`, `infra/*`.
-**DoD:** Metrics emit; residual-rows alarm wired; NFR matrix complete.
-**Tests required:** Unit — metric emission; verification assertion.
+
+- tenant-scope hardening pass.
+  **Files (likely):** `infrastructure/observability/metrics.ts`, `infra/*`.
+  **DoD:** Metrics emit; residual-rows alarm wired; NFR matrix complete.
+  **Tests required:** Unit — metric emission; verification assertion.
 
 ---
 

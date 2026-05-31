@@ -52,17 +52,17 @@ Extends `room-and-folders`' `document_versions` rather than a new core table:
 
 ### `scan_results`
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | `uuid` PK | |
-| `org_id` | `uuid` FK | tenant-scoped. |
-| `document_version_id` | `uuid` FK | |
-| `verdict` | `enum('clean','infected','error')` | |
-| `engine` | `text` | e.g. `clamav`. |
-| `signature_version` | `text` | FR5/NFR4. |
-| `detail` | `text` nullable | signature name on detection. |
-| `attempt` | `int` | retry count. |
-| `scanned_at` | `timestamptz` | |
+| Column                | Type                               | Notes                        |
+| --------------------- | ---------------------------------- | ---------------------------- |
+| `id`                  | `uuid` PK                          |                              |
+| `org_id`              | `uuid` FK                          | tenant-scoped.               |
+| `document_version_id` | `uuid` FK                          |                              |
+| `verdict`             | `enum('clean','infected','error')` |                              |
+| `engine`              | `text`                             | e.g. `clamav`.               |
+| `signature_version`   | `text`                             | FR5/NFR4.                    |
+| `detail`              | `text` nullable                    | signature name on detection. |
+| `attempt`             | `int`                              | retry count.                 |
+| `scanned_at`          | `timestamptz`                      |                              |
 
 ## Scan worker
 
@@ -86,11 +86,11 @@ Extends `room-and-folders`' `document_versions` rather than a new core table:
 
 ## Interfaces
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/documents/:id/scan-status` | Scan state + result for a document's versions. |
-| `GET` | `/quarantine` | Admin: list quarantined versions. |
-| `DELETE` | `/quarantine/:versionId` | Admin: delete a quarantined version. |
+| Method   | Path                         | Purpose                                        |
+| -------- | ---------------------------- | ---------------------------------------------- |
+| `GET`    | `/documents/:id/scan-status` | Scan state + result for a document's versions. |
+| `GET`    | `/quarantine`                | Admin: list quarantined versions.              |
+| `DELETE` | `/quarantine/:versionId`     | Admin: delete a quarantined version.           |
 
 ## Security
 
