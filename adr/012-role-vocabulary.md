@@ -48,22 +48,30 @@ Opportunity-scoped external viewers.
 
 - **Positive:** one vocabulary across UI, API, audit log, and docs; clearer
   end-user labels; the design and backend agree.
-- **Negative / trade-offs:** a migration against shipped data — the
-  `org_memberships.role` and `invitations.role` enums, any WorkOS role metadata,
-  repos, fixtures, and tests must all move together. `AuditEventTypeSchema` and
-  historical audit rows referencing `admin`/`internal` need a backfill or a
-  documented cutover.
+- **Negative / trade-offs:** a migration touching the `org_memberships.role` and
+  `invitations.role` enums, the canonical zod `RoleSchema` / `InvitationRoleSchema`
+  in `packages/api-utils`, repos, guards, fixtures, and tests — all moving
+  together. Role is **stored locally only** — there is no WorkOS-side role
+  metadata to migrate (verified against the shipped WorkOS client, 2026-05-31).
+  Historical audit rows: `event_type` is `text` (not the renamed enum) and any
+  `role` value sits in free-form JSON `metadata`; with no production data
+  pre-launch this is a no-op cutover, documented rather than backfilled.
 - **Follow-ups / obligations:**
   - **Folded into `org-provisioning` as T-000** (RB-7) — the first build target,
-    which already touches memberships/roles. `ALTER TYPE` (or new enum +
-    backfill) for `org_memberships.role` and `invitations.role`; update repos,
-    guards (`authorizeOrgAccess`), `/me` shape, WorkOS role metadata, fixtures,
-    and tests in one PR. ADR moves to `accepted` on T-000 green.
-  - Update the `migrate.integration.test.ts` expectations.
+    which already touches memberships/roles. Hand-authored `ALTER TYPE … RENAME
+    VALUE` (+ paired `.down.sql`) for `org_memberships.role` and
+    `invitations.role`; update the canonical zod schemas, repos, guards
+    (`authorizeOrgAccess` / `OWNER_ADMIN`), the `/me` role union, the invitation
+    role guards + handler body schema, fixtures, and tests in one PR. ADR moves
+    to `accepted` on T-000 green.
+  - Add a value-level enum-label assertion to `migrate.integration.test.ts`
+    (its current checks assert enum _names_ only, so a value rename is otherwise
+    untested).
   - Lands before `access-control` (slice 3) builds role-tier logic, so it builds
     on the final names.
 
 ## References
 
 - `identity.js` `ROLES` — the canonical capability model.
-- ADR-001 (WorkOS) — role metadata lives partly in WorkOS; the rename touches it.
+- ADR-001 (WorkOS) — auth platform. Role is stored locally, not in WorkOS, so
+  the rename does not touch WorkOS metadata at v0.1.

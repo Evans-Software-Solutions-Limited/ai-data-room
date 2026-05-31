@@ -1,6 +1,6 @@
 # Requirements — ai-data-room / org-provisioning
 
-**Status:** draft
+**Status:** signed off (Bradley, 2026-05-31)
 **Owner:** Bradley
 **Last updated:** 2026-05-31
 **Brief:** [../../../briefs/ai-data-room.md](../../../briefs/ai-data-room.md)
@@ -71,8 +71,13 @@ correctly, with the owner attached and the canonical room provisioned.
   transaction is the guarantee.
 - **NFR2** — The `org.created` → room-provisioning handoff shall be idempotent:
   a redelivered event shall not create duplicate canonical folders.
-- **NFR3** — All created rows are tenant-scoped from birth (`tenant-isolation`
-  applies the moment the org exists).
+- **NFR3** — All created rows carry `org_id` from birth. Note the query-time
+  tenant **guard** (ADR-011) ships in `tenant-isolation` (slice 10), which runs
+  _after_ this slice; ADR-011 lists "backfill the guard onto the slice-1 repos"
+  as an obligation, and this slice's `createOrg` repos join that backfill set.
+  Until then isolation rests on the existing application-layer cross-org checks —
+  acceptable here because `createOrg` only writes the creator's own org + their
+  own membership (no cross-org read path).
 - **NFR4** — Org creation shall be rate-limited (reuse the slice-1 limiter) to
   prevent org-spam from a single actor.
 
@@ -112,5 +117,5 @@ correctly, with the owner attached and the canonical room provisioned.
 
 ## Sign-off
 
-- [ ] Bradley reviewed
-- [ ] Design phase unblocked
+- [x] Bradley reviewed
+- [x] Design phase unblocked

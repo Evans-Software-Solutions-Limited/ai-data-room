@@ -1,6 +1,6 @@
 # Design — ai-data-room / org-provisioning
 
-**Status:** draft
+**Status:** signed off (Bradley, 2026-05-31)
 **Requirements:** [./requirements.md](./requirements.md)
 **Last updated:** 2026-05-31
 **Depends on:** `auth-and-orgs`; hands off to `room-and-folders`,
@@ -122,5 +122,5 @@ Awaits stay sequential — Drizzle's tx wraps one Postgres connection (sticky #1
 
 ## Sign-off
 
-- [ ] Bradley reviewed
-- [ ] Tasks phase unblocked
+- [x] Bradley reviewed
+- [x] Tasks phase unblocked
