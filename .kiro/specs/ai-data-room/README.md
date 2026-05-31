@@ -35,8 +35,10 @@ cross-session coordination.
 **Showcase sequencing (demo value, within the dependency constraints).** To
 stand up a demoable "upload → AI checks it → ask a cited question" loop fastest,
 front-load: **2 (rooms) → 6 (cited Q&A, the hero) → 5 (sense-check) → 4
-(checklist)**, then 8/7/9 trail. Rationale + the production-readiness blockers
-that gate this live in
+(checklist)**, then 8/7/9 trail. The full ordered backlog (the thing to
+hand to Claude Code) lives in
+[`docs/product/implementation-plan.md`](../../../docs/product/implementation-plan.md);
+the production-readiness blockers that gate it live in
 [`docs/product/production-readiness.md`](../../../docs/product/production-readiness.md).
 Strategic north star (why we win vs. incumbents) lives in
 [`docs/product/positioning.md`](../../../docs/product/positioning.md).

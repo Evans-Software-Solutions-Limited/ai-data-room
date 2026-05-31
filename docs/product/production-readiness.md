@@ -42,6 +42,10 @@
 
 ## Recommended sequence to a demoable product
 
+> The authoritative, task-level ordered backlog lives in
+> [`implementation-plan.md`](./implementation-plan.md). The summary below is the
+> rationale.
+
 To showcase the product's magic fastest — the "upload → AI checks it → ask a
 question → get a cited answer" loop — sequence the slices for *demo value*, not
 just dependency order:
