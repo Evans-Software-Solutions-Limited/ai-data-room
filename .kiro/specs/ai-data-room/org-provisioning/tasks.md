@@ -1,6 +1,6 @@
 # Tasks — ai-data-room / org-provisioning
 
-**Status:** draft
+**Status:** signed off (Bradley, 2026-05-31) — ready to execute
 **Design:** [./design.md](./design.md)
 **Last updated:** 2026-05-31
 
@@ -18,24 +18,45 @@ any later slice builds role-tier logic. Conventions: same as
 ## T-000 — Role-vocabulary migration (admin→editor, internal→viewer)
 
 Status: `[ ]`
-**Scope:** Rename the shipped role enum end to end, per ADR-012. DB: migrate
-`org_memberships.role` and `invitations.role` enum values `admin`→`editor`,
-`internal`→`viewer` (Postgres `ALTER TYPE ... RENAME VALUE`, or new enum +
-backfill if rename isn't viable on the managed instance). Code: update Drizzle
-schema, repos, `authorizeOrgAccess` + role allowlists, the `/me` role shape, the
-`AuditEventTypeSchema`/audit metadata, WorkOS role metadata on existing members,
-and all fixtures/tests. **Leave the `kind` (`internal`/`external`) category and
+**Scope:** Rename the shipped role enum end to end, per ADR-012. **The canonical
+source of the role union is the zod `RoleSchema` / `InvitationRoleSchema` in
+`packages/api-utils/src/schemas/auth-orgs.ts` — every domain type, repo, and
+guard derives from it, so it must move first or the Drizzle enum and the TS type
+disagree.** DB: migrate `org_memberships.role` and `invitations.role` enum values
+`admin`→`editor`, `internal`→`viewer`. Use Postgres `ALTER TYPE … RENAME VALUE`
+(clean, fully reversible — down is the reverse rename). drizzle-kit cannot emit
+`RENAME VALUE` (it diffs enum changes as drop/recreate), so this is a
+**hand-authored** migration paired with a `.down.sql` outside the read folder
+(sticky #8), with a comment explaining why. Code: update the zod schemas above,
+the Drizzle schema, repos, `authorizeOrgAccess` + role allowlists
+(`OWNER_ADMIN`), the `/me` inline role union, the invitation role guards +
+handler body schema, audit metadata literals, and all fixtures/tests. **No WorkOS
+role-metadata update is required — role is stored locally only; the WorkOS client
+carries no role metadata (verified 2026-05-31). If WorkOS RBAC is adopted later
+that is its own task.** **Leave the `kind` (`internal`/`external`) category and
 `ROLES[x].internal` flag untouched** — those are the category, not the role.
-**Files (likely):** `packages/db/schema/auth.ts`, `packages/db/migrations/*`,
-`microservices/core/src/infrastructure/db/*Repo.ts`,
-`application/auth/_shared/orgAccess.ts`, `application/auth/user/getUserHandler.ts`,
-`application/audit.ts`, test fixtures.
+**Files (likely):**
+`packages/api-utils/src/schemas/auth-orgs.ts` (canonical `RoleSchema` +
+`InvitationRoleSchema`),
+`packages/db/src/schema/auth.ts` (`orgRole`, `invitationRole` pgEnums),
+`packages/db/migrations/*` (+ paired `.down.sql`),
+`microservices/core/src/infrastructure/db/membershipRepo.ts`,
+`microservices/core/src/application/auth/_shared/orgAccess.ts` (`OWNER_ADMIN`),
+`microservices/core/src/application/auth/user/getUserHandler.ts` (inline 4-tuple),
+`microservices/core/src/application/invitations.ts` (role guards + audit meta),
+`microservices/core/src/application/auth/invitations/postInvitationsHandler.ts`
+(`t.Union([t.Literal("admin"), t.Literal("internal")])` body schema),
+test fixtures across `application/__tests__/*` + `auth/**/__tests__/*`.
 **DoD:** No `admin`/`internal` _role_ token remains in code or DB; `/me` returns
-`owner|editor|viewer|external`; slice-1 suite green; `migrate.integration.test.ts`
-`EXPECTED_TABLES`/enum expectations updated; ADR-012 → `accepted`.
-**Tests required:** Migration integration test (up + down); regression that a
-former-`admin` member resolves as `editor` and a former-`internal` as `viewer`;
-guard/authorize tests on the new names.
+`owner|editor|viewer|external`; slice-1 suite green; ADR-012 → `accepted`. Note:
+`migrate.integration.test.ts` asserts enum _names_ (`pg_type.typname`) only, so a
+value rename is invisible to it and `EXPECTED_ENUMS` needs **no** change — instead
+**add a value-level assertion** (`pg_enum.enumlabel` for `org_role` /
+`invitation_role`) so the rename is actually covered.
+**Tests required:** Migration integration test (up + down) **with the new
+value-level enum-label assertion**; regression that a former-`admin` member
+resolves as `editor` and a former-`internal` as `viewer`; guard/authorize tests
+on the new names.
 **Blocks:** every later task that creates or reads a membership role.
 
 ---
@@ -44,13 +65,21 @@ guard/authorize tests on the new names.
 
 Status: `[ ]`
 **Scope:** `CreateOrgInput` zod schema (name 1–80); `org.created` event payload
-type; add `org.created` + `membership.created` to `AuditEventTypeSchema`
-(`application/audit.ts`).
-**Files (likely):** `microservices/core/domain/org/*`,
-`packages/api-utils/schemas/org.ts`, `application/audit.ts`.
-**DoD:** Schemas + event type exported; audit enum extended.
-**Tests required:** Unit — schema happy + failure; audit-enum includes the two
-new events.
+type; add `org.created` + `membership.created` to `AuditEventTypeSchema`. **That
+enum lives in `packages/api-utils/src/schemas/auth-orgs.ts` (not
+`application/audit.ts`, which only imports `AuditEventSchema`).** Its
+exhaustiveness is locked by a count assertion in
+`packages/api-utils/src/schemas/__tests__/auth-orgs.test.ts` — going from 21 to
+23 events **will fail that test** unless its count + per-name presence checks are
+updated in the same change.
+**Files (likely):** `microservices/core/src/domain/org.ts`,
+`packages/api-utils/src/schemas/org.ts` (new — `CreateOrgInput`),
+`packages/api-utils/src/schemas/auth-orgs.ts` (`AuditEventTypeSchema` +2),
+`packages/api-utils/src/schemas/__tests__/auth-orgs.test.ts` (count 21→23).
+**DoD:** Schemas + event type exported; audit enum extended; the auth-orgs
+exhaustiveness test updated and green.
+**Tests required:** Unit — schema happy + failure; the auth-orgs count/presence
+test asserts the two new events.
 
 ---
 
