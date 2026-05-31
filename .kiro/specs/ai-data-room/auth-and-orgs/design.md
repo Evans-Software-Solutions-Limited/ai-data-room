@@ -62,7 +62,7 @@ flowchart LR
 | MFA enrolment UI + TOTP verification                                      | ✅                     |                                                      |
 | Session token issuance + refresh                                          | ✅                     |                                                      |
 | Org concept (as a WorkOS "Organization")                                  | ✅ (thin)              | ✅ (our domain org wraps it)                         |
-| Role assignment to users (`owner`/`admin`/`internal`/`external`)          |                        | ✅                                                   |
+| Role assignment to users (`owner`/`editor`/`viewer`/`external`)           |                        | ✅                                                   |
 | Opportunity scope on an external invite                                   |                        | ✅                                                   |
 | User lifecycle state (`active`/`suspended`/`deleted`)                     |                        | ✅                                                   |
 | Product audit trail (queryable per-org, per-user, per-time range)         | WorkOS emits its own   | ✅ (ours is the system of record for product events) |
@@ -113,13 +113,13 @@ joinable.
 Join: user ↔ org ↔ role. One row per (user, org) pair. v0.1 constrains a
 user to at most one internal membership (enforced at app level).
 
-| Column                      | Type                               | Notes                                      |
-| --------------------------- | ---------------------------------- | ------------------------------------------ |
-| `id`                        | `uuid` PK                          |                                            |
-| `org_id`                    | `uuid` FK `organizations.id`       |                                            |
-| `user_id`                   | `uuid` FK `users.id`               |                                            |
-| `role`                      | `enum('owner','admin','internal')` | External users don't get a membership row. |
-| `created_at` / `updated_at` | `timestamptz`                      |                                            |
+| Column                      | Type                              | Notes                                      |
+| --------------------------- | --------------------------------- | ------------------------------------------ |
+| `id`                        | `uuid` PK                         |                                            |
+| `org_id`                    | `uuid` FK `organizations.id`      |                                            |
+| `user_id`                   | `uuid` FK `users.id`              |                                            |
+| `role`                      | `enum('owner','editor','viewer')` | External users don't get a membership row. |
+| `created_at` / `updated_at` | `timestamptz`                     |                                            |
 
 Unique: `(org_id, user_id)`. Unique partial: `(org_id) where role='owner'`
 enforces single-owner-per-org at v0.1.
@@ -156,7 +156,7 @@ Opportunity scope) that WorkOS's invitation API doesn't model natively.
 | `org_id`                    | `uuid` FK                                        |                                       |
 | `email`                     | `citext`                                         |                                       |
 | `kind`                      | `enum('internal','external')`                    |                                       |
-| `role`                      | `enum('admin','internal')` nullable              | Only set when `kind='internal'`.      |
+| `role`                      | `enum('editor','viewer')` nullable               | Only set when `kind='internal'`.      |
 | `opportunity_slug`          | `text` nullable                                  | Only set when `kind='external'`.      |
 | `invited_by`                | `uuid` FK `users.id`                             |                                       |
 | `state`                     | `enum('pending','accepted','revoked','expired')` |                                       |
@@ -232,7 +232,7 @@ and the SDK caches JWKS internally on warm Lambdas, so the original
   userId: string;
   email: string;
   fullName: string;
-  role: 'owner' | 'admin' | 'internal' | 'external' | null;
+  role: 'owner' | 'editor' | 'viewer' | 'external' | null;
   orgId: string | null;     // null for pure-external users + unprovisioned
   orgName: string | null;
   opportunityScopes: string[]; // populated for external users

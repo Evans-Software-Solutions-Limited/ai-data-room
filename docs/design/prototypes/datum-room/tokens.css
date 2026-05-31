@@ -1,0 +1,87 @@
+/* ==========================================================================
+   datum/room — design tokens
+   A calm, auditable, "ink on paper" system for a fintech secure data room.
+   No pure black/white. No gradients. No glow. Two shadow layers only.
+
+   Token groups:
+     1. Surfaces & ink (warm neutrals)
+     2. Hairlines & radii & shadow
+     3. Status palette (muted, NON-AI)
+     4. AI surface — RESERVED. Swapped wholesale by the Tweaks contract.
+     5. Type
+   The AI group is the only chromatic colour on chrome/status surfaces.
+   Nothing outside the AI group may use --ai-*.
+   ========================================================================== */
+
+:root {
+  /* 1 — Surfaces & ink ---------------------------------------------------- */
+  --paper:        oklch(0.971 0.006 84);   /* app background        ~#f7f5f0 */
+  --paper-2:      oklch(0.944 0.008 84);   /* sunken / sidebar      ~#efece4 */
+  --paper-3:      oklch(0.922 0.010 82);   /* deeper sunken         ~#e6e2d6 */
+  --card:         oklch(0.995 0.002 84);   /* raised surface        ~#fffefb */
+  --ink:          oklch(0.262 0.008 74);   /* primary text          ~#1a1815 */
+  --ink-2:        oklch(0.430 0.012 74);   /* secondary text        ~#4a463d */
+  --ink-3:        oklch(0.560 0.012 74);   /* tertiary / muted      ~#7a7468 */
+  --ink-on-dark:  oklch(0.971 0.004 84);   /* text on ink surfaces           */
+
+  /* 2 — Hairlines, radii, shadow ----------------------------------------- */
+  --rule:         oklch(0.862 0.012 80);   /* hairline rule         ~#d8d2c1 */
+  --rule-2:       oklch(0.908 0.010 82);   /* faint rule            ~#e7e2d6 */
+  --rule-strong:  oklch(0.800 0.014 78);   /* emphasised divider             */
+
+  --r-sm: 3px;
+  --r:    5px;
+  --r-lg: 8px;
+  --r-pill: 999px;
+
+  --shadow-1: 0 1px 1px rgba(26,24,21,0.03), 0 1px 2px rgba(26,24,21,0.05);
+  --shadow-2: 0 2px 6px rgba(26,24,21,0.06), 0 12px 28px rgba(26,24,21,0.07);
+
+  /* 3 — Status palette (muted, NEVER AI) --------------------------------- */
+  --ok:        oklch(0.502 0.072 150);     /* match / signed        ~#3f6b4a */
+  --ok-tint:   oklch(0.955 0.022 150);
+  --warn:      oklch(0.582 0.098 72);      /* ochre — NON-AI warn   ~#a86d1a */
+  --warn-tint: oklch(0.955 0.030 78);
+  --err:       oklch(0.452 0.118 28);      /* oxblood               ~#8e2f2a */
+  --err-tint:  oklch(0.952 0.028 28);
+  --pending:   oklch(0.500 0.006 74);      /* neutral pending       ~#6c6660 */
+  --pending-tint: oklch(0.945 0.006 80);
+
+  /* 4 — AI SURFACE (reserved) -------------------------------------------- */
+  /* Default contract: LEDGER AMBER. Pushed toward copper (hue ~52) so it
+     reads distinct from the ochre --warn (hue ~72). Swapped by Tweaks.    */
+  --ai:        oklch(0.520 0.110 52);      /* AI mid (chips, icon)  ~#9a5a1f */
+  --ai-strong: oklch(0.410 0.092 50);      /* AI text on tint (AA)  ~#7a4413 */
+  --ai-soft:   oklch(0.760 0.082 58);      /* AI border / fill edge          */
+  --ai-tint:   oklch(0.972 0.026 70);      /* AI surface bg         ~#fdf6ec */
+  --ai-tint-2: oklch(0.946 0.040 68);      /* AI surface bg, deeper          */
+  --ai-on:     oklch(0.985 0.010 70);      /* text on solid --ai             */
+
+  /* 5 — Type ------------------------------------------------------------- */
+  --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-sans:  "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono:  "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* tabular numerals everywhere numbers carry meaning */
+  --num: "tnum" 1, "lnum" 1;
+}
+
+/* --- AI contract: SIGNAL INDIGO ---------------------------------------- */
+[data-ai="indigo"] {
+  --ai:        oklch(0.500 0.140 285);
+  --ai-strong: oklch(0.420 0.150 286);
+  --ai-soft:   oklch(0.780 0.070 286);
+  --ai-tint:   oklch(0.968 0.022 288);
+  --ai-tint-2: oklch(0.940 0.038 288);
+  --ai-on:     oklch(0.985 0.006 288);
+}
+
+/* --- AI contract: ARCHIVE TEAL ---------------------------------------- */
+[data-ai="teal"] {
+  --ai:        oklch(0.500 0.082 213);
+  --ai-strong: oklch(0.420 0.078 214);
+  --ai-soft:   oklch(0.775 0.052 214);
+  --ai-tint:   oklch(0.967 0.020 216);
+  --ai-tint-2: oklch(0.938 0.034 216);
+  --ai-on:     oklch(0.985 0.008 216);
+}

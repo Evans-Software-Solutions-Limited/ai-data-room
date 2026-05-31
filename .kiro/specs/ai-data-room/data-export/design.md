@@ -82,7 +82,7 @@ flowchart LR
 
 ## Export worker
 
-1. Authorise (owner/admin; full-org requires owner).
+1. Authorise (owner/editor; full-org requires owner).
 2. Scoped reads via `tenant-isolation` factory across the entity set.
 3. Stream document bytes from S3 into a zip mirroring canonical folders;
    write per-entity manifest files (`documents.json`, `checklist.json`,
@@ -103,13 +103,13 @@ flowchart LR
 
 ## Interfaces
 
-| Method | Path                    | Purpose                                           |
-| ------ | ----------------------- | ------------------------------------------------- |
-| `POST` | `/exports`              | Request an export (scope + options).              |
-| `GET`  | `/exports`              | List own org's export jobs + status.              |
-| `GET`  | `/exports/:id/download` | Signed URL when `ready`.                          |
-| `GET`  | `/lifecycle`            | Org lifecycle state + grace window (owner/admin). |
-| `POST` | `/lifecycle/reactivate` | Reactivate during grace (owner).                  |
+| Method | Path                    | Purpose                                            |
+| ------ | ----------------------- | -------------------------------------------------- |
+| `POST` | `/exports`              | Request an export (scope + options).               |
+| `GET`  | `/exports`              | List own org's export jobs + status.               |
+| `GET`  | `/exports/:id/download` | Signed URL when `ready`.                           |
+| `GET`  | `/lifecycle`            | Org lifecycle state + grace window (owner/editor). |
+| `POST` | `/lifecycle/reactivate` | Reactivate during grace (owner).                   |
 
 ## Security
 

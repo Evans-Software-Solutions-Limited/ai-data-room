@@ -19,10 +19,10 @@ that sits on top of each folder — that's `doc-checklist`.
 
 ## Users & roles
 
-- **Primary user:** owner/admin uploading or organising documents.
+- **Primary user:** owner/editor uploading or organising documents.
 - **Secondary users:** internal contributors uploading into their slots;
   external viewers listing/downloading within their Opportunity scope.
-- **Roles (from `auth-and-orgs`):** `owner`, `admin`, `internal`,
+- **Roles (from `auth-and-orgs`):** `owner`, `editor`, `viewer`,
   `external`. External users only see Opportunity subrooms they have a
   grant for; the six canonical folders are never shown to external users.
 
@@ -31,10 +31,10 @@ that sits on top of each folder — that's `doc-checklist`.
 - **US1** — _As an owner whose org has just been created, I want the
   canonical six-folder room pre-provisioned so I don't have to decide
   what the folders should be._
-- **US2** — _As an owner/admin, I want to create a new Opportunity
+- **US2** — _As an owner/editor, I want to create a new Opportunity
   subroom (e.g. `Vendor_C`) when we engage a new counterparty so I can
   invite them with scoped access._
-- **US3** — _As an owner/admin, I want to rename or delete an
+- **US3** — _As an owner/editor, I want to rename or delete an
   Opportunity subroom when the engagement ends._
 - **US4** — _As an internal user, I want to upload a document into a
   specific folder (e.g. `02_Financials`) so it's available to the rest
@@ -74,12 +74,12 @@ that sits on top of each folder — that's `doc-checklist`.
 
 ### Opportunity subrooms
 
-- **FR4** — Owners and admins shall be able to create a subroom under
+- **FR4** — Owners and editors shall be able to create a subroom under
   `Opportunities/` by providing a name. Names shall be unique within
   the org, 1–64 characters, and restricted to `[A-Za-z0-9_\-]+`.
-- **FR5** — Owners and admins shall be able to rename an Opportunity
+- **FR5** — Owners and editors shall be able to rename an Opportunity
   subroom; the rename shall preserve all documents and access grants.
-- **FR6** — Owners and admins shall be able to archive an Opportunity
+- **FR6** — Owners and editors shall be able to archive an Opportunity
   subroom. Archiving hides it from navigation and revokes all related
   external access grants; the documents are retained for 90 days before
   hard delete (retention window is product-global at v0.1).
@@ -88,7 +88,7 @@ that sits on top of each folder — that's `doc-checklist`.
 
 ### Document upload
 
-- **FR8** — Internal users (owner/admin/internal) shall be able to
+- **FR8** — Internal users (owner/editor/viewer) shall be able to
   upload files into any of the six canonical folders or any
   Opportunity subroom. External users shall not upload at v0.1
   (separate Phase-2 "external-upload" work exists in the backlog).
@@ -122,7 +122,7 @@ that sits on top of each folder — that's `doc-checklist`.
 - **FR17** — Internal users with appropriate role shall be able to
   soft-delete a document. Soft-deleted documents are hidden from
   listings immediately, retained for **30 days**, and hard-deleted
-  thereafter. During the retention window, an owner/admin can restore.
+  thereafter. During the retention window, an owner/editor can restore.
 - **FR18** — Hard deletion is not a user-facing action at v0.1 —
   support-only.
 

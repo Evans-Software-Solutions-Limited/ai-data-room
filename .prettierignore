@@ -17,3 +17,7 @@ scripts/*.sh
 # Local Claude Code state (gitignored; here so `prettier --check` on a
 # fresh clone with `.claude/settings.local.json` doesn't fail).
 .claude
+# Vendored design-handoff prototype (HTML/CSS/JSX-via-Babel design reference,
+# not maintained source). Kept verbatim from the Claude Design export; do not
+# reformat. The React port lives in packages/web when its slices land.
+docs/design/prototypes/**

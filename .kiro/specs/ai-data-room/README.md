@@ -185,6 +185,13 @@ infrastructure,middleware}` skeleton created with one folder per
 - 2026-05-31 — Two new feature slices spec-completed to the full three-file
   standard: **`tenant-isolation`** (slice 10, gates slice 2 per ADR-011) and
   **`document-redaction`** (slice 11, manual + AI-assist).
+- 2026-05-31 — Vendored the canonical `datum/room` design export into
+  `docs/design/prototypes/datum-room/` (6 screens + `identity.js` + `tokens.css`
+  - README/HANDOFF*BRIEF) as the single design source; reconciled spec **role
+    vocabulary** to the design's `identity.js` — `admin`→`editor`,
+    `internal`→`viewer` (the internal/external \_category* is unchanged). Shipped
+    slice-1 DB enum still says `admin/internal`; rename tracked as
+    [ADR-012](../../../adr/012-role-vocabulary.md) + RB-7.
 - 2026-05-31 — Seam review surfaced five more unscoped features; all
   spec-completed to the three-file standard: **`document-viewer`** (12),
   **`notifications`** (13), **`search-ocr`** (14), **`data-export`** (15),

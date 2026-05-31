@@ -31,7 +31,7 @@ entire value proposition is confidentiality.
   tenant can ever read its rows.
 - **Primary implementer audience:** engineers writing repositories in any
   later slice. The mechanism must make the _safe_ path the _default_ path.
-- **Roles (from `auth-and-orgs`):** `owner`, `admin`, `internal`, `external`.
+- **Roles (from `auth-and-orgs`):** `owner`, `editor`, `viewer`, `external`.
   Isolation is org-level and sits beneath role-level authorisation.
 
 ## User stories

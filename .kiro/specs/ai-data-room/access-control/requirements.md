@@ -19,34 +19,34 @@ safe to send to a real external party.
 
 ## Users & roles
 
-- **Primary user:** owner/admin issuing, monitoring, and revoking
+- **Primary user:** owner/editor issuing, monitoring, and revoking
   external access grants.
 - **Secondary users:** external viewers accepting NDAs and viewing
   documents; internal users whose folder visibility is governed by this
   slice.
-- **Roles:** as defined in `auth-and-orgs` — `owner`, `admin`,
-  `internal`, `external`.
+- **Roles:** as defined in `auth-and-orgs` — `owner`, `editor`,
+  `viewer`, `external`.
 
 ## User stories
 
-- **US1** — _As an owner/admin, I want to invite an external viewer
+- **US1** — _As an owner/editor, I want to invite an external viewer
   scoped to a specific Opportunity subroom, with an expiry date, so
   access is time-boxed by default._
-- **US2** — _As an owner/admin, I want to choose a permission tier
+- **US2** — _As an owner/editor, I want to choose a permission tier
   (view-only vs. view+download) when I invite an external viewer so I
   can gate sensitive material._
-- **US3** — _As an owner/admin, I want external viewers to accept an
+- **US3** — _As an owner/editor, I want external viewers to accept an
   NDA before they can see any document so we have a paper trail._
-- **US4** — _As an owner/admin, I want to revoke an external viewer's
+- **US4** — _As an owner/editor, I want to revoke an external viewer's
   access instantly from a management screen._
-- **US5** — _As an owner/admin, I want to extend or shorten the expiry
+- **US5** — _As an owner/editor, I want to extend or shorten the expiry
   of an existing grant without re-inviting._
-- **US6** — _As an owner/admin, I want access to expire automatically
+- **US6** — _As an owner/editor, I want access to expire automatically
   on the configured date without manual intervention._
 - **US7** — _As an external viewer, I want to see clearly which
   documents I have access to and which I don't (rather than
   mysteriously-absent items)._
-- **US8** — _As an internal user, I want `internal`-role colleagues to
+- **US8** — _As an internal user, I want `viewer`-role colleagues to
   see all canonical folders by default so internal collaboration is
   frictionless._
 - **US9** — _As a compliance reviewer, I want every access decision
@@ -68,7 +68,7 @@ safe to send to a real external party.
   - `downloader` — `viewer` + can download the original file via
     pre-signed URL.
   - `contributor` (internal-only) — `downloader` + can upload.
-  - `manager` (owner/admin) — `contributor` + can invite/revoke + edit
+  - `manager` (owner/editor) — `contributor` + can invite/revoke + edit
     folder metadata.
 - **FR3** — External grants shall always have an `expires_at`
   timestamp. Default expiry **30 days** from issuance; configurable
@@ -76,7 +76,7 @@ safe to send to a real external party.
 
 ### External-user invite lifecycle
 
-- **FR4** — An owner/admin shall be able to invite an external user by
+- **FR4** — An owner/editor shall be able to invite an external user by
   email to a specific Opportunity subroom with: permission tier
   (`viewer` or `downloader`), `expires_at`, and an optional message.
   The invite record integrates with the `invitations` table from
@@ -84,7 +84,7 @@ safe to send to a real external party.
 - **FR5** — On invite acceptance, the system shall require the invitee
   to **accept the NDA** (see FR7) **before** being granted access.
   Until accepted, `/me` reflects the grant as `pending_nda`.
-- **FR6** — An owner/admin shall be able to revoke a grant at any
+- **FR6** — An owner/editor shall be able to revoke a grant at any
   time. Revocation shall:
   - immediately hide all scoped resources from the external user,
   - invalidate any outstanding pre-signed download URLs (see FR12),
@@ -105,9 +105,9 @@ safe to send to a real external party.
 - **FR9** — Users with an `org_memberships` row in an org shall have
   implicit visibility to all six canonical folders and all
   `Opportunities/` subrooms in that org, subject to the permission
-  tier rules in FR2 (e.g. `internal` role maps to `contributor`
+  tier rules in FR2 (e.g. `viewer` role maps to `contributor`
   tier for canonical folders).
-- **FR10** — An owner/admin shall be able to **exclude** a specific
+- **FR10** — An owner/editor shall be able to **exclude** a specific
   internal user from a specific Opportunity subroom (targeted
   exception). External inclusion into canonical folders is not
   supported at v0.1.
@@ -221,7 +221,7 @@ safe to send to a real external party.
 - NDA: support markdown or plaintext only at v0.1? Leaning
   **plaintext + a few styled fields** (company name, counterparty
   name, effective date) — avoids rendering-edge-case bugs.
-- Should an `internal`-user targeted exclusion (FR10) notify the
+- Should an `viewer`-user targeted exclusion (FR10) notify the
   excluded user? Leaning **no** — exclusions are intentionally
   invisible to preserve confidentiality of sensitive Opportunities.
 

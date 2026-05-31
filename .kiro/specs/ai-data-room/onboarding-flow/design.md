@@ -56,18 +56,18 @@ flowchart LR
 
 One row per user. Drives resumability + dashboard nudges.
 
-| Column                  | Type                                                                  | Notes                                             |
-| ----------------------- | --------------------------------------------------------------------- | ------------------------------------------------- |
-| `user_id`               | `uuid` PK FK `users.id`                                               |                                                   |
-| `org_id`                | `uuid` FK                                                             | Denormalised for quick admin queries.             |
-| `flow`                  | `enum('owner','invited_admin','invited_internal','invited_external')` |                                                   |
-| `current_step`          | `text`                                                                | e.g. `welcome`, `company_basics`, `done`.         |
-| `completed_steps`       | `text[]` default `'{}'`                                               | Idempotent marker per step.                       |
-| `skipped_steps`         | `text[]` default `'{}'`                                               |                                                   |
-| `started_at`            | `timestamptz`                                                         |                                                   |
-| `completed_at`          | `timestamptz` nullable                                                | Set when wizard finished or explicitly dismissed. |
-| `dismissed_get_started` | `boolean` default false                                               | FR8 dismiss state.                                |
-| `updated_at`            | `timestamptz`                                                         |                                                   |
+| Column                  | Type                                                                 | Notes                                             |
+| ----------------------- | -------------------------------------------------------------------- | ------------------------------------------------- |
+| `user_id`               | `uuid` PK FK `users.id`                                              |                                                   |
+| `org_id`                | `uuid` FK                                                            | Denormalised for quick admin queries.             |
+| `flow`                  | `enum('owner','invited_editor','invited_viewer','invited_external')` |                                                   |
+| `current_step`          | `text`                                                               | e.g. `welcome`, `company_basics`, `done`.         |
+| `completed_steps`       | `text[]` default `'{}'`                                              | Idempotent marker per step.                       |
+| `skipped_steps`         | `text[]` default `'{}'`                                              |                                                   |
+| `started_at`            | `timestamptz`                                                        |                                                   |
+| `completed_at`          | `timestamptz` nullable                                               | Set when wizard finished or explicitly dismissed. |
+| `dismissed_get_started` | `boolean` default false                                              | FR8 dismiss state.                                |
+| `updated_at`            | `timestamptz`                                                        |                                                   |
 
 Index: `(org_id)` for admin metrics queries.
 
@@ -124,7 +124,7 @@ That handles FR5 (don't re-prompt for completed work) and AC-US5
 One screen: greeting, role-appropriate tour items (Users, Grants,
 Review queue), a "Got it" button → `/dashboard`.
 
-Marks `flow='invited_admin'` or `'invited_internal'` row complete.
+Marks `flow='invited_editor'` or `'invited_viewer'` row complete.
 
 ### `/onboarding/welcome` (external, post-NDA)
 

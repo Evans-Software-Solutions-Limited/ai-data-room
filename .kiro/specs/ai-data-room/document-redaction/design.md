@@ -129,7 +129,7 @@ overlaying a black box (the classic redaction bug) is explicitly forbidden.
 
 ## Interfaces
 
-All under `/orgs/:orgId/documents/:documentId/redactions`, owner/admin only
+All under `/orgs/:orgId/documents/:documentId/redactions`, owner/editor only
 (except none are exposed to external roles).
 
 | Method   | Path                    | Purpose                                |
