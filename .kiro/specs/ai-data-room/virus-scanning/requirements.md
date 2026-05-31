@@ -23,7 +23,7 @@ downloadable or AI-processable until it has passed a malware scan.
   external) — they only ever receive scanned-clean files.
 - **Primary actor:** the upload pipeline (automatic); admins see scan status and
   handle quarantined files.
-- **Roles (from `auth-and-orgs`):** all roles benefit; only owner/admin act on
+- **Roles (from `auth-and-orgs`):** all roles benefit; only owner/editor act on
   quarantined items.
 
 ## User stories

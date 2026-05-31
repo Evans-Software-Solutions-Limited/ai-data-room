@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en" data-ai="indigo">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>datum/room — Design System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="shell.css" />
+    <link rel="stylesheet" href="ds.css" />
+  </head>
+  <body>
+    <div class="ds-wrap">
+
+      <!-- Masthead -->
+      <header class="ds-masthead">
+        <div class="ds-mark">
+          <span class="sb-mark"><svg width="22" height="22" viewBox="0 0 20 20"><rect x="6.2" y="6.2" width="7.6" height="7.6" rx="1.4" transform="rotate(45 10 10)" fill="var(--ink)"/></svg></span>
+          <a class="sb-wordmark" href="Cited Q&A.html">datum<span class="slash">/</span>room</a>
+        </div>
+        <h1 class="ds-h1">Design system</h1>
+        <p class="ds-lede">An ink-on-paper system for a secure data room handling legally sensitive material. It is built to feel calm and auditable, never busy — and to make one promise visible everywhere: a single reserved colour means “this came from the AI.”</p>
+        <div class="ds-meta">
+          <span><b>Surfaces</b> warm neutral</span>
+          <span><b>Type</b> Source Serif 4 · IBM Plex Sans · IBM Plex Mono</span>
+          <span><b>AI contract</b> Signal Indigo</span>
+        </div>
+      </header>
+
+      <!-- 01 Principles -->
+      <section class="ds-sec">
+        <div class="ds-sec-head"><span class="ds-sec-num">01</span><span class="ds-sec-title">Principles</span></div>
+        <div class="comp-grid">
+          <div class="comp-card"><div class="comp-label">Ink on paper</div><div style="font-family:var(--font-serif);font-size:14.5px;line-height:1.6;color:var(--ink-2)">Warm off-whites and warm ink. No pure black or white, no gradients, no glow. The room should read like a well-kept ledger, not a dashboard.</div></div>
+          <div class="comp-card"><div class="comp-label">One reserved AI colour</div><div style="font-family:var(--font-serif);font-size:14.5px;line-height:1.6;color:var(--ink-2)">A single chromatic hue is reserved <em>exclusively</em> for AI output — citations, sense-checks, suggestions, AI audit entries. Chrome and status never use it, so its presence always means one thing.</div></div>
+          <div class="comp-card"><div class="comp-label">Status is its own language</div><div style="font-family:var(--font-serif);font-size:14.5px;line-height:1.6;color:var(--ink-2)">Ok / warn / error / pending have a muted, desaturated palette that stays clear of the AI hue — so an amber-style “warn” never gets mistaken for an AI signal.</div></div>
+          <div class="comp-card"><div class="comp-label">Calm density</div><div style="font-family:var(--font-serif);font-size:14.5px;line-height:1.6;color:var(--ink-2)">Hairline rules, two subtle shadow layers, tight radii (3–8px). Tabular numerals on every count, timestamp and identifier.</div></div>
+        </div>
+      </section>
+
+      <!-- 02 Surfaces & ink -->
+      <section class="ds-sec">
+        <div class="ds-sec-head"><span class="ds-sec-num">02</span><span class="ds-sec-title">Surfaces &amp; ink</span><span class="ds-sec-note">Warm neutrals defined in oklch. Saturation kept below 0.012 so whites and blacks stay believable.</span></div>
+        <div class="ds-sub">Surfaces</div>
+        <div class="sw-grid">
+          <div class="sw"><div class="sw-chip" style="background:var(--paper)"></div><div class="sw-meta"><div class="sw-name">--paper</div><div class="sw-role">App background</div><div class="sw-val">#f7f5f0</div></div></div>
+          <div class="sw"><div class="sw-chip" style="background:var(--paper-2)"></div><div class="sw-meta"><div class="sw-name">--paper-2</div><div class="sw-role">Sidebar / sunken</div><div class="sw-val">#efece4</div></div></div>
+          <div class="sw"><div class="sw-chip" style="background:var(--paper-3)"></div><div class="sw-meta"><div class="sw-name">--paper-3</div><div class="sw-role">Deeper sunken</div><div class="sw-val">#e6e2d6</div></div></div>
+          <div class="sw"><div class="sw-chip" style="background:var(--card)"></div><div class="sw-meta"><div class="sw-name">--card</div><div class="sw-role">Raised surface</div><div class="sw-val">#fffefb</div></div></div>
+        </div>
+        <div class="ds-sub">Ink &amp; rules</div>
+        <div class="sw-grid">
+          <div class="sw"><div class="sw-chip" style="background:var(--ink)"></div><div class="sw-meta"><div class="sw-name">--ink</div><div class="sw-role">Primary text</div><div class="sw-val">#1a1815</div></div></div>
+          <div class="sw"><div class="sw-chip" style="background:var(--ink-2)"></div><div class="sw-meta"><div class="sw-name">--ink-2</div><div class="sw-role">Secondary text</div><div class="sw-val">#4a463d</div></div></div>
+          <div class="sw"><div class="sw-chip" style="background:var(--ink-3)"></div><div class="sw-meta"><div class="sw-name">--ink-3</div><div class="sw-role">Tertiary / muted</div><div class="sw-val">#7a7468</div></div></div>
+          <div class="sw"><div class="sw-chip" style="background:var(--rule)"></div><div class="sw-meta"><div class="sw-name">--rule</div><div class="sw-role">Hairline rule</div><div class="sw-val">#d8d2c1</div></div></div>
+        </div>
+      </section>
+
+      <!-- 03 Status -->
+      <section class="ds-sec">
+        <div class="ds-sec-head"><span class="ds-sec-num">03</span><span class="ds-sec-title">Status palette</span><span class="ds-sec-note">Muted on purpose. Reserved for system status only — never for AI.</span></div>
+        <div class="sw-grid">
+          <div class="sw"><div class="sw-chip" style="background:var(--ok)"></div><div class="sw-meta"><div class="sw-name">--ok</div><div class="sw-role">Match · NDA signed</div><div class="sw-val">#3f6b4a</div></div></div>
+          <div class="sw"><div class="sw-chip" style="background:var(--warn)"></div><div class="sw-meta"><div class="sw-name">--warn</div><div class="sw-role">Caution (non-AI)</div><div class="sw-val">#a86d1a</div></div></div>
+          <div class="sw"><div class="sw-chip" style="background:var(--err)"></div><div class="sw-meta"><div class="sw-name">--err</div><div class="sw-role">Declined · failure</div><div class="sw-val">#8e2f2a</div></div></div>
+          <div class="sw"><div class="sw-chip" style="background:var(--pending)"></div><div class="sw-meta"><div class="sw-name">--pending</div><div class="sw-role">Pending · neutral</div><div class="sw-val">#6c6660</div></div></div>
+        </div>
+      </section>
+
+      <!-- 04 AI surface -->
+      <section class="ds-sec">
+        <div class="ds-sec-head"><span class="ds-sec-num">04</span><span class="ds-sec-title">The AI surface — reserved</span><span class="ds-sec-note">Swap the whole group with one attribute (<span class="mono">data-ai</span>). Chrome &amp; status never reference these tokens.</span></div>
+        <div class="contract-row">
+
+          <div class="contract" data-ai="amber">
+            <div class="contract-head"><span class="ai-diamond"></span><span class="cn">Ledger Amber</span><span class="cd">hue ~52</span></div>
+            <div class="contract-body">
+              <div class="contract-ramps">
+                <div class="r" style="background:var(--ai-strong)"></div><div class="r" style="background:var(--ai)"></div><div class="r" style="background:var(--ai-soft)"></div><div class="r" style="background:var(--ai-tint)"></div>
+              </div>
+              <div class="contract-demo">
+                <div class="cdemo-line">Runway is 13 months <span class="cdemo-cite">3</span></div>
+                <div><span class="badge badge-ai"><span class="ai-diamond sm"></span>AI flag</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="contract" data-ai="indigo">
+            <div class="contract-head"><span class="ai-diamond"></span><span class="cn">Signal Indigo</span><span class="cd">hue ~285</span></div>
+            <div class="contract-body">
+              <div class="contract-ramps">
+                <div class="r" style="background:var(--ai-strong)"></div><div class="r" style="background:var(--ai)"></div><div class="r" style="background:var(--ai-soft)"></div><div class="r" style="background:var(--ai-tint)"></div>
+              </div>
+              <div class="contract-demo">
+                <div class="cdemo-line">Runway is 13 months <span class="cdemo-cite">3</span></div>
+                <div><span class="badge badge-ai"><span class="ai-diamond sm"></span>AI flag</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="contract" data-ai="teal">
+            <div class="contract-head"><span class="ai-diamond"></span><span class="cn">Archive Teal</span><span class="cd">hue ~213</span></div>
+            <div class="contract-body">
+              <div class="contract-ramps">
+                <div class="r" style="background:var(--ai-strong)"></div><div class="r" style="background:var(--ai)"></div><div class="r" style="background:var(--ai-soft)"></div><div class="r" style="background:var(--ai-tint)"></div>
+              </div>
+              <div class="contract-demo">
+                <div class="cdemo-line">Runway is 13 months <span class="cdemo-cite">3</span></div>
+                <div><span class="badge badge-ai"><span class="ai-diamond sm"></span>AI flag</span></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="ds-sub">Token ramp (current: Signal Indigo)</div>
+        <div class="sw-grid">
+          <div class="sw"><div class="sw-chip" style="background:var(--ai-strong)"></div><div class="sw-meta"><div class="sw-name">--ai-strong</div><div class="sw-role">AI text on tint (AA)</div><div class="sw-val">oklch · L .42</div></div></div>
+          <div class="sw"><div class="sw-chip" style="background:var(--ai)"></div><div class="sw-meta"><div class="sw-name">--ai</div><div class="sw-role">Chips, diamonds, fills</div><div class="sw-val">oklch · L .50</div></div></div>
+          <div class="sw"><div class="sw-chip" style="background:var(--ai-soft)"></div><div class="sw-meta"><div class="sw-name">--ai-soft</div><div class="sw-role">Borders / edges</div><div class="sw-val">oklch · L .78</div></div></div>
+          <div class="sw"><div class="sw-chip" style="background:var(--ai-tint)"></div><div class="sw-meta"><div class="sw-name">--ai-tint</div><div class="sw-role">AI surface background</div><div class="sw-val">oklch · L .97</div></div></div>
+        </div>
+      </section>
+
+      <!-- 05 Typography -->
+      <section class="ds-sec">
+        <div class="ds-sec-head"><span class="ds-sec-num">05</span><span class="ds-sec-title">Typography</span><span class="ds-sec-note">A serif for everything a human reads as prose; a grotesque for chrome; a mono for everything machine-exact.</span></div>
+        <div class="type-row">
+          <div class="type-label"><div class="tl-name">Source Serif 4</div><div class="tl-use">titles · narrative · the entire Q&amp;A surface</div></div>
+          <div class="type-spec"><div style="font-family:var(--font-serif);font-size:30px;font-weight:600;color:var(--ink);letter-spacing:-0.01em">Answers you can audit</div><div style="font-family:var(--font-serif);font-size:16px;line-height:1.55;color:var(--ink-2);margin-top:6px">As of the most recent management accounts, the company holds a cash balance of £4.2m.</div></div>
+        </div>
+        <div class="type-row">
+          <div class="type-label"><div class="tl-name">IBM Plex Sans</div><div class="tl-use">buttons · labels · table chrome · navigation</div></div>
+          <div class="type-spec"><div style="font-family:var(--font-sans);font-size:22px;font-weight:600;color:var(--ink)">External viewers · Folder scope</div><div style="font-family:var(--font-sans);font-size:13px;color:var(--ink-2);margin-top:7px">Invite viewer · Edit scope · Upload · Review &amp; sign NDA</div></div>
+        </div>
+        <div class="type-row">
+          <div class="type-label"><div class="tl-name">IBM Plex Mono</div><div class="tl-use">counts · timestamps · identifiers · audit log · tabular numerals</div></div>
+          <div class="type-spec"><div style="font-family:var(--font-mono);font-size:20px;color:var(--ink);font-feature-settings:'tnum' 1">£4,214,880 · 92% · 02_Financials</div><div style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3);margin-top:7px">indexed 2d ago · pg. 12 · 187 documents</div></div>
+        </div>
+        <div class="ds-sub">Scale</div>
+        <div class="scale-row"><span class="sz">40 / 600</span><span class="sample serif" style="font-size:40px;font-weight:600">Display</span></div>
+        <div class="scale-row"><span class="sz">24 / 600</span><span class="sample serif" style="font-size:24px;font-weight:600">Page title</span></div>
+        <div class="scale-row"><span class="sz">17 / 400</span><span class="sample serif" style="font-size:17px">Answer prose — the reading size for AI output</span></div>
+        <div class="scale-row"><span class="sz">13 / 500</span><span class="sample" style="font-size:13px;font-weight:500;font-family:var(--font-sans)">UI chrome — labels and controls</span></div>
+        <div class="scale-row"><span class="sz">11 / 400</span><span class="sample mono" style="font-size:11px">DATA · TIMESTAMP · IDENTIFIER</span></div>
+      </section>
+
+      <!-- 06 Radius & shadow -->
+      <section class="ds-sec">
+        <div class="ds-sec-head"><span class="ds-sec-num">06</span><span class="ds-sec-title">Radius &amp; elevation</span><span class="ds-sec-note">Tight radii and two shadow layers only.</span></div>
+        <div class="token-grid">
+          <div class="token-card"><div class="token-vis"><div class="radius-box" style="border-radius:var(--r-sm)"></div></div><div class="token-name">--r-sm</div><div class="token-val">3px · chips, badges</div></div>
+          <div class="token-card"><div class="token-vis"><div class="radius-box" style="border-radius:var(--r)"></div></div><div class="token-name">--r</div><div class="token-val">5px · buttons, inputs</div></div>
+          <div class="token-card"><div class="token-vis"><div class="radius-box" style="border-radius:var(--r-lg)"></div></div><div class="token-name">--r-lg</div><div class="token-val">8px · panels, cards</div></div>
+          <div class="token-card"><div class="token-vis"><div class="radius-box" style="border-radius:var(--r-pill)"></div></div><div class="token-name">--r-pill</div><div class="token-val">999px · pills, dots</div></div>
+        </div>
+        <div class="ds-sub">Shadow</div>
+        <div class="token-grid">
+          <div class="token-card"><div class="token-vis"><div class="shadow-box" style="box-shadow:var(--shadow-1)"></div></div><div class="token-name">--shadow-1</div><div class="token-val">resting cards &amp; pills</div></div>
+          <div class="token-card"><div class="token-vis"><div class="shadow-box" style="box-shadow:var(--shadow-2)"></div></div><div class="token-name">--shadow-2</div><div class="token-val">popovers &amp; overlays</div></div>
+        </div>
+      </section>
+
+      <!-- 07 Components -->
+      <section class="ds-sec">
+        <div class="ds-sec-head"><span class="ds-sec-num">07</span><span class="ds-sec-title">Components</span><span class="ds-sec-note">The atoms the screens are built from.</span></div>
+        <div class="comp-grid">
+
+          <div class="comp-card"><div class="comp-label">Buttons</div>
+            <div class="comp-stack">
+              <button class="btn btn-primary">Upload</button>
+              <button class="btn btn-ghost">Edit scope</button>
+              <button class="btn btn-quiet">Dismiss</button>
+              <button class="btn btn-ai">Move to 04_Product</button>
+            </div>
+          </div>
+
+          <div class="comp-card"><div class="comp-label">Status badges</div>
+            <div class="comp-stack">
+              <span class="badge badge-ok"><span class="bdot"></span>Match</span>
+              <span class="badge badge-warn"><span class="bdot"></span>Caution</span>
+              <span class="badge badge-err"><span class="bdot"></span>NDA declined</span>
+              <span class="badge badge-pending pulse"><span class="bdot"></span>Checking</span>
+              <span class="badge badge-neutral">Optional</span>
+            </div>
+          </div>
+
+          <div class="comp-card"><div class="comp-label">AI badges &amp; chips</div>
+            <div class="comp-stack">
+              <span class="badge badge-ai"><span class="ai-diamond sm"></span>Move suggested</span>
+              <span class="cdemo-cite">1</span>
+              <span class="cdemo-cite" style="background:var(--ai);color:var(--ai-on);border-color:var(--ai)">2</span>
+            </div>
+          </div>
+
+          <div class="comp-card"><div class="comp-label">Audit verbs</div>
+            <div class="comp-stack">
+              <span class="verb">UPLOAD</span>
+              <span class="verb">DOWNLOAD</span>
+              <span class="verb verb-ai">FLAG</span>
+              <span class="verb verb-ai">CLASSIFY</span>
+            </div>
+          </div>
+
+          <div class="comp-card"><div class="comp-label">Progress — ink (healthy)</div>
+            <div class="progress"><div class="progress-track"><div class="progress-fill" style="width:82%"></div></div><span class="progress-num">82%</span></div>
+          </div>
+
+          <div class="comp-card"><div class="comp-label">Progress — AI signal (flag open)</div>
+            <div class="progress is-ai"><div class="progress-track"><div class="progress-fill" style="width:82%"></div></div><span class="progress-num">82%</span></div>
+          </div>
+
+          <div class="comp-card full"><div class="comp-label">AI callout — reserved surface with corner mark</div>
+            <div class="ai-callout">
+              <div class="ac-head"><span class="ac-diamond"></span><span class="ac-label">AI sense-check · move suggested</span></div>
+              <div class="ac-body"><b>Marketing_Deck_2025.pdf</b> reads as a <b>04_Product</b> document, not a financial statement.</div>
+              <div class="ac-actions"><button class="btn btn-ai btn-sm">Move to 04_Product</button><button class="btn btn-ghost btn-sm">Keep here</button></div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+  </body>
+</html>

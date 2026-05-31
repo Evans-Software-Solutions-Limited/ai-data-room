@@ -19,7 +19,7 @@ and respectful of access control, the feature is worthless.
 
 ## Users & roles
 
-- **Primary user:** internal contributor or owner/admin running
+- **Primary user:** internal contributor or owner/editor running
   diligence over the room.
 - **Secondary users:** external viewers asking questions scoped to
   their Opportunity subroom.
@@ -38,9 +38,9 @@ and respectful of access control, the feature is worthless.
   know" or "that's not in the room" rather than hallucinate._
 - **US4** — _As any user, I want the answer to link directly to the
   source passage so I can verify it._
-- **US5** — _As an owner/admin, I want a log of Q&A activity to be
+- **US5** — _As an owner/editor, I want a log of Q&A activity to be
   auditable — who asked what, what was answered — for compliance._
-- **US6** — _As an owner/admin, I want to exclude specific documents
+- **US6** — _As an owner/editor, I want to exclude specific documents
   from Q&A (e.g. a sensitive internal memo) while keeping them
   visible in the room._
 

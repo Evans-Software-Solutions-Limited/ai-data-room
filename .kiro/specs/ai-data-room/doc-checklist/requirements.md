@@ -23,7 +23,7 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
 
 - **Primary user:** internal contributor filling the checklist for
   their org.
-- **Secondary users:** owner/admin customising the checklist and
+- **Secondary users:** owner/editor customising the checklist and
   approving completions; external viewers seeing which slots are
   populated (where applicable to their Opportunity grant).
 - **Roles:** as defined in `auth-and-orgs`.
@@ -41,10 +41,10 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
 - **US4** — _As an internal contributor, I want to mark a slot as
   "not applicable" with a reason so I'm not blocked by items that
   genuinely don't apply to our business._
-- **US5** — _As an owner/admin, I want to add custom slots to a
+- **US5** — _As an owner/editor, I want to add custom slots to a
   folder (e.g. a bespoke vendor questionnaire in `03_Commercial`) so
   the checklist reflects our business._
-- **US6** — _As an owner/admin, I want to approve or reject a slot's
+- **US6** — _As an owner/editor, I want to approve or reject a slot's
   uploaded document so the checklist reflects verified state, not
   just "something was uploaded"._
 - **US7** — _As an external viewer, I want to see which slots are

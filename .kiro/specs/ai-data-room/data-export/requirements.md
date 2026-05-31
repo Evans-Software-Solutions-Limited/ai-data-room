@@ -22,7 +22,7 @@ schedule). This slice owns the export bundle and the offboarding lifecycle.
 
 - **Primary:** owner (or admin with permission) exporting their org's data.
 - **Secondary:** support/ops executing an offboarding on cancellation.
-- **Roles (from `auth-and-orgs`):** only `owner` (and optionally `admin`) may
+- **Roles (from `auth-and-orgs`):** only `owner` (and optionally `editor`) may
   request a full-org export; external users never can.
 
 ## User stories

@@ -93,7 +93,7 @@ product really does, not a preview of what we wish it did.
 
 ### Invited-user onboarding
 
-- **FR6** — On first login of an invited `admin` / `internal` user,
+- **FR6** — On first login of an invited `editor` / `viewer` user,
   the system shall show a minimal orientation (one screen) pointing
   them at their role's key affordances. No wizard.
 - **FR7** — On first login of an invited `external` user (after
@@ -178,7 +178,7 @@ product really does, not a preview of what we wish it did.
 
 - Interactive product tour with tooltips over real UI — Phase 2
   (Intercom / native tour library).
-- Role-specific wizards for `internal` users — minimal orientation
+- Role-specific wizards for `viewer` users — minimal orientation
   only at v0.1.
 - In-app support chat — Phase 2.
 - Help centre / documentation hub — Phase 2.

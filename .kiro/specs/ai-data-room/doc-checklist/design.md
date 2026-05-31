@@ -239,7 +239,7 @@ All under `/orgs/:orgId/`. All behind `requires(...)` from
 | `POST`  | `/slots/:instanceId/reject`     | Admin reject (body: `{ reason }`).                             |
 | `POST`  | `/slots/:instanceId/mark-na`    | Mark N/A (body: `{ reason }`).                                 |
 | `POST`  | `/slots/:instanceId/clear-na`   | Clear N/A.                                                     |
-| `POST`  | `/slots/:instanceId/reset`      | Return to empty (owner/admin only).                            |
+| `POST`  | `/slots/:instanceId/reset`      | Return to empty (owner/editor only).                           |
 | `PATCH` | `/templates/:id/slots/:slotId`  | Admin edit (title, criteria, required, hidden, display_order). |
 | `POST`  | `/templates/:id/slots`          | Admin add custom slot.                                         |
 | `GET`   | `/rooms/:orgId/completion`      | Aggregated completion (home widget).                           |

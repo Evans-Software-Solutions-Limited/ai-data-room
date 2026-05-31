@@ -21,7 +21,7 @@ happening without logging in.
 
 ## Users & roles
 
-- **Primary:** owner/admin who wants to know when something noteworthy happens
+- **Primary:** owner/editor who wants to know when something noteworthy happens
   in their room (external access, AI flags, expiring invites).
 - **Secondary:** internal contributors (lighter set); external viewers get only
   the transactional emails they already receive via `access-control`.
@@ -98,7 +98,7 @@ happening without logging in.
 ## Acceptance criteria
 
 - **AC-US1** — An external download triggers an immediate email to the
-  owner/admins who opted in, within 2 minutes, with a deep link.
+  owner/editors who opted in, within 2 minutes, with a deep link.
 - **AC-US2** — The weekly digest sends once per period with correct counts and
   no email when there was zero activity.
 - **AC-US3** — The in-app centre shows new events with unread state; opening one
@@ -126,8 +126,8 @@ happening without logging in.
   revisit if deliverability needs managed reputation.
 - Digest cadence/anchor: fixed weekly (e.g. Monday 08:00 org-local) vs.
   per-user configurable. Leaning fixed weekly at v0.1.
-- Do `internal` contributors get the access-alert category by default, or only
-  owner/admin? Leaning owner/admin default, opt-in for internal.
+- Do `viewer` contributors get the access-alert category by default, or only
+  owner/editor? Leaning owner/editor default, opt-in for internal.
 
 ## Sign-off
 

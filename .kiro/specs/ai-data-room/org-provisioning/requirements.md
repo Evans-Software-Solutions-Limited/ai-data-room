@@ -18,6 +18,8 @@ lazy-mirrored without a membership until the wizard lands. That leaves a gap:
 `room-and-folders` (FR1) and `tenant-isolation` both assume an `org_id` already
 exists, but nothing self-serve creates one before slice 9.
 
+> **Also carries the role-vocabulary migration (T-000, [ADR-012](../../../adr/012-role-vocabulary.md) / RB-7):** since this is the first build target and already touches memberships/roles, it renames the shipped enum `admin`→`editor`, `internal`→`viewer` so every later slice builds on the final names. The internal/external _category_ is unchanged.
+
 This slice pulls the **org-creation mechanism** forward out of `onboarding-flow`
 so the rest of Phase 1 has a real org to attach to. It owns the create-org →
 first-membership → canonical-room-provisioning path as an API + minimal flow;

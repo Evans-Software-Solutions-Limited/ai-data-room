@@ -7,7 +7,36 @@
 Assumes `auth-and-orgs` merged (tagged `v0.1.0-auth-and-orgs`). Executes in
 `microservices/core` (`application/orgs/*`), reusing slice-1 repos + the WorkOS
 client wrapper. Lands **before** `tenant-isolation` and `room-and-folders`.
-Conventions: same as `auth-and-orgs/tasks.md`; 90% coverage gate.
+This slice also carries the **role-vocabulary migration** (T-000, per
+[ADR-012](../../../adr/012-role-vocabulary.md) / RB-7) — it's the first build
+target and already touches memberships/roles, so the rename lands here before
+any later slice builds role-tier logic. Conventions: same as
+`auth-and-orgs/tasks.md`; 90% coverage gate.
+
+---
+
+## T-000 — Role-vocabulary migration (admin→editor, internal→viewer)
+
+Status: `[ ]`
+**Scope:** Rename the shipped role enum end to end, per ADR-012. DB: migrate
+`org_memberships.role` and `invitations.role` enum values `admin`→`editor`,
+`internal`→`viewer` (Postgres `ALTER TYPE ... RENAME VALUE`, or new enum +
+backfill if rename isn't viable on the managed instance). Code: update Drizzle
+schema, repos, `authorizeOrgAccess` + role allowlists, the `/me` role shape, the
+`AuditEventTypeSchema`/audit metadata, WorkOS role metadata on existing members,
+and all fixtures/tests. **Leave the `kind` (`internal`/`external`) category and
+`ROLES[x].internal` flag untouched** — those are the category, not the role.
+**Files (likely):** `packages/db/schema/auth.ts`, `packages/db/migrations/*`,
+`microservices/core/src/infrastructure/db/*Repo.ts`,
+`application/auth/_shared/orgAccess.ts`, `application/auth/user/getUserHandler.ts`,
+`application/audit.ts`, test fixtures.
+**DoD:** No `admin`/`internal` _role_ token remains in code or DB; `/me` returns
+`owner|editor|viewer|external`; slice-1 suite green; `migrate.integration.test.ts`
+`EXPECTED_TABLES`/enum expectations updated; ADR-012 → `accepted`.
+**Tests required:** Migration integration test (up + down); regression that a
+former-`admin` member resolves as `editor` and a former-`internal` as `viewer`;
+guard/authorize tests on the new names.
+**Blocks:** every later task that creates or reads a membership role.
 
 ---
 

@@ -1,0 +1,63 @@
+/* ==========================================================================
+   datum/room — Members & access. Loaded after tokens + shell.
+   Internal team + external viewers (per subroom) + access requests.
+   Status palette for NDA/role; AI surface only on access suggestions.
+   ========================================================================== */
+
+/* ---- Stat strip ------------------------------------------------------ */
+.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.app[data-density="compact"] .stat-row { gap: 12px; margin-bottom: 16px; }
+.stat {
+  background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1); padding: 14px 16px;
+}
+.stat .s-num { font-family: var(--font-mono); font-size: 26px; font-weight: 500; color: var(--ink); letter-spacing: -0.02em; font-feature-settings: var(--num); }
+.stat .s-num .s-sub { font-size: 13px; color: var(--ink-3); }
+.stat .s-label { font-size: 11.5px; color: var(--ink-3); margin-top: 3px; }
+.stat.is-ai { border-color: var(--ai-soft); background: var(--ai-tint); }
+.stat.is-ai .s-num { color: var(--ai-strong); }
+.stat.is-ai .s-label { color: var(--ai-strong); }
+
+/* ---- Access request (AI suggestion) --------------------------------- */
+.req-actions { display: flex; gap: 8px; margin-top: 13px; padding-left: 8px; }
+
+/* ---- Member / viewer table ------------------------------------------ */
+.who-cell { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.who-av {
+  width: 30px; height: 30px; border-radius: 999px; flex: 0 0 auto; display: grid; place-items: center;
+  font-size: 11px; font-weight: 600; background: var(--paper-3); border: 1px solid var(--rule); color: var(--ink-2);
+}
+.who-av.ext { border-style: dashed; background: var(--paper); color: var(--ink-3); }
+.who-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.who-name { font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who-email { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.role-pill {
+  display: inline-flex; align-items: center; height: 21px; padding: 0 9px; border-radius: var(--r-sm);
+  font-size: 11px; font-weight: 500; border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink-2);
+}
+.role-pill.owner { background: var(--ink); color: var(--ink-on-dark); border-color: var(--ink); }
+.role-pill.editor { background: var(--paper-3); color: var(--ink); }
+
+.scope-cell { font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); }
+.scope-cell .sc-muted { color: var(--ink-3); }
+.scope-cell.full { color: var(--ink); }
+
+.two-factor { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ok); }
+.two-factor svg { width: 12px; height: 12px; }
+.two-factor.off { color: var(--ink-3); }
+
+/* subroom group header inside the external table */
+.subroom-head {
+  display: flex; align-items: center; gap: 9px; padding: 12px 16px 9px;
+  border-bottom: 1px solid var(--rule-2); background: var(--paper-2);
+}
+.subroom-head .sh-name { font-family: var(--font-serif); font-size: 14px; font-weight: 600; color: var(--ink); }
+.subroom-head .sh-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); }
+.subroom-head .spacer { flex: 1 1 auto; }
+.subroom-head .sh-link { font-size: 11.5px; color: var(--ink-3); text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+.subroom-head .sh-link:hover { color: var(--ai-strong); }
+.subroom-head .sh-link svg { width: 12px; height: 12px; }
+
+.panel + .panel { margin-top: 20px; }
+.app[data-density="compact"] .panel + .panel { margin-top: 16px; }

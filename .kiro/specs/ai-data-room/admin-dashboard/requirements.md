@@ -9,7 +9,7 @@
 
 ## Context
 
-The admin dashboard is where owners and admins manage their room. It
+The admin dashboard is where owners and editors manage their room. It
 does **not add new functionality** — every earlier slice's API is
 already shipped by the time this slice begins. This slice is the
 **unifying UI** that lets a human see room state at a glance, run the
@@ -25,7 +25,7 @@ admin UX.
 - **Primary user:** owner or admin.
 - **Secondary users:** internal user (read-only dashboards for their
   org); external users never access this surface.
-- **Roles:** as defined in `auth-and-orgs`. Gating: `internal` users
+- **Roles:** as defined in `auth-and-orgs`. Gating: `viewer` users
   see a reduced view; `external` users are redirected to their
   Opportunity subroom UI.
 
@@ -144,7 +144,7 @@ admin UX.
 
 ### Internal-user read-only view
 
-- **FR17** — Users with role `internal` shall see the dashboard
+- **FR17** — Users with role `viewer` shall see the dashboard
   Home, Users, Invitations, Grants (read-only), and Review queue
   (read-only on AI verdict, no approve/reject). All write actions
   are disabled in the UI and blocked at the API (enforcement lives

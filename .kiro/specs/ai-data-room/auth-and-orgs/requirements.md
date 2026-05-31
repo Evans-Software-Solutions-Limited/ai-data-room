@@ -6,6 +6,16 @@
 **Brief:** [../../../briefs/ai-data-room.md](../../../briefs/ai-data-room.md)
 **Slice index:** [../README.md](../README.md)
 
+> **⚠ Role vocabulary aligned to the design RBAC (2026-05-31).** This spec now
+> uses the design's role names — `owner` / `editor` / `viewer` / `external`
+> (per `docs/design/prototypes/datum-room/identity.js`). **Slice 1 shipped the
+> DB enum as `owner` / `admin` / `internal`**, so the code does not yet match
+> this spec. The rename (`admin`→`editor`, `internal`→`viewer`) is a tracked
+> migration — see [ADR-012](../../../adr/012-role-vocabulary.md) and RB-7 in
+> `docs/product/production-readiness.md`. `kind`/category fields
+> (`internal` vs `external` invitations, "internal users" as a group) are the
+> internal/external **category** and are unchanged.
+
 ## Context
 
 Foundation slice for `ai-data-room`. Every other slice (rooms, access
@@ -36,9 +46,9 @@ room.
 ### Roles (v0.1)
 
 - `owner` — one per org at signup; full control; MFA required.
-- `admin` — invited by owner; manages content, invites, and
+- `editor` — invited by owner; manages content, invites, and
   configuration; MFA required.
-- `internal` — invited by owner/admin; contributes content but cannot
+- `viewer` — invited by owner/editor; contributes content but cannot
   invite externals or change org settings; MFA required.
 - `external` — invited to a specific Opportunity subroom; no org
   membership; **MFA required** (same bar as internal users — revisit in
@@ -109,9 +119,9 @@ Independent of role, every user is in exactly one of:
 
 ### Invitations
 
-- **FR6** — Owners and admins shall be able to invite internal users
-  (`admin`, `internal`) by email, pre-assigning a role.
-- **FR7** — Owners and admins shall be able to invite `external` users
+- **FR6** — Owners and editors shall be able to invite internal users
+  (`editor`, `viewer`) by email, pre-assigning a role.
+- **FR7** — Owners and editors shall be able to invite `external` users
   scoped to a specific Opportunity subroom. The scope shall be persisted
   with the invite; enforcement happens in the `access-control` slice.
 - **FR8** — Invite links shall be single-use, cryptographically
@@ -120,7 +130,7 @@ Independent of role, every user is in exactly one of:
 - **FR8b** — External access grants shall carry an expiry timestamp. The
   default expiry shall be 90 days from grant issuance, with a hard
   ceiling of 365 days. Expired grants shall be treated as revoked at
-  access-check time. Override and extension are owner/admin-privileged
+  access-check time. Override and extension are owner/editor-privileged
   operations whose API surface lands in `access-control` (slice 3);
   slice 1 populates the 90-day default at grant creation. Rationale:
   data rooms are typically diligence-bounded — a default of "indefinite
@@ -141,7 +151,7 @@ Independent of role, every user is in exactly one of:
 - **FR12** — The system shall issue a session on successful auth
   (password + MFA). Session expiry rules, aligned with NIST SP 800-63B
   AAL2 as the fintech-grade baseline:
-  - Internal (`owner`/`admin`/`internal`): inactivity timeout 30
+  - Internal (`owner`/`editor`/`viewer`): inactivity timeout 30
     minutes; absolute lifetime 12 hours.
   - External (`external`): inactivity timeout 15 minutes; absolute
     lifetime 8 hours.
@@ -160,7 +170,7 @@ Independent of role, every user is in exactly one of:
 
 - **FR15** — The system shall support TOTP-based MFA at v0.1.
 - **FR16** — MFA shall be mandatory for all user roles at v0.1
-  (`owner`, `admin`, `internal`, `external`). No opt-out.
+  (`owner`, `editor`, `viewer`, `external`). No opt-out.
 - **FR17** — On MFA enrolment, the system shall issue 10 single-use
   recovery codes to the user. Codes shall be stored such that only
   their one-time use is verifiable, not their plaintext (hash or
@@ -185,14 +195,14 @@ Independent of role, every user is in exactly one of:
 
 ### User suspension
 
-- **FR21** — Owners and admins shall be able to suspend any user
+- **FR21** — Owners and editors shall be able to suspend any user
   (internal or external) in their org. Suspension shall:
   (a) set the target user's lifecycle state to `suspended`,
   (b) terminate all active sessions for that user server-side,
   (c) reject future login attempts with a clear "account suspended"
   message,
   (d) be recorded as an audit event.
-- **FR22** — Owners and admins shall be able to un-suspend any
+- **FR22** — Owners and editors shall be able to un-suspend any
   `suspended` user in their org, restoring login ability. Un-suspension
   shall be audit-logged.
 - **FR23** — A user cannot suspend themselves. The sole `owner` of an

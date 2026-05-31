@@ -85,7 +85,7 @@ admin's own document access.
 
 Status: `[ ]`
 **Scope:** `/dashboard/layout.tsx` enforces role
-(owner/admin/internal). External users redirected. Internal-user
+(owner/editor/viewer). External users redirected. Internal-user
 variant sets `readOnlyMode=true` in a context.
 **Files (likely):** `packages/web/app/dashboard/layout.tsx`.
 **DoD:** FR17 shell working.

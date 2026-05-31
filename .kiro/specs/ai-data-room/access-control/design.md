@@ -132,7 +132,7 @@ Unique: `(org_id, user_id, opportunity_id)`.
 type SessionContext = {
   userId: string;
   orgId: string | null;      // null for external users
-  role: Role;                 // 'owner'|'admin'|'internal'|'external'
+  role: Role;                 // 'owner'|'editor'|'viewer'|'external'
   opportunityGrants: Array<{
     opportunityId: string;
     permissionTier: 'viewer' | 'downloader';

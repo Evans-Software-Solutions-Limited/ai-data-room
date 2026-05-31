@@ -26,8 +26,8 @@ integration lands late.
 - **Primary user:** org owner signing up and managing billing.
 - **Secondary users:** internal Bradley (support operator) — can see
   an org's plan state via the admin back-door.
-- **Roles:** only `owner` can change billing state; `admin` can view;
-  `internal` and `external` never see billing.
+- **Roles:** only `owner` can change billing state; `editor` can view;
+  `viewer` and `external` never see billing.
 
 ## User stories
 

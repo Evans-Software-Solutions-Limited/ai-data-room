@@ -24,7 +24,7 @@ of document the slot asked for?"_
 ## Users & roles
 
 - **Primary user:** internal contributor uploading a document.
-- **Secondary users:** owner/admin reviewing flagged uploads.
+- **Secondary users:** owner/editor reviewing flagged uploads.
 - **Roles:** as defined in `auth-and-orgs`.
 
 ## User stories
@@ -35,13 +35,13 @@ of document the slot asked for?"_
 - **US2** — _As an uploader, I want a short plain-English explanation
   when the AI is unsure or disagrees, so I understand what to do
   next._
-- **US3** — _As an owner/admin, I want to see a flagged queue of
+- **US3** — _As an owner/editor, I want to see a flagged queue of
   uploads the AI was unsure about so I can approve/reject quickly
   without reviewing every green-light upload._
-- **US4** — _As an owner/admin, I want to override an AI decision
+- **US4** — _As an owner/editor, I want to override an AI decision
   (flip red → approved, or approved → rejected) with one click so
   we can always exercise judgement over the AI._
-- **US5** — _As an owner/admin, I want AI decisions to carry a
+- **US5** — _As an owner/editor, I want AI decisions to carry a
   confidence score and a per-slot rule summary so I can see **why**
   the AI decided the way it did._
 - **US6** — _As a security-conscious admin, I want the original

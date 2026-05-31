@@ -244,7 +244,7 @@ returns a user without MFA for any role).
 Status: `[x]` — closed 2026-05-04 on PR #15
 **Scope:** `createInvitation` (internal + external variants),
 `listInvitations`, `revokeInvitation`, `acceptInvitation`. Enforce
-FR6–FR10. Only owner/admin can invite; only owner can invite an admin;
+FR6–FR10. Only owner/editor can invite; only owner can invite an admin;
 external invites must include an `opportunity_slug`. Writes audit
 events for every mutation.
 **Files (likely):** `microservices/core/application/invitations.ts`.

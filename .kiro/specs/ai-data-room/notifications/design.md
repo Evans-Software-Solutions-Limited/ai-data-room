@@ -101,7 +101,7 @@ default policy. Unknown events are ignored (logged), never sent. Examples:
 
 ## Delivery logic (notify-worker)
 
-1. Resolve recipients for the event's org (owner/admins by default; category-
+1. Resolve recipients for the event's org (owner/editors by default; category-
    dependent).
 2. For each recipient × channel: check `notification_sends` (idempotency),
    preferences, suppression.

@@ -22,7 +22,7 @@ bank details, third-party PII, or unrelated commercial terms.
 
 This slice delivers redaction in two halves that ship in order:
 
-1. **Manual redaction (MVP-critical):** an owner/admin draws redaction regions
+1. **Manual redaction (MVP-critical):** an owner/editor draws redaction regions
    on a document; the system produces an irreversibly-flattened redacted
    rendition that is what scoped external viewers receive.
 2. **AI-assisted suggestion (differentiator):** Claude proposes regions likely
@@ -35,11 +35,11 @@ must **never** be able to obtain the original bytes.
 
 ## Users & roles
 
-- **Primary user:** owner/admin preparing a document for external sharing.
+- **Primary user:** owner/editor preparing a document for external sharing.
 - **Secondary:** internal contributor proposing redactions for admin approval.
 - **Consumer:** external viewer who receives only the redacted rendition.
-- **Roles (from `auth-and-orgs`):** `owner`, `admin`, `internal`, `external`.
-  Only `owner`/`admin` can apply or approve redactions; `external` never sees
+- **Roles (from `auth-and-orgs`):** `owner`, `editor`, `viewer`, `external`.
+  Only `owner`/`editor` can apply or approve redactions; `external` never sees
   unredacted bytes of a redacted document.
 
 ## User stories
@@ -86,7 +86,7 @@ must **never** be able to obtain the original bytes.
   likely-sensitive spans (PII, account/card numbers, names, addresses),
   returning page/box or text-range anchors.
 - **FR6** — AI suggestions shall **never** be auto-applied. They appear as
-  proposed regions an owner/admin must confirm, edit, or dismiss. The UI
+  proposed regions an owner/editor must confirm, edit, or dismiss. The UI
   marks them as AI-derived (`signal` amber per the design system).
 - **FR7** — The suggestion step shall fail safe: if extraction or the model
   call fails, the document is simply unredacted-with-no-suggestions, never
