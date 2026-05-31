@@ -54,11 +54,13 @@ Opportunity-scoped external viewers.
   historical audit rows referencing `admin`/`internal` need a backfill or a
   documented cutover.
 - **Follow-ups / obligations:**
-  - Migration task (RB-7): `ALTER TYPE` (or new enum + backfill) for
-    `org_memberships.role` and `invitations.role`; update repos, guards
-    (`authorizeOrgAccess`), `/me` shape, fixtures, and tests in one PR.
+  - **Folded into `org-provisioning` as T-000** (RB-7) — the first build target,
+    which already touches memberships/roles. `ALTER TYPE` (or new enum +
+    backfill) for `org_memberships.role` and `invitations.role`; update repos,
+    guards (`authorizeOrgAccess`), `/me` shape, WorkOS role metadata, fixtures,
+    and tests in one PR. ADR moves to `accepted` on T-000 green.
   - Update the `migrate.integration.test.ts` expectations.
-  - Land before `access-control` (slice 3) builds role-tier logic, so it builds
+  - Lands before `access-control` (slice 3) builds role-tier logic, so it builds
     on the final names.
 
 ## References
