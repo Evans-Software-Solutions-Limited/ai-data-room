@@ -30,12 +30,19 @@
 | RB-2 | **Deploy the e2e stage** — provision the e2e environment + WorkOS test tenant + seeded user so slice-1 Playwright specs actually exercise a deployed backend. | auth-and-orgs | High | T-021's full DoD ("11 specs green") is unmet; 8 of 11 deferred. Runbook: `docs/runbooks/e2e-stage.md`. |
 | RB-3 | **Resolve or formally waive MFA audit events** — `handleMfaEnrolled` / `handleRecoveryCodeUsed` are implemented + tested but unreachable (WorkOS SDK v8.13 doesn't emit those event types). FR17/FR24 are paper-only. | auth-and-orgs | Medium | Either wire when the SDK exposes the events, or waive with an ADR. |
 | RB-4 | **Delete `hello-world` template scaffolding** from `microservices/core` and `microservices/workers` before it gets cargo-culted into a real slice. | chore | Low | Pure cleanup. |
+| RB-5 | **Per-org feature-flag mechanism** — `ai-search-qna` assumes a `qna_enabled` flag with no owner. | auth-and-orgs | Low | Fold a small shared flag util into `auth-and-orgs`; no separate slice. |
 
 ## Spec gaps surfaced by the competitive scan
 
 | Gap | Status in specs | Recommendation |
 | --- | --- | --- |
-| **Document redaction** (manual + AI-assisted) | Absent — only *log* redaction exists (`room-and-folders/design.md`, `ai-search-qna/design.md`). | Add as a slice-2 / slice-5 requirement. Reuse the sense-check extraction pipeline; flag AI suggestions in `signal` amber. Table-stakes vs Ideals/Datasite/Ansarada/Drooms/Imprima. |
+| **Document redaction** (manual + AI-assisted) | **Now spec-complete** — slice 11 (`document-redaction`). | Reuses the sense-check extractor; AI suggestions in `signal` amber. Table-stakes vs Ideals/Datasite/Ansarada/Drooms/Imprima. |
+| **In-app document viewer** | **Now spec-complete** — slice 12 (`document-viewer`). | Resolves the contradiction: redaction + Q&A auditability needed a viewer the brief had deferred. |
+| **Notifications / product-email** | **Now spec-complete** — slice 13 (`notifications`). | Was referenced but unscoped in onboarding + admin. Drives stickiness. |
+| **OCR + keyword search** | **Now spec-complete** — slice 14 (`search-ocr`). | OCR removes scanned-doc blind spots; keyword search beside semantic Q&A. |
+| **Data export / offboarding** | **Now spec-complete** — slice 15 (`data-export`). | Per-org export + GDPR portability + verifiable purge. |
+| **Virus scanning on upload** | **Now spec-complete** — slice 16 (`virus-scanning`). | Scan-on-upload + quarantine; clean-gates every consumer. |
+| **Per-org feature-flag mechanism** | Orphaned — `ai-search-qna` assumes `qna_enabled` but nothing owns flags. | Fold a small shared flag util into `auth-and-orgs` (no own slice). Tracked here as RB-5. |
 | **Watermarking / fence-view / DRM** | Consciously Phase 2 (`room-and-folders` NFR6, `access-control` exclusions). | Hold at Phase 2 **if** we stay in the SME lane (see positioning §open decision). Needs Bradley's explicit call. |
 | **Competitive positioning / north star** | Was nowhere in the specs. | Now captured in [positioning.md](./positioning.md). Slices should point at it. |
 | **Security certification path** (ISO 27001 → SOC 2) | Phase 2 backlog (`soc2-iso27001`). | Keep Phase 2, but make the roadmap visible to buyers to de-risk procurement. |

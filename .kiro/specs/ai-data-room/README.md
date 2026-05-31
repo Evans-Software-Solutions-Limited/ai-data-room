@@ -27,6 +27,11 @@ cross-session coordination.
 | 9   | `onboarding-flow`      | 1–4        | reqs + design + tasks drafted | Self-serve signup + first-room setup wizard.                                           |
 | 10  | `tenant-isolation`     | 1          | reqs + design + tasks drafted | Cross-cutting hardening (ADR-011). **Must land before slice 2's document-bearing tasks.** Listed at 10 to avoid renumbering, but executes between 1 and 2. |
 | 11  | `document-redaction`   | 2, 3 (+5 for AI-assist) | reqs + design + tasks drafted | Manual + AI-assisted redaction. Table-stakes vs. incumbents. |
+| 12  | `document-viewer`      | 2, 3       | reqs + design + tasks drafted | Read-only in-app PDF/Office viewer. **Prerequisite for slice 11** (region drawing); enhances slice 6 (citation → source view). |
+| 13  | `notifications`        | 1 (consumes 2–6 events) | reqs + design + tasks drafted | Product email + in-app notifications (digests, access alerts, NDA, flags). Leaf dependency — can land mid-stream. |
+| 14  | `search-ocr`           | 2, 5       | reqs + design + tasks drafted | OCR (so scanned docs are usable) + keyword full-text search beside semantic Q&A. |
+| 15  | `data-export`          | 1, 2       | reqs + design + tasks drafted | Per-org room export + GDPR portability + offboarding/purge lifecycle. |
+| 16  | `virus-scanning`       | 2          | reqs + design + tasks drafted | Scan-on-upload + quarantine. Clean-gate every consumer. Land early in slice 2's life. |
 
 **Parallelisation notes:**
 
@@ -36,7 +41,12 @@ cross-session coordination.
 - Slice 10 (`tenant-isolation`) executes **between** slices 1 and 2 despite its
   index number — it gates slice 2's document storage (see ADR-011).
 - Slice 11 (`document-redaction`) follows slice 2; its AI-assist half soft-
-  depends on slice 5's extractor.
+  depends on slice 5's extractor, and it needs slice 12's viewer.
+- Slice 12 (`document-viewer`) lands with/just-before slice 11 and enhances 6.
+- Slice 16 (`virus-scanning`) should land early in slice 2's life — its
+  clean-gate touches the upload pipeline and the AI slices' indexing triggers.
+- Slices 13 (`notifications`), 14 (`search-ocr`), 15 (`data-export`) are
+  additive and can be scheduled flexibly once their dependencies exist.
 
 **Showcase sequencing (demo value, within the dependency constraints).** To
 stand up a demoable "upload → AI checks it → ask a cited question" loop fastest,
@@ -56,16 +66,31 @@ Target repo: TBD (Bradley to confirm path + GitHub org — likely
 `Evans-Software-Solutions-Limited/ai-data-room`). Each slice corresponds
 to a feature folder / workspace inside the monorepo, not a separate repo.
 
-## Additions from the 2026 competitive scan (now spec-complete, pending sign-off)
+## Additions from the 2026 competitive scan + seam review (spec-complete, pending sign-off)
 
-- **`tenant-isolation`** (slice 10) — row-level cross-tenant isolation as a
-  tested invariant (ADR-011). Gates slice 2's document storage.
-- **`document-redaction`** (slice 11) — manual + AI-assisted redaction;
-  table-stakes vs. every incumbent. Reuses the sense-check extractor for the
-  AI half. (Was previously only a Phase-2 thought; promoted after the scan.)
+All seven new slices have full `requirements.md` + `design.md` + `tasks.md`.
 
-Both now have full `requirements.md` + `design.md` + `tasks.md`. Rationale in
-`docs/product/positioning.md`; sequencing in `docs/product/implementation-plan.md`.
+- **`tenant-isolation`** (10) — row-level cross-tenant isolation as a tested
+  invariant (ADR-011). Gates slice 2's document storage.
+- **`document-redaction`** (11) — manual + AI-assisted redaction; table-stakes
+  vs. every incumbent. Reuses the sense-check extractor for the AI half.
+- **`document-viewer`** (12) — read-only in-app viewer. Resolves the contradiction
+  where redaction (needs a preview to draw on) and Q&A auditability depend on a
+  viewer the brief had deferred to Phase 2.
+- **`notifications`** (13) — the product-email/in-app notification system both
+  `onboarding-flow` and `admin-dashboard` referenced but never scoped.
+- **`search-ocr`** (14) — OCR (no more silent blind spots on scanned docs) +
+  keyword full-text search beside semantic Q&A.
+- **`data-export`** (15) — the customer-facing export + GDPR portability +
+  offboarding/purge lifecycle that NFR7 enabled but no feature owned.
+- **`virus-scanning`** (16) — scan-on-upload + quarantine; clean-gates every
+  consumer.
+
+Rationale in `docs/product/positioning.md`; sequencing in
+`docs/product/implementation-plan.md`. **Minor gap — a per-org feature-flag
+mechanism (`ai-search-qna` assumes `qna_enabled`) — is tracked in
+`docs/product/production-readiness.md`, folded into `auth-and-orgs` rather than
+given its own slice.**
 
 ## Phase-2 backlog (out of MVP)
 
@@ -147,6 +172,11 @@ infrastructure,middleware}` skeleton created with one folder per
   now carries an explicit pending decision.
 - 2026-05-31 — Two new feature slices spec-completed to the full three-file
   standard: **`tenant-isolation`** (slice 10, gates slice 2 per ADR-011) and
-  **`document-redaction`** (slice 11, manual + AI-assist). **Pending Bradley
-  sign-off on ADR-011, both new slices' requirements + design, and the
-  watermark/fence-view timing call.**
+  **`document-redaction`** (slice 11, manual + AI-assist).
+- 2026-05-31 — Seam review surfaced five more unscoped features; all
+  spec-completed to the three-file standard: **`document-viewer`** (12),
+  **`notifications`** (13), **`search-ocr`** (14), **`data-export`** (15),
+  **`virus-scanning`** (16). Feature-flag mechanism folded into `auth-and-orgs`
+  via a production-readiness note (no own slice). **Pending Bradley sign-off on
+  ADR-011, slices 10–16 (requirements + design), and the watermark/fence-view
+  timing call.**

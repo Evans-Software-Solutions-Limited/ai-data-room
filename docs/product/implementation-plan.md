@@ -78,8 +78,27 @@ Both were promoted from "proposed tasks" into proper kiro slices with
   [requirements](../../.kiro/specs/ai-data-room/document-redaction/requirements.md) ·
   [design](../../.kiro/specs/ai-data-room/document-redaction/design.md) ·
   [tasks](../../.kiro/specs/ai-data-room/document-redaction/tasks.md).
-  Follows slice 2; AI-assist half soft-depends on slice 5's extractor. Ship the
-  manual half for MVP; the AI-assist half is the differentiator.
+  Follows slice 2; needs slice 12's viewer; AI-assist half soft-depends on slice
+  5's extractor. Ship the manual half for MVP; AI-assist is the differentiator.
+
+Five more slices (12–16) came out of the seam review, all spec-complete:
+
+- **`document-viewer`** (12) — lands with/just-before redaction (provides the
+  preview surface) and enhances Q&A citation deep-linking.
+- **`virus-scanning`** (16) — land **early in slice 2's life**; its clean-gate
+  touches the upload pipeline and the AI slices index off
+  `document.scanned.clean` instead of raw upload.
+- **`search-ocr`** (14) — alongside/after slice 6 (shares the indexing bus);
+  OCR also feeds sense-check + redaction.
+- **`notifications`** (13) — leaf dependency; schedule once slices 2–6 emit
+  their events (good companion to the admin-dashboard work).
+- **`data-export`** (15) — after slice 2; its offboarding half pairs with
+  slice 8 (billing) cancellation events.
+
+Specs: see the [slice index](../../.kiro/specs/ai-data-room/README.md) rows
+12–16. Sequencing for these is flexible within their dependencies — fold them
+into the phases above as capacity allows; none block the Phase 1 demo loop
+except slices 12 + 16, which pair with slice 2/11.
 
 ## Sign-off checklist (what "docs up to date" means)
 
