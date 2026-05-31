@@ -4,15 +4,55 @@
 > session should pick up. Refreshed at every task transition; delete
 > once steady state ("look at `tasks.md`") is safe to assume.
 
-**Last updated:** 2026-05-24 by Claude Code, T-021 starting. Branch
-`feat/auth-and-orgs-T-021-playwright-e2e`. T-017 / T-018 / T-020 all
-merged. Slice 1 at 20/22 tasks complete (~91%) — T-021 + T-022 left.
+**Last updated:** 2026-05-26 by Claude Code, T-022 PR open, prototype
+shipped. Branch `feat/auth-and-orgs-T-022-sign-off-and-tag` (PR #28
+— open, mergeable, CI green; docs-only so `Detect Changes` correctly
+skipped jobs). T-021 merged on 2026-05-26 (PR #27, commit `356dd6e`).
+Slice 1 at 21/22 tasks complete (~95%) — only T-022 (review gate +
+tag) remaining.
+
+**Side-channel: v1 MVP design prototype.** Static HTML/CSS prototype
+of the v1.0-mvp surface lives on branch `proto/v1-mvp-design` in a
+worktree at `.claude/worktrees/agent-a1755586759c0e9df/`. Six
+screens: workspace home, `02_Financials` folder, cited Q&A, Stripe
+Inc. opportunity room, admin dashboard, 4-step onboarding wizard.
+NOT pushed to remote. Brad opens
+`prototypes/v1-mvp-design/index.html` in a browser. Three design
+questions in the commit body (wordmark, `#b8742a` amber accent vs
+Capital Pay brand, no dark mode). Not blocking the slice tag.
+
+**ACCOUNT HANDOFF (2026-05-26):** Brad is switching Claude Code
+accounts mid-stream. State preserved on disk + in PR #28. Next
+session: read this file, then resolve the four open decisions
+below. None of the prior session's chat or skill context survives
+the switch — the only persistent state is git + this file + the
+worktree.
+
+## Open decisions awaiting Brad (post-account-switch)
+
+1. **PR #28 review + merge.** Docs-only. Then `git tag -a
+v0.1.0-auth-and-orgs <merge-sha> -m "Slice 1 — auth-and-orgs"`
+   and `git push origin v0.1.0-auth-and-orgs`.
+2. **Push `proto/v1-mvp-design`?** Currently local-only on a
+   worktree. Either push it as a draft PR for design feedback +
+   broader review, or keep local until the design questions are
+   resolved.
+3. **Next slice: 2 (room-and-folders) vs 8 (billing-subscription)?**
+   Slice 2 unlocks 4/5/6 in parallel — highest leverage from one
+   slice. Recommend slice 2. All nine slices already have full
+   kiro specs drafted (`.kiro/specs/ai-data-room/<slice>/{req,
+design,tasks}.md`); pick the lowest-numbered task and branch.
+4. **The 11 HANDOFF follow-ups below.** Per Brad's prior call,
+   each gets its own kiro mini-spec + background task — NOT
+   bundled into anything. Spawn them when there's capacity; none
+   are blocking.
 
 ## Where we are in slice 1 (auth-and-orgs)
 
-Auth surface + web shell + observability + rate-limit hardening all
-shipped. What's left: Playwright e2e structure (this PR) + the
-slice sign-off tag.
+Auth surface + web shell + observability + rate-limit hardening +
+Playwright e2e framework all shipped. What's left: the slice
+sign-off doc (FR/NFR/AC traceability matrix) + deploy-checklist
+pass + tag.
 
 | Task   | Status       | Notes                                                                                   |
 | ------ | ------------ | --------------------------------------------------------------------------------------- |
@@ -38,78 +78,62 @@ slice sign-off tag.
 | T-017  | ✅           | Minimal web shell — PR #24.                                                             |
 | T-018  | ✅           | Observability — Powertools logger + EMF metrics + X-Ray + 4 alarms (PR #25).            |
 | T-020  | ✅           | Rate limiting + NFR1-11 hardening matrix (PR #26).                                      |
-| T-021  | 🎯 **in PR** | Playwright e2e — minimal scope per Brad's call. 3 active specs + 8 deferred.            |
-| T-022  | ⏳           | Slice sign-off + traceability matrix + tag. Last.                                       |
+| T-021  | ✅           | Playwright e2e — minimal scope per Brad's call. 3 active specs + 8 deferred (PR #27).   |
+| T-022  | 🎯 **in PR** | Slice sign-off + traceability matrix + tag. Last.                                       |
 
-Slice 1 is **~91% done by task count**. Only T-022 remaining after
-this lands. T-021's full DoD ("11 specs green on CI") needs a
-deployed e2e stage + WorkOS test tenant — provisioning steps live
-in `docs/runbooks/e2e-stage.md` and are Brad's post-merge follow-up.
+Slice 1 is **~95% done by task count**. Only T-022 remaining.
+T-021's full DoD ("11 specs green on CI") needs a deployed e2e
+stage + WorkOS test tenant — provisioning steps live in
+`docs/runbooks/e2e-stage.md` and are Brad's post-merge follow-up.
+T-022's sign-off doc flags this honestly rather than blocking
+the tag.
 
-## What T-021 ships (in flight)
+## What T-022 ships (in flight)
 
-Playwright framework + e2e-bootstrap endpoint + 3 representative
-specs. The other 8 ACs sit as `test.skip(...)` placeholders in
-`_deferred.spec.ts` with notes on what's needed to unskip
-(mailbox harness for invitation / verification / password-reset
-flows, audit-query endpoint for AC-US10/11, hosted-UI scriptability
-for AC-US4/9 which is owned by AuthKit).
+Three pieces, no code:
 
-- **Playwright infra** at the repo root: `playwright.config.ts`,
-  `e2e/global-setup.ts`, `e2e/helpers/{session,emptyStorageState}.ts`.
-- **`/e2e/auth/login` bootstrap** at
-  `microservices/core/src/application/auth/e2e-bootstrap/
-postE2EAuthLoginHandler.ts`. Mirrors FDP verbatim:
-  - 404 in production regardless of any other config.
-  - 503 when `E2E_AUTH_SECRET` isn't linked to the Lambda.
-  - 401 when the caller's `x-e2e-key` doesn't match.
-  - On success: calls `workos.authenticateWithPassword` and sets the
-    sealed `wos_session` cookie. Mounted on `publicRoutes`.
-- **`E2E_AUTH_SECRET` infra plumbing** — declared in
-  `infra/secrets.ts` only when `$app.stage !== "production"`,
-  link-included in `coreAPI` `$default` via spread-conditional so
-  the link list stays valid in prod.
-- **3 active specs** at `e2e/specs/auth-and-orgs/`:
-  - `ac-us1-authenticated-app.spec.ts` — workspace shell renders the
-    `/me` payload + the sign-out anchor is absolute.
-  - `ac-us7-session-persistence.spec.ts` — reload preserves auth,
-    new context with same storageState lands authenticated.
-  - `ac-us8-logout.spec.ts` — sign-out clears the cookie + a
-    subsequent `/me` request returns 401.
-- **`_deferred.spec.ts`** — 8 `test.skip(...)` placeholders. Each
-  has the AC text + a one-liner on what's blocking the unskip.
-- **`.github/workflows/e2e.yml`** — runs on `workflow_dispatch` or
-  after `Deploy Staging` succeeds. Self-skips with a `::warning::`
-  if any required secret is missing. Uploads `playwright-report/`
-  as an artifact.
-- **`docs/runbooks/e2e-stage.md`** — full provisioning steps for
-  Brad: WorkOS test tenant + seeded users, `E2E_AUTH_SECRET` per
-  stage, GitHub secrets + variables, the manual-smoke procedure.
+1. **`docs/slices/auth-and-orgs.md` traceability matrix.** One page,
+   three sections: FR1–24, NFR1–11, AC-US1–11. NFR section is a
+   summary table that links out to the existing `docs/security.md`
+   for full detail (single source of truth — the matrix-test
+   tripwire stays in security.md). FR + AC sections each carry
+   per-row requirement → impl site → verification site → test
+   file, citing the unit / integration / handler / e2e test that
+   actually exercises the row.
+2. **`engineering:deploy-checklist` pass.** Structured pre-deploy
+   walkthrough across CI / migrations / feature flags / observability
+   / rollback. Findings folded into the sign-off doc as an
+   "open follow-ups before production cutover" section.
+3. **`v0.1.0-auth-and-orgs` tag.** Symbolic — slice 1 done on
+   paper. Tag waits until matrix + checklist are merged.
 
-## Open before-merge questions for PR #27 (T-021)
+Three honesty disclosures the matrix must land:
 
-1. **Manual run against `bun sst dev`** — needs Brad to set
-   `.env.e2e` and run `bun run test:e2e:install && bun run test:e2e`.
-   The handler tests cover the bootstrap endpoint contract; the
-   3 specs need a real backend to assert against.
-2. **Stage provisioning** — `docs/runbooks/e2e-stage.md` step 1
-   (WorkOS test tenant + verified test user) and step 2
-   (`bun sst secret set E2E_AUTH_SECRET ...`) are post-merge
-   actions for Brad. The CI workflow self-skips until these land.
+- **ADR-003 — recovery codes delegated to AuthKit.** AC-US9 has no
+  test surface on our side. Matrix row reads "covered by AuthKit
+  (ADR-003); no local test surface".
+- **MFA application handlers exist but unreachable.** Sticky #21.
+  `handleMfaEnrolled` + `handleRecoveryCodeUsed` ship with tests
+  but T-016 acks `authentication.mfa_enrolled` /
+  `authentication.recovery_code_used` as `{ ignored: true }`
+  because v8.13 SDK doesn't expose those event names as
+  discriminated types. Matrix rows for FR17 / FR24 (MFA event
+  audit coverage) must flag this explicitly.
+- **E2E stage unprovisioned.** 8 of 11 AC rows cite handler /
+  integration tests + a deferred Playwright spec; the active 3
+  cite e2e specs but those need `E2E_AUTH_SECRET` set + the
+  WorkOS test tenant + the seeded user before they actually
+  exercise a deployed backend. Listed as a "before-production"
+  follow-up, not a tag blocker.
 
-## What's left in slice 1 after T-021 merges
+## Spawned follow-ups (T-022 review)
 
-Just **T-022**:
-
-- Lift the test↔NFR matrix from `docs/security.md` into a
-  comprehensive FR↔NFR↔AC↔test matrix at
-  `docs/slices/auth-and-orgs.md`.
-- Verify every FR1-24 + NFR1-11 + AC-US1-11 has at least one test.
-- Run the `engineering:deploy-checklist` skill.
-- Tag `v0.1.0-auth-and-orgs`.
-
-T-022 doesn't ship code — it's a review gate. Estimate: ~half-day
-for the matrix + the deploy-checklist pass.
+Per Brad's call (2026-05-26), the 11 HANDOFF follow-ups below are
+NOT bundled into T-022's PR. Each gets spawned as its own
+background task, and each spawn opens by authoring a kiro
+three-file spec (`requirements.md` / `design.md` / `tasks.md`)
+under `.kiro/specs/auth-and-orgs/follow-up-<slug>/` before any
+code. List below kept as the spawn manifest.
 
 ## Pending follow-ups (not blocking, but worth doing soon)
 

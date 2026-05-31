@@ -34,6 +34,16 @@ const ALL_SECRETS: SecretBag = {
 
 function mockSst(secrets: SecretBag) {
   vi.doMock("sst", () => ({ Resource: secrets }));
+  // The sign-out handler imports `UserRepo` + `AuditRepo` at module
+  // load (the per-request audit emission path), and both repo files
+  // import `schema` from `@ai-data-room/db`. Stub the db factory +
+  // a no-op `schema` so module load succeeds; repo method calls
+  // against the stub would fail, but no public-route test exercises
+  // a repo method against an unmocked repo class.
+  vi.doMock("@ai-data-room/db", () => ({
+    getDb: vi.fn().mockReturnValue({}),
+    schema: new Proxy({}, { get: () => ({}) }),
+  }));
 }
 
 interface MockWorkOSConfig {
@@ -46,6 +56,30 @@ interface MockWorkOSConfig {
   authError?: Error;
   /** What `loadSealedSession().getLogoutUrl()` returns. */
   logoutUrl?: string;
+  /** What `loadSealedSession().authenticate()` returns. Default is
+   * `{ authenticated: false }` so the sign-out handler falls through
+   * to the refresh ladder; configure `sessionRefreshResult` to
+   * control what `session.refresh()` returns next. */
+  sessionAuthResult?:
+    | { authenticated: false }
+    | {
+        authenticated: true;
+        user: { id: string };
+        organizationId: string | null;
+      };
+  /** What `loadSealedSession().refresh()` returns. Default is
+   * `{ authenticated: false }` so the audit branch is deliberately
+   * skipped unless a test opts in to either the authenticate-true
+   * or refresh-true path. */
+  sessionRefreshResult?:
+    | { authenticated: false }
+    | {
+        authenticated: true;
+        user: { id: string };
+        organizationId: string | null;
+      };
+  /** Make `loadSealedSession().refresh()` throw. */
+  sessionRefreshError?: Error;
   /** Make `loadSealedSession` throw (sealed-decode failure). */
   loadSealedSessionError?: Error;
 }
@@ -66,11 +100,21 @@ function mockWorkOS(config: MockWorkOSConfig = {}) {
   const getLogoutUrl = vi
     .fn()
     .mockResolvedValue(config.logoutUrl ?? "https://authkit.example/logout");
+  const authenticate = vi
+    .fn()
+    .mockResolvedValue(config.sessionAuthResult ?? { authenticated: false });
+  const refresh = config.sessionRefreshError
+    ? vi.fn().mockRejectedValue(config.sessionRefreshError)
+    : vi
+        .fn()
+        .mockResolvedValue(
+          config.sessionRefreshResult ?? { authenticated: false },
+        );
   const loadSealedSession = config.loadSealedSessionError
     ? vi.fn().mockImplementation(() => {
         throw config.loadSealedSessionError;
       })
-    : vi.fn().mockReturnValue({ getLogoutUrl });
+    : vi.fn().mockReturnValue({ getLogoutUrl, authenticate, refresh });
 
   vi.doMock("@workos-inc/node", () => ({
     WorkOS: class {
@@ -94,6 +138,8 @@ function mockWorkOS(config: MockWorkOSConfig = {}) {
     authenticateWithCode,
     loadSealedSession,
     getLogoutUrl,
+    authenticate,
+    refresh,
   };
 }
 
@@ -125,6 +171,10 @@ describe("publicRoutes — getSignInHandler", () => {
   afterEach(() => {
     vi.doUnmock("sst");
     vi.doUnmock("@workos-inc/node");
+    vi.doUnmock("@ai-data-room/db");
+    vi.doUnmock("../../../infrastructure/db/userRepo");
+    vi.doUnmock("../../../infrastructure/db/orgRepo");
+    vi.doUnmock("../../../infrastructure/db/auditRepo");
   });
 
   it("redirects to AuthKit with provider=authkit + screenHint=sign-in", async () => {
@@ -205,6 +255,10 @@ describe("publicRoutes — getSignUpHandler", () => {
   afterEach(() => {
     vi.doUnmock("sst");
     vi.doUnmock("@workos-inc/node");
+    vi.doUnmock("@ai-data-room/db");
+    vi.doUnmock("../../../infrastructure/db/userRepo");
+    vi.doUnmock("../../../infrastructure/db/orgRepo");
+    vi.doUnmock("../../../infrastructure/db/auditRepo");
   });
 
   it("redirects to AuthKit with screenHint=sign-up (the only difference vs sign-in)", async () => {
@@ -233,6 +287,10 @@ describe("publicRoutes — getCallbackHandler", () => {
   afterEach(() => {
     vi.doUnmock("sst");
     vi.doUnmock("@workos-inc/node");
+    vi.doUnmock("@ai-data-room/db");
+    vi.doUnmock("../../../infrastructure/db/userRepo");
+    vi.doUnmock("../../../infrastructure/db/orgRepo");
+    vi.doUnmock("../../../infrastructure/db/auditRepo");
   });
 
   it("exchanges the code, sets wos_session, redirects, and emits auth.login.success on the happy path", async () => {
@@ -422,6 +480,10 @@ describe("publicRoutes — getSignOutHandler", () => {
   afterEach(() => {
     vi.doUnmock("sst");
     vi.doUnmock("@workos-inc/node");
+    vi.doUnmock("@ai-data-room/db");
+    vi.doUnmock("../../../infrastructure/db/userRepo");
+    vi.doUnmock("../../../infrastructure/db/orgRepo");
+    vi.doUnmock("../../../infrastructure/db/auditRepo");
   });
 
   it("redirects to the AuthKit logout URL when the cookie is valid", async () => {
@@ -486,5 +548,305 @@ describe("publicRoutes — getSignOutHandler", () => {
 
     expect(res.headers.get("location")).toBe("http://localhost:5173/");
     expect(res.headers.get("set-cookie") ?? "").toContain("wos_session=");
+  });
+
+  it("emits a `logout` audit event tied to the local user + org on a valid sign-out (FR13 / AC-US8 / AC-US10 org-scoped query)", async () => {
+    // FR13 + AC-US8 require an audit row keyed to the user signing
+    // out, with the local org UUID populated so AC-US10's
+    // `GET /orgs/:orgId/audit-events` query (which filters strictly
+    // on `org_id`) can return it. The handler resolves both the
+    // local user UUID via `userRepo.findByWorkosUserId` AND the
+    // local org UUID via `orgRepo.findByWorkosOrgId` (using
+    // `authResult.organizationId`, which is WorkOS-side per sticky #16).
+    const auditWrite = vi.fn().mockResolvedValue({
+      id: "00000000-0000-0000-0000-000000000099",
+      occurredAt: new Date(),
+    });
+    vi.doMock("../../../infrastructure/db/auditRepo", () => ({
+      AuditRepo: class {
+        write = auditWrite;
+      },
+    }));
+    const userFindByWorkosUserId = vi.fn().mockResolvedValue({
+      id: "11111111-1111-4111-8111-111111111111",
+      workosUserId: "user_wos_42",
+      email: "alice@example.com",
+    });
+    vi.doMock("../../../infrastructure/db/userRepo", () => ({
+      UserRepo: class {
+        findByWorkosUserId = userFindByWorkosUserId;
+      },
+    }));
+    const orgFindByWorkosOrgId = vi.fn().mockResolvedValue({
+      id: "22222222-2222-4222-8222-222222222222",
+      workosOrgId: "org_wos_capitalpay",
+      name: "Capital Pay",
+    });
+    vi.doMock("../../../infrastructure/db/orgRepo", () => ({
+      OrgRepo: class {
+        findByWorkosOrgId = orgFindByWorkosOrgId;
+      },
+    }));
+
+    const sdk = mockWorkOS({
+      sessionAuthResult: {
+        authenticated: true,
+        user: { id: "user_wos_42" },
+        organizationId: "org_wos_capitalpay",
+      },
+      logoutUrl: "https://authkit.example/logout?return=http://localhost:5173",
+    });
+    const routes = await loadPublicRoutes();
+
+    const res = await routes.handle(
+      makeAuthRequest("http://localhost/auth/sign-out", {
+        headers: {
+          cookie: "wos_session=sealed-blob",
+          "user-agent": "test-agent",
+        },
+      }),
+    );
+
+    expect(res.headers.get("location")).toBe(
+      "https://authkit.example/logout?return=http://localhost:5173",
+    );
+    expect(sdk.authenticate).toHaveBeenCalledTimes(1);
+    expect(userFindByWorkosUserId).toHaveBeenCalledWith("user_wos_42");
+    expect(orgFindByWorkosOrgId).toHaveBeenCalledWith("org_wos_capitalpay");
+    expect(auditWrite).toHaveBeenCalledTimes(1);
+    expect(auditWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "logout",
+        outcome: "success",
+        actorUserId: "11111111-1111-4111-8111-111111111111",
+        targetUserId: "11111111-1111-4111-8111-111111111111",
+        orgId: "22222222-2222-4222-8222-222222222222",
+        sourceIp: "203.0.113.5",
+        userAgent: "test-agent",
+        metadata: { workosUserId: "user_wos_42" },
+      }),
+    );
+  });
+
+  it("emits a `logout` audit with actorUserId=null + orgId=null when the user has no local mirror yet (fresh-signup sign-out)", async () => {
+    // Fresh signup → callback set sealed cookie → user signs out
+    // before ever hitting a protected route → no lazy-mirror row
+    // exists (sticky #34). AC-US8 still requires the audit row.
+    // Schema permits null actor_user_id + org_id; `metadata.workosUserId`
+    // carries the joinable id. Org lookup is skipped because the
+    // resolution is gated on `localUser && organizationId`, and
+    // neither is true here.
+    const auditWrite = vi.fn().mockResolvedValue({
+      id: "00000000-0000-0000-0000-0000000000aa",
+      occurredAt: new Date(),
+    });
+    vi.doMock("../../../infrastructure/db/auditRepo", () => ({
+      AuditRepo: class {
+        write = auditWrite;
+      },
+    }));
+    const userFindByWorkosUserId = vi.fn().mockResolvedValue(null);
+    vi.doMock("../../../infrastructure/db/userRepo", () => ({
+      UserRepo: class {
+        findByWorkosUserId = userFindByWorkosUserId;
+      },
+    }));
+    const orgFindByWorkosOrgId = vi.fn();
+    vi.doMock("../../../infrastructure/db/orgRepo", () => ({
+      OrgRepo: class {
+        findByWorkosOrgId = orgFindByWorkosOrgId;
+      },
+    }));
+
+    const sdk = mockWorkOS({
+      sessionAuthResult: {
+        authenticated: true,
+        user: { id: "user_wos_freshly_signed_up" },
+        organizationId: null,
+      },
+      logoutUrl: "https://authkit.example/logout?return=http://localhost:5173",
+    });
+    const routes = await loadPublicRoutes();
+
+    const res = await routes.handle(
+      makeAuthRequest("http://localhost/auth/sign-out", {
+        headers: { cookie: "wos_session=sealed-blob-fresh" },
+      }),
+    );
+
+    expect(res.headers.get("location")).toBe(
+      "https://authkit.example/logout?return=http://localhost:5173",
+    );
+    expect(sdk.authenticate).toHaveBeenCalledTimes(1);
+    expect(userFindByWorkosUserId).toHaveBeenCalledWith(
+      "user_wos_freshly_signed_up",
+    );
+    expect(orgFindByWorkosOrgId).not.toHaveBeenCalled();
+    expect(auditWrite).toHaveBeenCalledTimes(1);
+    expect(auditWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "logout",
+        outcome: "success",
+        actorUserId: null,
+        targetUserId: null,
+        orgId: null,
+        metadata: { workosUserId: "user_wos_freshly_signed_up" },
+      }),
+    );
+  });
+
+  it("skips audit emission only when BOTH authenticate AND refresh return authenticated: false (Lead Q hard-fail branch)", async () => {
+    // Default mockWorkOS returns both authenticate → { authenticated: false }
+    // AND refresh → { authenticated: false } — the only path where we
+    // legitimately have no verified actor. Sign-out still succeeds
+    // (the cookie is parseable, getLogoutUrl works) but no audit row.
+    const auditWrite = vi.fn();
+    vi.doMock("../../../infrastructure/db/auditRepo", () => ({
+      AuditRepo: class {
+        write = auditWrite;
+      },
+    }));
+    const sdk = mockWorkOS({
+      logoutUrl: "https://authkit.example/logout?return=http://localhost:5173",
+    });
+    const routes = await loadPublicRoutes();
+
+    const res = await routes.handle(
+      makeAuthRequest("http://localhost/auth/sign-out", {
+        headers: { cookie: "wos_session=sealed-blob-expired" },
+      }),
+    );
+
+    expect(res.headers.get("location")).toBe(
+      "https://authkit.example/logout?return=http://localhost:5173",
+    );
+    expect(sdk.authenticate).toHaveBeenCalledTimes(1);
+    expect(sdk.refresh).toHaveBeenCalledTimes(1);
+    expect(auditWrite).not.toHaveBeenCalled();
+  });
+
+  it("emits the `logout` audit after session.refresh() recovers an expired access token (Lead Q refresh branch)", async () => {
+    // The common sign-out shape: access token has rolled over
+    // (minutes-short TTL) but the refresh token is still valid, so
+    // the user is "logged in" by every other handler's measure (per
+    // requireAuth's authenticate-then-refresh ladder). Pre-Lead-Q
+    // this case silently dropped the audit row; the refresh-branch
+    // audit emission is what AC-US8 cares most about.
+    const auditWrite = vi.fn().mockResolvedValue({
+      id: "00000000-0000-0000-0000-0000000000bb",
+      occurredAt: new Date(),
+    });
+    vi.doMock("../../../infrastructure/db/auditRepo", () => ({
+      AuditRepo: class {
+        write = auditWrite;
+      },
+    }));
+    const userFindByWorkosUserId = vi.fn().mockResolvedValue({
+      id: "33333333-3333-4333-8333-333333333333",
+      workosUserId: "user_wos_refresh_branch",
+    });
+    vi.doMock("../../../infrastructure/db/userRepo", () => ({
+      UserRepo: class {
+        findByWorkosUserId = userFindByWorkosUserId;
+      },
+    }));
+    const orgFindByWorkosOrgId = vi.fn().mockResolvedValue({
+      id: "44444444-4444-4444-8444-444444444444",
+      workosOrgId: "org_wos_refreshed",
+    });
+    vi.doMock("../../../infrastructure/db/orgRepo", () => ({
+      OrgRepo: class {
+        findByWorkosOrgId = orgFindByWorkosOrgId;
+      },
+    }));
+
+    const sdk = mockWorkOS({
+      // authenticate fails (access token expired) → refresh recovers.
+      sessionAuthResult: { authenticated: false },
+      sessionRefreshResult: {
+        authenticated: true,
+        user: { id: "user_wos_refresh_branch" },
+        organizationId: "org_wos_refreshed",
+      },
+      logoutUrl: "https://authkit.example/logout?return=http://localhost:5173",
+    });
+    const routes = await loadPublicRoutes();
+
+    const res = await routes.handle(
+      makeAuthRequest("http://localhost/auth/sign-out", {
+        headers: { cookie: "wos_session=sealed-blob-refresh" },
+      }),
+    );
+
+    expect(res.headers.get("location")).toBe(
+      "https://authkit.example/logout?return=http://localhost:5173",
+    );
+    expect(sdk.authenticate).toHaveBeenCalledTimes(1);
+    expect(sdk.refresh).toHaveBeenCalledTimes(1);
+    expect(userFindByWorkosUserId).toHaveBeenCalledWith(
+      "user_wos_refresh_branch",
+    );
+    expect(orgFindByWorkosOrgId).toHaveBeenCalledWith("org_wos_refreshed");
+    expect(auditWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "logout",
+        outcome: "success",
+        actorUserId: "33333333-3333-4333-8333-333333333333",
+        targetUserId: "33333333-3333-4333-8333-333333333333",
+        orgId: "44444444-4444-4444-8444-444444444444",
+        metadata: { workosUserId: "user_wos_refresh_branch" },
+      }),
+    );
+  });
+
+  it("still redirects to the AuthKit logout URL when the DB lookup throws (Lead R inner-try isolation)", async () => {
+    // Lead R: pre-Lead-F, the handler never touched the DB, so DB
+    // outages couldn't downgrade sign-out from "terminate WorkOS
+    // session" to "drop cookie + frontend redirect". This test
+    // pins that invariant: a DB throw inside the audit branch
+    // must be swallowed locally, the audit row drops (covered by
+    // auth.audit.write_failure metric), and the AuthKit logout
+    // redirect still fires.
+    const auditWrite = vi.fn();
+    vi.doMock("../../../infrastructure/db/auditRepo", () => ({
+      AuditRepo: class {
+        write = auditWrite;
+      },
+    }));
+    const userFindByWorkosUserId = vi
+      .fn()
+      .mockRejectedValue(new Error("PlanetScale unreachable"));
+    vi.doMock("../../../infrastructure/db/userRepo", () => ({
+      UserRepo: class {
+        findByWorkosUserId = userFindByWorkosUserId;
+      },
+    }));
+
+    const sdk = mockWorkOS({
+      sessionAuthResult: {
+        authenticated: true,
+        user: { id: "user_wos_db_outage" },
+        organizationId: null,
+      },
+      logoutUrl: "https://authkit.example/logout?return=http://localhost:5173",
+    });
+    const routes = await loadPublicRoutes();
+
+    const res = await routes.handle(
+      makeAuthRequest("http://localhost/auth/sign-out", {
+        headers: { cookie: "wos_session=sealed-blob-db-outage" },
+      }),
+    );
+
+    // The critical assertion: redirect URL is the AuthKit logout,
+    // NOT the frontend `returnTo`. Pre-Lead-R the DB throw would
+    // unwind into the outer catch and redirect to returnTo,
+    // leaving the WorkOS-side session alive.
+    expect(res.headers.get("location")).toBe(
+      "https://authkit.example/logout?return=http://localhost:5173",
+    );
+    expect(sdk.authenticate).toHaveBeenCalledTimes(1);
+    expect(userFindByWorkosUserId).toHaveBeenCalledWith("user_wos_db_outage");
+    expect(auditWrite).not.toHaveBeenCalled();
   });
 });

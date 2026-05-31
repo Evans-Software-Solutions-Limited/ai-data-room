@@ -445,7 +445,7 @@ and asserts PII is gone but audit joins still resolve.
 
 ## T-020 — Rate limiting + NFR hardening pass
 
-Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-020-rate-limit-nfr-hardening`)
+Status: `[x]` — closed 2026-05-25 on PR #26 (Inspector Brad findings addressed in `e1edaba`).
 **Scope:** Implement NFR4 at API Gateway (IP-based) and handler layer
 (email-based). Verify NFR2, NFR3, NFR5, NFR7, NFR8 via a checklist
 test file. Document the matrix in `docs/security.md`.
@@ -458,11 +458,14 @@ test file. Document the matrix in `docs/security.md`.
 
 ## T-021 — Playwright acceptance suite
 
-Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-021-playwright-e2e`).
-Minimal scope per Brad's call: framework + e2e-bootstrap endpoint +
-3 representative specs (AC-US1 / US7 / US8). Other 8 ACs as
+Status: `[x]` — closed 2026-05-26 on PR #27. Minimal scope per Brad's
+call: framework + e2e-bootstrap endpoint + 3 representative specs
+(AC-US1 / US7 / US8) shipped active. Other 8 ACs sit as
 `.skip()` placeholders in `_deferred.spec.ts` pending mailbox /
 audit-query / hosted-UI harnesses — see `docs/runbooks/e2e-stage.md`.
+Full DoD ("all 11 specs green on CI") deferred behind e2e stage
+provisioning (Brad-owned, post-merge); tracked as a follow-up in the
+T-022 sign-off doc.
 **Scope:** One Playwright test per AC (`AC-US1` through `AC-US11`).
 Runs against a dedicated e2e stage. Tagged so they can run on PR +
 nightly.
@@ -474,7 +477,7 @@ nightly.
 
 ## T-022 — Slice sign-off checklist
 
-Status: `[ ]`
+Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-022-sign-off-and-tag`).
 **Scope:** Final pass: verify every FR, NFR, and AC has at least one
 corresponding test. Run the `engineering:deploy-checklist` skill.
 Tag `v0.1.0-auth-and-orgs` when merged to `main`.
