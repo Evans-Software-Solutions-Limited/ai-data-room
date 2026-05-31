@@ -27,10 +27,14 @@ import { z } from "zod";
  * §Data model. `external` is intentionally absent: external users
  * have `external_access_grants`, not memberships, so the membership
  * role is a strict 3-tuple. The user-facing 4-tuple
- * (owner|admin|internal|external) is a derived projection over
+ * (owner|editor|viewer|external) is a derived projection over
  * memberships ∪ grants and lives at the API surface (T-014).
+ *
+ * Vocabulary is the design's `identity.js` per ADR-012 (`admin`→`editor`,
+ * `internal`→`viewer`). The internal/external *category* (`kind`) is
+ * orthogonal and unchanged.
  */
-export const RoleSchema = z.enum(["owner", "admin", "internal"]);
+export const RoleSchema = z.enum(["owner", "editor", "viewer"]);
 
 /**
  * Lifecycle state shared by `users.lifecycle_state` and
@@ -103,7 +107,7 @@ export const InvitationStateSchema = z.enum([
  * single-owner-per-org is enforced by a unique partial index, and
  * ownership is established at signup, never via invite.
  */
-export const InvitationRoleSchema = z.enum(["admin", "internal"]);
+export const InvitationRoleSchema = z.enum(["editor", "viewer"]);
 
 /**
  * External-access-grant status. Slice 1 only writes `active`/`revoked`;

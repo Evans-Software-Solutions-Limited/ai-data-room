@@ -6,7 +6,7 @@
 // `?state=accepted | revoked | expired`.
 //
 // Authorization mirrors POST/DELETE: cross-org guard + owner-or-
-// admin role.
+// editor role.
 
 import Elysia, { t } from "elysia";
 

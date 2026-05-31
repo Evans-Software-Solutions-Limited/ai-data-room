@@ -2,7 +2,7 @@
 //
 // Slice 1 / T-012. `suspendUser` and `unsuspendUser` per FR21–FR23
 // and US11. Handlers (T-014) wire these to HTTP later. Authorization
-// (only owner / admin can suspend) is a handler-layer concern; this
+// (only owner / editor can suspend) is a handler-layer concern; this
 // file enforces the domain invariants:
 //
 //   - **FR23 self-prevention**: actor cannot suspend themselves.

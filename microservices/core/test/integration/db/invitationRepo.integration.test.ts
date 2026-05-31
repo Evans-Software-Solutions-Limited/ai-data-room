@@ -52,13 +52,13 @@ describe("InvitationRepo (integration)", () => {
       orgId: org.id,
       email: "callee@example.com",
       kind: "internal",
-      role: "internal",
+      role: "viewer",
       opportunitySlug: null,
       invitedBy: inviter.id,
       expiresAt: FUTURE,
     });
     expect(inv.kind).toBe("internal");
-    expect(inv.role).toBe("internal");
+    expect(inv.role).toBe("viewer");
     expect(inv.opportunitySlug).toBeNull();
     expect(inv.state).toBe("pending");
   });
@@ -87,7 +87,7 @@ describe("InvitationRepo (integration)", () => {
       orgId: org.id,
       email: "findbyid@example.com",
       kind: "internal",
-      role: "admin",
+      role: "editor",
       opportunitySlug: null,
       invitedBy: inviter.id,
       expiresAt: FUTURE,
@@ -106,7 +106,7 @@ describe("InvitationRepo (integration)", () => {
       orgId: org.id,
       email: "findwk@example.com",
       kind: "internal",
-      role: "internal",
+      role: "viewer",
       opportunitySlug: null,
       invitedBy: inviter.id,
       expiresAt: FUTURE,
@@ -126,7 +126,7 @@ describe("InvitationRepo (integration)", () => {
       orgId: org.id,
       email: "pending@example.com",
       kind: "internal",
-      role: "internal",
+      role: "viewer",
       opportunitySlug: null,
       invitedBy: inviter.id,
       expiresAt: FUTURE,
@@ -136,7 +136,7 @@ describe("InvitationRepo (integration)", () => {
       orgId: org.id,
       email: "accepted@example.com",
       kind: "internal",
-      role: "internal",
+      role: "viewer",
       opportunitySlug: null,
       invitedBy: inviter.id,
       expiresAt: FUTURE,
@@ -164,7 +164,7 @@ describe("InvitationRepo (integration)", () => {
       orgId: org.id,
       email: "setstate@example.com",
       kind: "internal",
-      role: "internal",
+      role: "viewer",
       opportunitySlug: null,
       invitedBy: inviter.id,
       expiresAt: FUTURE,
@@ -190,7 +190,7 @@ describe("InvitationRepo (integration)", () => {
         orgId: org.id,
         email: "transition-happy@example.com",
         kind: "internal",
-        role: "internal",
+        role: "viewer",
         opportunitySlug: null,
         invitedBy: inviter.id,
         expiresAt: FUTURE,
@@ -218,7 +218,7 @@ describe("InvitationRepo (integration)", () => {
         orgId: org.id,
         email: "transition-race@example.com",
         kind: "internal",
-        role: "internal",
+        role: "viewer",
         opportunitySlug: null,
         invitedBy: inviter.id,
         expiresAt: FUTURE,

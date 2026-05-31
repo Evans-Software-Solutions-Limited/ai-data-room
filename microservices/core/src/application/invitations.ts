@@ -3,8 +3,8 @@
 //
 // Authorization split: handlers gate "signed in + some org role";
 // this file enforces the domain-specific role rules — only owner
-// can invite an admin (FR6 / FR7), and revoke requires owner-or-
-// admin role.
+// can invite an editor (FR6 / FR7), and revoke requires owner-or-
+// editor role.
 //
 // `acceptInvitation` is webhook-driven and idempotent under WorkOS
 // at-least-once redelivery — missing invitation returns null
@@ -45,12 +45,12 @@ import { type AuditContext, safeAudit } from "./_audit-context";
 const EXTERNAL_GRANT_DEFAULT_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 export type InvitationErrorReason =
-  /** Actor's org role is `internal` or otherwise insufficient — FR6 / FR7
-   * permit only owner / admin to issue or revoke invites. */
+  /** Actor's org role is `viewer` or otherwise insufficient — FR6 / FR7
+   * permit only owner / editor to issue or revoke invites. */
   | "actor_role_insufficient"
-  /** Admin-role invite issued by a non-owner — FR6 reserves admin
+  /** Editor-role invite issued by a non-owner — FR6 reserves editor
    * promotion to the owner. */
-  | "only_owner_can_invite_admin"
+  | "only_owner_can_invite_editor"
   /** Lookup miss on revoke. */
   | "invitation_not_found"
   /** Revoke against an invite that's already accepted / expired /
@@ -94,7 +94,7 @@ interface CreateInvitationInputBase {
   actorId: string;
   /** Actor's role in the org. The handler layer is responsible for
    * resolving this; the application layer enforces the role-vs-action
-   * rules (only owner can invite admin). */
+   * rules (only owner can invite editor). */
   actorRole: Role;
   audit: AuditContext;
 }
@@ -126,22 +126,22 @@ export async function createInvitation(
   deps: CreateInvitationDeps,
 ): Promise<Invitation> {
   // Authorization invariants (FR6 / FR7).
-  if (input.actorRole !== "owner" && input.actorRole !== "admin") {
+  if (input.actorRole !== "owner" && input.actorRole !== "editor") {
     await emitFailure(deps, input, "invite_sent", "actor_role_insufficient");
     throw new InvitationError("actor_role_insufficient");
   }
   if (
     input.kind === "internal" &&
-    input.role === "admin" &&
+    input.role === "editor" &&
     input.actorRole !== "owner"
   ) {
     await emitFailure(
       deps,
       input,
       "invite_sent",
-      "only_owner_can_invite_admin",
+      "only_owner_can_invite_editor",
     );
-    throw new InvitationError("only_owner_can_invite_admin");
+    throw new InvitationError("only_owner_can_invite_editor");
   }
 
   // The WorkOS `sendInvitation` call needs `inviterUserId` (their
@@ -258,7 +258,7 @@ export async function revokeInvitation(
   input: RevokeInvitationInput,
   deps: RevokeInvitationDeps,
 ): Promise<Invitation> {
-  if (input.actorRole !== "owner" && input.actorRole !== "admin") {
+  if (input.actorRole !== "owner" && input.actorRole !== "editor") {
     await emitFailure(deps, input, "invite_revoked", "actor_role_insufficient");
     throw new InvitationError("actor_role_insufficient");
   }
@@ -266,7 +266,7 @@ export async function revokeInvitation(
   const invitation = await deps.invitationRepo.findById(input.invitationId);
   // Cross-org guard: the handler validates the actor's role in
   // `input.orgId`, but `invitationId` is a globally-unique PK. A
-  // tenant-A admin passing a tenant-B invitation id would otherwise
+  // tenant-A editor passing a tenant-B invitation id would otherwise
   // bypass tenancy. We treat cross-org access the same as not-found
   // so the response shape doesn't reveal that the invitation exists
   // in some other org. The failure-audit metadata records the actual

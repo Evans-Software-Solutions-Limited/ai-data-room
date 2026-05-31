@@ -29,6 +29,13 @@
       "when": 1778104397108,
       "tag": "0003_external_grant_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780264192407,
+      "tag": "0004_role_vocab_rename",
+      "breakpoints": true
     }
   ]
 }

@@ -438,7 +438,7 @@ describe("protectedRoutes", () => {
             body: JSON.stringify({
               email: "bob@example.com",
               kind: "internal",
-              role: "internal",
+              role: "viewer",
             }),
           },
         ),
@@ -463,7 +463,7 @@ describe("protectedRoutes", () => {
         orgId: LOCAL_ORG_ID,
         email: "bob@example.com",
         kind: "internal",
-        role: "internal",
+        role: "viewer",
         opportunitySlug: null,
         invitedBy: LOCAL_USER_ID,
         state: "pending",
@@ -482,7 +482,7 @@ describe("protectedRoutes", () => {
           body: JSON.stringify({
             email: "bob@example.com",
             kind: "internal",
-            role: "internal",
+            role: "viewer",
           }),
         }),
       );

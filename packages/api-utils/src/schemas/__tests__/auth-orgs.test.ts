@@ -39,7 +39,7 @@ describe.each([
   {
     name: "RoleSchema",
     schema: RoleSchema,
-    valid: ["owner", "admin", "internal"],
+    valid: ["owner", "editor", "viewer"],
     invalid: "external",
     invalidReason: "externals have grants, not memberships",
   },
@@ -61,7 +61,7 @@ describe.each([
     name: "InvitationKindSchema",
     schema: InvitationKindSchema,
     valid: ["internal", "external"],
-    invalid: "admin",
+    invalid: "editor",
     invalidReason: "kind is not a role",
   },
   {
@@ -74,7 +74,7 @@ describe.each([
   {
     name: "InvitationRoleSchema",
     schema: InvitationRoleSchema,
-    valid: ["admin", "internal"],
+    valid: ["editor", "viewer"],
     invalid: "owner",
     invalidReason: "ownership is established at signup, never via invite",
   },
@@ -220,13 +220,13 @@ describe("OrgMembershipSchema", () => {
     id: MEMBERSHIP_ID,
     orgId: ORG_ID,
     userId: USER_ID,
-    role: "admin" as const,
+    role: "editor" as const,
     createdAt: NOW,
     updatedAt: NOW,
   };
 
   it("parses a valid membership", () => {
-    expect(OrgMembershipSchema.parse(validMembership).role).toBe("admin");
+    expect(OrgMembershipSchema.parse(validMembership).role).toBe("editor");
   });
 
   it("rejects role='external' (externals have grants, not memberships)", () => {
@@ -277,7 +277,7 @@ describe("InvitationSchema", () => {
     orgId: ORG_ID,
     email: "bob@example.com",
     kind: "internal" as const,
-    role: "internal" as const,
+    role: "viewer" as const,
     opportunitySlug: null,
     invitedBy: USER_ID,
     state: "pending" as const,
@@ -327,7 +327,7 @@ describe("InvitationSchema", () => {
 
   it("rejects an external invitation that carries a role", () => {
     expect(() =>
-      InvitationSchema.parse({ ...externalInvite, role: "internal" }),
+      InvitationSchema.parse({ ...externalInvite, role: "viewer" }),
     ).toThrow(/external invitations must not specify a role/);
   });
 });

@@ -39,8 +39,8 @@ const meResponseSchema = t.Object({
   fullName: t.Union([t.String(), t.Null()]),
   role: t.Union([
     t.Literal("owner"),
-    t.Literal("admin"),
-    t.Literal("internal"),
+    t.Literal("editor"),
+    t.Literal("viewer"),
     t.Literal("external"),
     t.Null(),
   ]),
@@ -80,7 +80,7 @@ export const getUserHandler = new Elysia().get(
       });
     }
 
-    let role: "owner" | "admin" | "internal" | "external" | null = null;
+    let role: "owner" | "editor" | "viewer" | "external" | null = null;
     let orgName: string | null = null;
     if (actor.localOrgId) {
       const [org, membership] = await Promise.all([

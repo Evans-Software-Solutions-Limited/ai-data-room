@@ -107,7 +107,7 @@ describe("auth-and-orgs schema — per-table happy path", () => {
     await db.insert(schema.orgMemberships).values({
       orgId: org!.id,
       userId: user!.id,
-      role: "admin",
+      role: "editor",
     });
     await db.insert(schema.externalAccessGrants).values({
       orgId: org!.id,
@@ -151,7 +151,7 @@ describe("auth-and-orgs schema — per-table happy path", () => {
       orgId: org!.id,
       email: "dave@example.com",
       kind: "internal",
-      role: "internal",
+      role: "viewer",
       invitedBy: user!.id,
       expiresAt: FUTURE,
     });
@@ -245,20 +245,20 @@ describe("auth-and-orgs schema — per-table happy path", () => {
         role: "owner",
       }),
     ).rejects.toThrow(/org_memberships_single_owner_key/);
-    // Admin / internal on the same org are unconstrained beyond the
+    // Editor / viewer on the same org are unconstrained beyond the
     // (org, user) uniqueness, so these still succeed.
     await expect(
       db.insert(schema.orgMemberships).values({
         orgId: org!.id,
         userId: second!.id,
-        role: "admin",
+        role: "editor",
       }),
     ).resolves.not.toThrow();
     await expect(
       db.insert(schema.orgMemberships).values({
         orgId: org!.id,
         userId: third!.id,
-        role: "internal",
+        role: "viewer",
       }),
     ).resolves.not.toThrow();
   });

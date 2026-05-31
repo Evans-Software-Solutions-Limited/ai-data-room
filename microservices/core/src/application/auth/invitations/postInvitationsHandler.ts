@@ -3,7 +3,7 @@
 // Slice 1 / T-014b. Wraps `createInvitation` from the application
 // layer. The handler owns:
 //
-//   - Cross-org guard + role check (only owner / admin) via
+//   - Cross-org guard + role check (only owner / editor) via
 //     `authorizeOrgAccess` (sticky #22 / #30).
 //   - Body validation via Elysia `t.Object` — internal vs. external
 //     kinds are a discriminated union to keep `role` and
@@ -11,8 +11,8 @@
 //   - Translating `InvitationError` reasons to status codes.
 //
 // The application function still enforces the only-owner-can-invite-
-// admin rule because that's a domain-specific permission (role-vs-
-// invited-role); the broader "owner / admin can invite at all"
+// editor rule because that's a domain-specific permission (role-vs-
+// invited-role); the broader "owner / editor can invite at all"
 // check is handler-level.
 
 import Elysia, { status, t } from "elysia";
@@ -29,7 +29,7 @@ import type { ProtectedAuthContext } from "../guards/authContextTypes";
 const internalBodySchema = t.Object({
   email: t.String({ format: "email", minLength: 3 }),
   kind: t.Literal("internal"),
-  role: t.Union([t.Literal("admin"), t.Literal("internal")]),
+  role: t.Union([t.Literal("editor"), t.Literal("viewer")]),
 });
 
 const externalBodySchema = t.Object({
@@ -109,7 +109,7 @@ function translateInvitationError(err: unknown) {
       // this already, but the application function re-validates and
       // we honour its 403.
       return status(403, { ok: false as const, reason: err.reason });
-    case "only_owner_can_invite_admin":
+    case "only_owner_can_invite_editor":
       return status(403, { ok: false as const, reason: err.reason });
     case "inviter_user_not_found":
     case "org_not_found":

@@ -5,7 +5,7 @@
 //
 //   1. **Cross-org guard** — `params.orgId` (the URL-side UUID) MUST
 //      match `actor.localOrgId` (the auth-context UUID resolved by
-//      `resolveActor`). An admin in org A calling `/orgs/<org-B>/...`
+//      `resolveActor`). An editor in org A calling `/orgs/<org-B>/...`
 //      gets 403, not a leaked row from another org. This is a
 //      defence-in-depth check on top of whatever the application
 //      function does internally — sticky #30 (Bugbot finding on PR
@@ -15,7 +15,7 @@
 //   2. **Role check** — handler-level authorization per sticky #22.
 //      Application functions enforce data invariants only
 //      (self-suspension, sole-owner protection, etc.); the
-//      "owner / admin only" role check lives at the handler. This
+//      "owner / editor only" role check lives at the handler. This
 //      helper centralises the "look up membership, assert role in
 //      allowlist" pattern so individual handlers stay tight.
 //
@@ -42,16 +42,16 @@ export interface AuthorizeOrgAccessDeps {
   membershipRepo: MembershipRepo;
 }
 
-/** Default allowlist for org-scoped admin actions — owner + admin
+/** Default allowlist for org-scoped management actions — owner + editor
  * cover every FR6 / FR7 / FR10 / FR21 / audit-events case in slice
- * 1. Pass an explicit allowlist to broaden (e.g. include `internal`)
+ * 1. Pass an explicit allowlist to broaden (e.g. include `viewer`)
  * if a future handler needs it. */
-export const OWNER_ADMIN: ReadonlyArray<Role> = ["owner", "admin"] as const;
+export const OWNER_EDITOR: ReadonlyArray<Role> = ["owner", "editor"] as const;
 
 export async function authorizeOrgAccess(
   input: AuthorizeOrgAccessInput,
   deps: AuthorizeOrgAccessDeps,
-  allowedRoles: ReadonlyArray<Role> = OWNER_ADMIN,
+  allowedRoles: ReadonlyArray<Role> = OWNER_EDITOR,
 ) {
   if (input.paramOrgId !== input.actor.localOrgId) {
     return status(403, {
