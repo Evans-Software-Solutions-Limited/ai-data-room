@@ -32,12 +32,28 @@ cross-session coordination.
 - Slices 4/5/6 can run in parallel once slice 2 is shipped.
 - Slices 7 and 9 are the "tie it together" slices — they should land last.
 
+**Showcase sequencing (demo value, within the dependency constraints).** To
+stand up a demoable "upload → AI checks it → ask a cited question" loop fastest,
+front-load: **2 (rooms) → 6 (cited Q&A, the hero) → 5 (sense-check) → 4
+(checklist)**, then 8/7/9 trail. Rationale + the production-readiness blockers
+that gate this live in
+[`docs/product/production-readiness.md`](../../../docs/product/production-readiness.md).
+Strategic north star (why we win vs. incumbents) lives in
+[`docs/product/positioning.md`](../../../docs/product/positioning.md).
+
 ## Repo layout convention (once scaffolded)
 
 Scaffolded from `~/Documents/projects/personal/sst-monorepo-template`.
 Target repo: TBD (Bradley to confirm path + GitHub org — likely
 `Evans-Software-Solutions-Limited/ai-data-room`). Each slice corresponds
 to a feature folder / workspace inside the monorepo, not a separate repo.
+
+## Candidate MVP additions (from 2026 competitive scan — pending sign-off)
+
+- **document-redaction** — manual + AI-assisted redaction. Currently absent
+  from all specs (only *log* redaction exists). Table-stakes vs. every
+  incumbent. Proposed for slice 2/5; reuses the sense-check extraction
+  pipeline. See `docs/product/production-readiness.md`.
 
 ## Phase-2 backlog (out of MVP)
 
@@ -47,7 +63,9 @@ to a feature folder / workspace inside the monorepo, not a separate repo.
 - ma-workflow / rfp-response
 - internal-kb-mode
 - storage-sync (onedrive/gdrive)
-- watermark-preview-drm
+- watermark-preview-drm — *decision pending:* hold at Phase 2 if we stay in the
+  SME vendor/RFP lane; pull forward only if chasing regulated M&A (see
+  `docs/product/positioning.md`).
 - soc2-iso27001 (compliance track)
 
 ## Change log
@@ -107,3 +125,13 @@ infrastructure,middleware}` skeleton created with one folder per
   `microservices/core/src/handlers/auth/`. Pending Bradley actions:
   create the WorkOS project, `bun sst secret set ...` for each stage,
   deploy + run `scripts/check-workos-health.ts`.
+- 2026-05-31 — Spec-alignment pass after a production-readiness audit +
+  2026 competitive scan (`chore/spec-alignment`). Added
+  `docs/product/positioning.md` (competitive north star),
+  `docs/product/production-readiness.md` (release-blocker register +
+  showcase sequencing), and [ADR-011](../../../adr/011-multi-tenant-isolation.md)
+  (row-level tenant isolation, `proposed`). Flagged a real spec gap —
+  document redaction is absent from all specs — as a candidate MVP
+  addition above. `watermark-preview-drm` timing now carries an explicit
+  pending decision. **Pending Bradley sign-off on ADR-011 + the redaction
+  scope call.**

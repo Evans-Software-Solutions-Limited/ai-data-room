@@ -13,6 +13,13 @@ One file per non-trivial, hard-to-reverse decision. Numbered, dated, immutable
 | ---------------------------------------- | ------------------------------------------------------------ | -------- | ---------- |
 | [001](./001-workos-as-auth-platform.md)  | WorkOS as the auth platform for ai-data-room                 | accepted | 2026-04-22 |
 | [002](./002-postgres-for-auth-domain.md) | Postgres (PlanetScale) + Drizzle for the ai-data-room domain | accepted | 2026-04-22 |
+| [003](./003-recovery-codes-delegated-to-authkit.md) | Recovery codes delegated to AuthKit               | accepted | 2026-05-03 |
+| [011](./011-multi-tenant-isolation.md)   | Row-level multi-tenant isolation before document storage     | proposed | 2026-05-31 |
+
+> **Numbering drift.** ADR-003 was used for recovery-codes-delegated-to-authkit,
+> but the "Flagged" block below still reserves 003 for document storage. The
+> 003–010 reservations need renumbering. ADR-011 (tenant isolation) deliberately
+> jumps clear of that range.
 
 ### Flagged (draft needed when the owning slice reaches task execution)
 
