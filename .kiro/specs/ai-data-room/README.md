@@ -25,12 +25,18 @@ cross-session coordination.
 | 7   | `admin-dashboard`      | 1–6        | reqs + design + tasks drafted | Aggregates every earlier slice into the admin UX.                                      |
 | 8   | `billing-subscription` | 1          | reqs + design + tasks drafted | Stripe. Can run in parallel with 2–6 once 1 is done.                                   |
 | 9   | `onboarding-flow`      | 1–4        | reqs + design + tasks drafted | Self-serve signup + first-room setup wizard.                                           |
+| 10  | `tenant-isolation`     | 1          | reqs + design + tasks drafted | Cross-cutting hardening (ADR-011). **Must land before slice 2's document-bearing tasks.** Listed at 10 to avoid renumbering, but executes between 1 and 2. |
+| 11  | `document-redaction`   | 2, 3 (+5 for AI-assist) | reqs + design + tasks drafted | Manual + AI-assisted redaction. Table-stakes vs. incumbents. |
 
 **Parallelisation notes:**
 
 - Once slice 1 is shipped, slices 2 and 8 can run in parallel.
 - Slices 4/5/6 can run in parallel once slice 2 is shipped.
 - Slices 7 and 9 are the "tie it together" slices — they should land last.
+- Slice 10 (`tenant-isolation`) executes **between** slices 1 and 2 despite its
+  index number — it gates slice 2's document storage (see ADR-011).
+- Slice 11 (`document-redaction`) follows slice 2; its AI-assist half soft-
+  depends on slice 5's extractor.
 
 **Showcase sequencing (demo value, within the dependency constraints).** To
 stand up a demoable "upload → AI checks it → ask a cited question" loop fastest,
@@ -50,12 +56,16 @@ Target repo: TBD (Bradley to confirm path + GitHub org — likely
 `Evans-Software-Solutions-Limited/ai-data-room`). Each slice corresponds
 to a feature folder / workspace inside the monorepo, not a separate repo.
 
-## Candidate MVP additions (from 2026 competitive scan — pending sign-off)
+## Additions from the 2026 competitive scan (now spec-complete, pending sign-off)
 
-- **document-redaction** — manual + AI-assisted redaction. Currently absent
-  from all specs (only *log* redaction exists). Table-stakes vs. every
-  incumbent. Proposed for slice 2/5; reuses the sense-check extraction
-  pipeline. See `docs/product/production-readiness.md`.
+- **`tenant-isolation`** (slice 10) — row-level cross-tenant isolation as a
+  tested invariant (ADR-011). Gates slice 2's document storage.
+- **`document-redaction`** (slice 11) — manual + AI-assisted redaction;
+  table-stakes vs. every incumbent. Reuses the sense-check extractor for the
+  AI half. (Was previously only a Phase-2 thought; promoted after the scan.)
+
+Both now have full `requirements.md` + `design.md` + `tasks.md`. Rationale in
+`docs/product/positioning.md`; sequencing in `docs/product/implementation-plan.md`.
 
 ## Phase-2 backlog (out of MVP)
 
@@ -131,9 +141,12 @@ infrastructure,middleware}` skeleton created with one folder per
   2026 competitive scan (`chore/spec-alignment`). Added
   `docs/product/positioning.md` (competitive north star),
   `docs/product/production-readiness.md` (release-blocker register +
-  showcase sequencing), and [ADR-011](../../../adr/011-multi-tenant-isolation.md)
-  (row-level tenant isolation, `proposed`). Flagged a real spec gap —
-  document redaction is absent from all specs — as a candidate MVP
-  addition above. `watermark-preview-drm` timing now carries an explicit
-  pending decision. **Pending Bradley sign-off on ADR-011 + the redaction
-  scope call.**
+  showcase sequencing), `docs/product/implementation-plan.md` (ordered
+  backlog), and [ADR-011](../../../adr/011-multi-tenant-isolation.md)
+  (row-level tenant isolation, `proposed`). `watermark-preview-drm` timing
+  now carries an explicit pending decision.
+- 2026-05-31 — Two new feature slices spec-completed to the full three-file
+  standard: **`tenant-isolation`** (slice 10, gates slice 2 per ADR-011) and
+  **`document-redaction`** (slice 11, manual + AI-assist). **Pending Bradley
+  sign-off on ADR-011, both new slices' requirements + design, and the
+  watermark/fence-view timing call.**

@@ -35,10 +35,12 @@ Goal: a demoable **upload → AI sense-checks it → ask a cited question → ge
 auditable answer** loop. Sequenced for demo value within the spec's dependency
 rules (4/5/6 each need 2).
 
+0. **Slice 10 — `tenant-isolation`** (T-001 → T-008). Cross-cutting hardening;
+   executes first within Phase 1 because it gates document storage. ADR-011
+   moves to `accepted` on its T-006 (property test) green.
 1. **Slice 2 — `room-and-folders`** (T-001 → T-020). The foundation: S3 + KMS,
    four tables, repos, upload/list/download, opportunity subrooms, web folder
-   nav + dropzone. **Carries the new tenant-isolation task (below) and, if
-   approved, the redaction task.**
+   nav + dropzone. Its document-bearing tasks (T-006+) depend on slice 10.
 2. **Slice 6 — `ai-search-qna`** (T-001 → T-022). The hero. pgvector + HNSW,
    indexer worker, query flow with the double access-filter, Sonnet 4.6
    generator + Haiku re-ranker, eval harness, chat pane with citation chips.
@@ -62,32 +64,30 @@ After Phase 1 you can run the full headline demo end to end.
 7. **Slice 7 — `admin-dashboard`** — BFF aggregate over 1–6.
 8. **Slice 9 — `onboarding-flow`** — ties 1 + 4 + 8 together; ships last.
 
-## Proposed new tasks (pending sign-off, then inserted into the owning `tasks.md`)
+## The two new feature slices (now full three-file specs)
 
-**Slice 2 — `room-and-folders`, new task `T-004a` — Tenant isolation guard.**
-- *Scope:* a `scopedRepo(orgId)` factory (or equivalent) that every
-  tenant-scoped repository must route through; a lint/CI guard against raw
-  repo access; a property test generating adversarial `org_id`s proving no
-  query returns another org's rows. Backfill the guard onto slice-1 org-scoped
-  repos.
-- *Depends on:* T-004 (repositories). *Blocks:* every later slice-2 task that
-  reads/writes documents (T-006–T-009, T-011).
-- *DoD:* property test green; lint guard active; ADR-011 moved to `accepted`.
+Both were promoted from "proposed tasks" into proper kiro slices with
+`requirements.md` + `design.md` + `tasks.md`, pending sign-off:
 
-**Slice 2 (manual) + Slice 5 (AI-assist) — Document redaction** *(only if the
-scope call says MVP).*
-- *Scope:* manual redaction box-drawing on preview + persisted redacted
-  rendition at download (slice 2); AI-suggested redaction regions reusing the
-  sense-check extraction pipeline, surfaced in `signal` amber (slice 5).
-- *Note:* this is bigger than one task — needs a short requirements addition to
-  `room-and-folders/requirements.md` (and `ai-doc-sensecheck` for the AI half)
-  before tasks are written. Treat as a Phase-1.5 mini-spec.
+- **`tenant-isolation`** (slice 10) —
+  [requirements](../../.kiro/specs/ai-data-room/tenant-isolation/requirements.md) ·
+  [design](../../.kiro/specs/ai-data-room/tenant-isolation/design.md) ·
+  [tasks](../../.kiro/specs/ai-data-room/tenant-isolation/tasks.md).
+  Executes first in Phase 1; ADR-011 is accepted on its property-test task.
+- **`document-redaction`** (slice 11) —
+  [requirements](../../.kiro/specs/ai-data-room/document-redaction/requirements.md) ·
+  [design](../../.kiro/specs/ai-data-room/document-redaction/design.md) ·
+  [tasks](../../.kiro/specs/ai-data-room/document-redaction/tasks.md).
+  Follows slice 2; AI-assist half soft-depends on slice 5's extractor. Ship the
+  manual half for MVP; the AI-assist half is the differentiator.
 
 ## Sign-off checklist (what "docs up to date" means)
 
 - [ ] ADR-011 reviewed — `proposed` → `accepted` or amended.
-- [ ] Redaction: MVP or Phase 2 — decided and reflected in slice 2/5 specs.
+- [ ] `tenant-isolation` (slice 10) requirements + design signed off.
+- [ ] `document-redaction` (slice 11) requirements + design signed off;
+      manual half confirmed for MVP.
 - [ ] Watermark/fence-view timing — confirmed.
 - [ ] This plan's Phase 1 order — accepted.
-- [ ] Slice 2 selected as the next implementation target; first branch
-      `feat/room-and-folders-T-001-storage-infra`.
+- [ ] First implementation target = `tenant-isolation` T-001; first branch
+      `feat/tenant-isolation-T-001-scoped-table-audit`.
