@@ -16,6 +16,20 @@ checks in `access-control` and is the first filter of `ai-search-qna`'s
 double access-filter. Postgres RLS (DB-enforced) is explicitly deferred to a
 later hardening pass (ADR-011 Option A) — the design keeps the door open.
 
+## Slice-1 alignment
+
+Conforms to the patterns slice 1 shipped (`auth-and-orgs` HANDOFF stickies):
+
+- **Audit** via `safeAudit`/`recordAuditEvent` only (#13–14). Add
+  `tenancy.violation` to `AuditEventTypeSchema` (`application/audit.ts`) for the
+  defence-in-depth runtime catch (FR8).
+- **No new tables** — this slice *is* the scoped-access mechanism; it backfills
+  the slice-1 org-scoped repos onto the factory and provides it to all later
+  slices. (Future slices' tables still each add their `EXPECTED_TABLES`
+  one-liner, #25.)
+- Composes with `withTx` (#15), the `findByWorkosOrgId` org-id resolution (#16),
+  and is the first filter of `ai-search-qna`'s double access-filter.
+
 ## Architecture
 
 ```mermaid

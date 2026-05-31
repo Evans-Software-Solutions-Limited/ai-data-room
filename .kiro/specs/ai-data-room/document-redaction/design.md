@@ -17,6 +17,21 @@ load-bearing invariant is that the rendition contains no recoverable trace of
 redacted content; this is produced by burning regions into a rasterised/
 flattened PDF, not by overlaying boxes.
 
+## Slice-1 alignment
+
+Conforms to the patterns slice 1 shipped (see `auth-and-orgs` HANDOFF stickies):
+
+- **Audit** via `safeAudit`/`recordAuditEvent` only (stickies #13–14) — never
+  `AuditRepo.write`. Add new event types to `AuditEventTypeSchema`
+  (`application/audit.ts`): `redaction.regions_updated`, `redaction.suggested`,
+  `redaction.rendition_published`, `redaction.rendition_superseded`,
+  `redaction.rendition_downloaded`.
+- **New tables** `redactions`, `document_renditions` each need the one-line
+  `EXPECTED_TABLES` update in `migrate.integration.test.ts` (sticky #25).
+- **HTTP routes** under `application/redaction/<route>/` (sticky #27);
+  `handlers/` stays webhook-only. Multi-write publish path uses `withTx`
+  (#15). Tables scoped via the `tenant-isolation` factory.
+
 ## Architecture
 
 ```mermaid

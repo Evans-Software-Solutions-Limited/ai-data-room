@@ -5,7 +5,15 @@
 **Last updated:** 2026-04-21
 **Brief:** [../../../briefs/ai-data-room.md](../../../briefs/ai-data-room.md)
 **Slice index:** [../README.md](../README.md)
-**Depends on:** `auth-and-orgs`, `room-and-folders`, `access-control`, `doc-checklist`
+**Depends on:** `auth-and-orgs`, `org-provisioning` (slice 17),
+`room-and-folders`, `access-control`, `doc-checklist`
+
+> **Scope change (2026-05-31):** the org-**creation mechanism** (create org →
+> first membership → fire `org.created` → canonical room provisions) was pulled
+> forward into the new `org-provisioning` slice (17), because slices 2/10 need a
+> real `org_id` before this wizard ships. This slice now **wraps** that
+> mechanism in guided UX (the "Company basics" step calls `POST /orgs`); it no
+> longer owns provisioning.
 
 ## Context
 

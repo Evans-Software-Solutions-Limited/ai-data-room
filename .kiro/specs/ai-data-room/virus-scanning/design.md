@@ -15,6 +15,19 @@ already filters to `available` versions, so a scanning/quarantined file is
 simply invisible to download, viewer, Q&A, sense-check, and redaction. Scanner
 errors fail closed and retry.
 
+## Slice-1 alignment
+
+Conforms to the patterns slice 1 shipped (`auth-and-orgs` HANDOFF stickies):
+
+- **Audit** via `safeAudit`/`recordAuditEvent` only (#13–14). Add
+  `document.scanned.clean` and `document.quarantined` to `AuditEventTypeSchema`
+  (`application/audit.ts`). `document.scanned.clean` is also the domain event the
+  AI slices index off (replacing raw `document.uploaded`).
+- **New table** `scan_results` + the `scan_state` column on `document_versions`
+  each need the one-line `EXPECTED_TABLES` / schema-test update (#25).
+- **HTTP routes** under `application/scan/<route>/` (#27). `scan_results` +
+  quarantine objects scoped via the `tenant-isolation` factory.
+
 ## Architecture
 
 ```mermaid

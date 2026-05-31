@@ -15,6 +15,18 @@ client exposes an **overlay slot** so `document-redaction` (region drawing) and
 `ai-search-qna` (citation highlight) compose on top without forking. The
 page-image step is the deliberate future insertion point for watermarking.
 
+## Slice-1 alignment
+
+Conforms to the patterns slice 1 shipped (`auth-and-orgs` HANDOFF stickies):
+
+- **Audit** via `safeAudit`/`recordAuditEvent` only (#13–14). Add `document.viewed`
+  to `AuditEventTypeSchema` (`application/audit.ts`).
+- **New table** `document_renders` needs the one-line `EXPECTED_TABLES` update in
+  `migrate.integration.test.ts` (#25).
+- **HTTP routes** under `application/viewer/<route>/` (#27). Tables + page assets
+  scoped via the `tenant-isolation` factory. Source-IP in any emitted audit uses
+  the XFF-rightmost extractor (matches slice 1).
+
 ## Architecture
 
 ```mermaid

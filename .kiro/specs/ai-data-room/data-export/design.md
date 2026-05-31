@@ -16,6 +16,20 @@ to subscription cancellation: read-only → final export available → grace per
 → scheduled purge (reusing `auth-and-orgs` hard-delete), with a post-purge
 **verification** that no residual rows remain.
 
+## Slice-1 alignment
+
+Conforms to the patterns slice 1 shipped (`auth-and-orgs` HANDOFF stickies):
+
+- **Audit** via `safeAudit`/`recordAuditEvent` only (#13–14). Add to
+  `AuditEventTypeSchema` (`application/audit.ts`): `export.requested`,
+  `export.ready`, `export.downloaded`, `offboarding.started`,
+  `purge.scheduled`, `purge.completed`.
+- **New tables** `export_jobs`, `org_lifecycle` each need the one-line
+  `EXPECTED_TABLES` update in `migrate.integration.test.ts` (#25).
+- **HTTP routes** under `application/export/<route>/` (#27). Purge reuses the
+  `auth-and-orgs` GDPR hard-delete; the residual-row check iterates the
+  `tenant-isolation` table registry.
+
 ## Architecture
 
 ```mermaid

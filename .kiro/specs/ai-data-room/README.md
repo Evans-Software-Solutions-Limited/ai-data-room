@@ -24,7 +24,7 @@ cross-session coordination.
 | 6   | `ai-search-qna`        | 2          | reqs + design + tasks drafted | Cited Q&A chat grounded in uploaded docs.                                              |
 | 7   | `admin-dashboard`      | 1–6        | reqs + design + tasks drafted | Aggregates every earlier slice into the admin UX.                                      |
 | 8   | `billing-subscription` | 1          | reqs + design + tasks drafted | Stripe. Can run in parallel with 2–6 once 1 is done.                                   |
-| 9   | `onboarding-flow`      | 1–4        | reqs + design + tasks drafted | Self-serve signup + first-room setup wizard.                                           |
+| 9   | `onboarding-flow`      | 1–4, 17    | reqs + design + tasks drafted | Self-serve signup + first-room setup wizard. **Wraps slice 17's org-creation mechanism in guided UX — no longer owns provisioning.** |
 | 10  | `tenant-isolation`     | 1          | reqs + design + tasks drafted | Cross-cutting hardening (ADR-011). **Must land before slice 2's document-bearing tasks.** Listed at 10 to avoid renumbering, but executes between 1 and 2. |
 | 11  | `document-redaction`   | 2, 3 (+5 for AI-assist) | reqs + design + tasks drafted | Manual + AI-assisted redaction. Table-stakes vs. incumbents. |
 | 12  | `document-viewer`      | 2, 3       | reqs + design + tasks drafted | Read-only in-app PDF/Office viewer. **Prerequisite for slice 11** (region drawing); enhances slice 6 (citation → source view). |
@@ -32,9 +32,18 @@ cross-session coordination.
 | 14  | `search-ocr`           | 2, 5       | reqs + design + tasks drafted | OCR (so scanned docs are usable) + keyword full-text search beside semantic Q&A. |
 | 15  | `data-export`          | 1, 2       | reqs + design + tasks drafted | Per-org room export + GDPR portability + offboarding/purge lifecycle. |
 | 16  | `virus-scanning`       | 2          | reqs + design + tasks drafted | Scan-on-upload + quarantine. Clean-gate every consumer. Land early in slice 2's life. |
+| 17  | `org-provisioning`     | 1          | reqs + design + tasks drafted | Owner creates org → first membership → fires `org.created` so the canonical room provisions; flips `/me` from `orgId:null`. **Executes right after slice 1, before 10 + 2.** Pulled forward out of slice 9 (which now wraps it in UX). |
+
+**Execution order ≠ index number.** The numbers are a stable index, not the run
+order. True run order starts: **1 → 17 (org-provisioning) → 10 (tenant-isolation)
+→ 2 (room-and-folders) → …**. See `docs/product/implementation-plan.md`.
 
 **Parallelisation notes:**
 
+- Slice 17 (`org-provisioning`) runs immediately after slice 1 — slices 2 and 10
+  both need a real `org_id`, which nothing provisioned self-serve before this
+  (slice 1 left `/me.orgId = null` until the slice-9 wizard; this pulls the
+  mechanism forward).
 - Once slice 1 is shipped, slices 2 and 8 can run in parallel.
 - Slices 4/5/6 can run in parallel once slice 2 is shipped.
 - Slices 7 and 9 are the "tie it together" slices — they should land last.
@@ -68,8 +77,11 @@ to a feature folder / workspace inside the monorepo, not a separate repo.
 
 ## Additions from the 2026 competitive scan + seam review (spec-complete, pending sign-off)
 
-All seven new slices have full `requirements.md` + `design.md` + `tasks.md`.
+All eight new slices have full `requirements.md` + `design.md` + `tasks.md`.
 
+- **`org-provisioning`** (17) — pulled forward out of slice 9 so a real `org_id`
+  exists before slices 2/10. Owner-creates-org → first membership → `org.created`
+  → canonical room provisions. Slice 9 now wraps it in UX.
 - **`tenant-isolation`** (10) — row-level cross-tenant isolation as a tested
   invariant (ADR-011). Gates slice 2's document storage.
 - **`document-redaction`** (11) — manual + AI-assisted redaction; table-stakes
@@ -177,6 +189,13 @@ infrastructure,middleware}` skeleton created with one folder per
   spec-completed to the three-file standard: **`document-viewer`** (12),
   **`notifications`** (13), **`search-ocr`** (14), **`data-export`** (15),
   **`virus-scanning`** (16). Feature-flag mechanism folded into `auth-and-orgs`
-  via a production-readiness note (no own slice). **Pending Bradley sign-off on
-  ADR-011, slices 10–16 (requirements + design), and the watermark/fence-view
-  timing call.**
+  via a production-readiness note (no own slice).
+- 2026-05-31 — Post-slice-1-merge alignment (after PR #28 merged to `main` at
+  `2be475c`, tag `v0.1.0-auth-and-orgs`). The slice-1 closing brief revealed org
+  **provisioning** was deferred to slice 9, leaving slices 2/10 without an
+  `org_id`. Added **`org-provisioning`** (slice 17), pulled forward out of slice
+  9, sequenced 1 → 17 → 10 → 2. Aligned the new specs to shipped slice-1
+  patterns (audit via `safeAudit`/`recordAuditEvent` + `AuditEventTypeSchema`
+  extension; `EXPECTED_TABLES` one-liner per new table, sticky #25). **Pending
+  Bradley sign-off on ADR-011, slices 10–17 (requirements + design), and the
+  watermark/fence-view timing call.**

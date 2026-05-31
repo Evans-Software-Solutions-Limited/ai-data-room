@@ -16,6 +16,21 @@ provider abstraction. A scheduled job builds the weekly digest. The service is
 **pull, not push** — source slices keep emitting the events they already emit;
 this slice subscribes. No source slice depends on notifications.
 
+## Slice-1 alignment
+
+Conforms to the patterns slice 1 shipped (`auth-and-orgs` HANDOFF stickies):
+
+- **Subscribes** to existing domain events (it adds no new `AuditEventTypeSchema`
+  entries) — but its own admin-relevant actions (e.g. preference change) that
+  warrant audit go through `safeAudit`/`recordAuditEvent` (#13–14), never
+  `AuditRepo.write`. Notification *sends* are logged separately (not audit).
+- **New tables** `notifications`, `notification_preferences`,
+  `notification_sends`, `email_suppressions` each need the one-line
+  `EXPECTED_TABLES` update in `migrate.integration.test.ts` (#25).
+- **HTTP routes** under `application/notifications/<route>/` (#27);
+  `handlers/` stays webhook-only. Tables scoped via the `tenant-isolation`
+  factory; the digest worker uses the scheduled-task pattern.
+
 ## Architecture
 
 ```mermaid

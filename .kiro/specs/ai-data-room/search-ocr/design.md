@@ -15,6 +15,21 @@ that feeds the shared extractor every AI consumer already uses; and (2) a
 that sits beside (not instead of) semantic Q&A. Both reuse the EventBridge→SQS
 indexing pattern and the double access-filter from `ai-search-qna`.
 
+## Slice-1 alignment
+
+Conforms to the patterns slice 1 shipped (`auth-and-orgs` HANDOFF stickies):
+
+- **Audit** via `safeAudit`/`recordAuditEvent` only (#13–14) for any audited
+  action (search itself is metered, not audited at v0.1; revisit if compliance
+  needs query-audit). No new `AuditEventTypeSchema` entries unless query-audit
+  is added.
+- **New table** `fts_pages` needs the one-line `EXPECTED_TABLES` update in
+  `migrate.integration.test.ts` (#25); its hand-written GIN + generated-column
+  DDL pairs with a `*.down.sql` (#8).
+- **HTTP routes** under `application/search/<route>/` (#27). `fts_pages` scoped
+  via the `tenant-isolation` factory; OCR index keys off `document.scanned.clean`
+  (post-virus-scan), not raw upload.
+
 ## Architecture
 
 ```mermaid

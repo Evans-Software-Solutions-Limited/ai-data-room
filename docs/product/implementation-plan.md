@@ -35,9 +35,13 @@ Goal: a demoable **upload → AI sense-checks it → ask a cited question → ge
 auditable answer** loop. Sequenced for demo value within the spec's dependency
 rules (4/5/6 each need 2).
 
-0. **Slice 10 — `tenant-isolation`** (T-001 → T-008). Cross-cutting hardening;
-   executes first within Phase 1 because it gates document storage. ADR-011
-   moves to `accepted` on its T-006 (property test) green.
+0a. **Slice 17 — `org-provisioning`** (T-001 → T-006). Runs first: nothing
+   self-serve creates an `org_id` until this lands (slice 1 left `/me.orgId =
+   null`). Owner-creates-org → first membership → `org.created` → flips `/me`.
+   Slices 10 + 2 attach to the org it creates.
+0b. **Slice 10 — `tenant-isolation`** (T-001 → T-008). Cross-cutting hardening;
+   gates document storage. ADR-011 moves to `accepted` on its T-006 (property
+   test) green.
 1. **Slice 2 — `room-and-folders`** (T-001 → T-020). The foundation: S3 + KMS,
    four tables, repos, upload/list/download, opportunity subrooms, web folder
    nav + dropzone. Its document-bearing tasks (T-006+) depend on slice 10.
@@ -100,13 +104,22 @@ Specs: see the [slice index](../../.kiro/specs/ai-data-room/README.md) rows
 into the phases above as capacity allows; none block the Phase 1 demo loop
 except slices 12 + 16, which pair with slice 2/11.
 
+**`org-provisioning`** (slice 17) is **not** flexible — it runs first (step 0a),
+because slices 2 and 10 both attach to an `org_id` that nothing provisioned
+self-serve before it. Pulled forward out of slice 9, which now wraps it in UX.
+Spec:
+[requirements](../../.kiro/specs/ai-data-room/org-provisioning/requirements.md) ·
+[design](../../.kiro/specs/ai-data-room/org-provisioning/design.md) ·
+[tasks](../../.kiro/specs/ai-data-room/org-provisioning/tasks.md).
+
 ## Sign-off checklist (what "docs up to date" means)
 
 - [ ] ADR-011 reviewed — `proposed` → `accepted` or amended.
+- [ ] `org-provisioning` (slice 17) requirements + design signed off.
 - [ ] `tenant-isolation` (slice 10) requirements + design signed off.
 - [ ] `document-redaction` (slice 11) requirements + design signed off;
       manual half confirmed for MVP.
 - [ ] Watermark/fence-view timing — confirmed.
 - [ ] This plan's Phase 1 order — accepted.
-- [ ] First implementation target = `tenant-isolation` T-001; first branch
-      `feat/tenant-isolation-T-001-scoped-table-audit`.
+- [ ] First implementation target = `org-provisioning` T-001; first branch
+      `feat/org-provisioning-T-001-create-org-dto`.
