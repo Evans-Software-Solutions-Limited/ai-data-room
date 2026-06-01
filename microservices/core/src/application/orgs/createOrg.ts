@@ -53,9 +53,17 @@ export type CreateOrgErrorReason =
 
 export class CreateOrgError extends Error {
   public readonly reason: CreateOrgErrorReason;
-  constructor(reason: CreateOrgErrorReason, options?: { cause?: unknown }) {
+  /** The colliding org id, when known. The in-tx FR5 race carries the
+   *  racing membership's org so its failure audit keeps org context,
+   *  matching the other FR5 rejection paths. */
+  public readonly orgId?: string;
+  constructor(
+    reason: CreateOrgErrorReason,
+    options?: { cause?: unknown; orgId?: string },
+  ) {
     super(reason, options);
     this.reason = reason;
+    this.orgId = options?.orgId;
     this.name = "CreateOrgError";
   }
 }
@@ -199,7 +207,7 @@ export async function createOrg(
         await membershipTx.lockForUserCreate(actorUserId);
         const racing = await membershipTx.findByUser(actorUserId);
         if (racing) {
-          throw new CreateOrgError("already_member");
+          throw new CreateOrgError("already_member", { orgId: racing.orgId });
         }
 
         const slug = await deriveUniqueSlug(orgTx, input.name);
@@ -253,6 +261,7 @@ export async function createOrg(
         actorUserId,
         audit,
         "already_member_race",
+        lastErr.orgId,
       );
       throw lastErr;
     }

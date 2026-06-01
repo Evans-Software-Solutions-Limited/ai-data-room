@@ -213,6 +213,15 @@ describe("createOrg", () => {
     // Nothing persisted, no success.
     expect(m.membershipCreate).not.toHaveBeenCalled();
     expect(m.emitOrgCreated).not.toHaveBeenCalled();
+    // The race-loser audit keeps the colliding org's id (parity with the
+    // other FR5 paths) rather than null.
+    expect(m.auditWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "org_created",
+        outcome: "failure",
+        orgId: ORG_ID,
+      }),
+    );
   });
 
   it("throws provisioning_failed and never enters the tx when the WorkOS create fails", async () => {
