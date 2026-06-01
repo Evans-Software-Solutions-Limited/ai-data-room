@@ -149,15 +149,16 @@ export async function createOrg(
   // top of the handler's fast `actor.localOrgId` check).
   const existing = await deps.membershipRepo.findByUser(actorUserId);
   if (existing) {
-    await safeAudit(deps, {
-      eventType: "org_created",
-      outcome: "failure",
+    // Route through failAndAudit so this — the most common rejection —
+    // is counted in `org.create.failures` like every other failure path
+    // (not merely audited). Pass the existing org for audit context.
+    await failAndAudit(
+      deps,
       actorUserId,
-      orgId: existing.orgId,
-      sourceIp: audit.sourceIp,
-      userAgent: audit.userAgent,
-      metadata: { reason: "already_member" },
-    });
+      audit,
+      "already_member",
+      existing.orgId,
+    );
     throw new CreateOrgError("already_member");
   }
 
@@ -309,12 +310,14 @@ async function failAndAudit(
   actorUserId: string,
   audit: AuditContext,
   reason: string,
+  orgId?: string,
 ): Promise<void> {
   emitCount("org.create.failures");
   await safeAudit(deps, {
     eventType: "org_created",
     outcome: "failure",
     actorUserId,
+    orgId: orgId ?? null,
     sourceIp: audit.sourceIp,
     userAgent: audit.userAgent,
     metadata: { reason },

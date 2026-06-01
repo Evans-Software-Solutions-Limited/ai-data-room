@@ -5,8 +5,9 @@
 // `recordAuditEvent` runs against a mocked `AuditRepo.write` so the
 // emitted audit shapes are exercised, not stubbed.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { metrics } from "../../../infrastructure/observability/metrics";
 import type { Db } from "@ai-data-room/db";
 import type {
   Org,
@@ -148,6 +149,9 @@ describe("createOrg", () => {
   beforeEach(() => {
     m = makeMocks();
   });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("creates the WorkOS org, local mirror, and owner membership, then emits org.created", async () => {
     const result = await createOrg(params, m.deps);
@@ -176,7 +180,8 @@ describe("createOrg", () => {
     ]);
   });
 
-  it("rejects a caller who already has a membership (FR5), without touching WorkOS", async () => {
+  it("rejects a caller who already has a membership (FR5), counts the failure, without touching WorkOS", async () => {
+    const addMetric = vi.spyOn(metrics, "addMetric");
     m.findByUser.mockResolvedValue(MEMBERSHIP);
 
     await expect(createOrg(params, m.deps)).rejects.toMatchObject({
@@ -187,6 +192,11 @@ describe("createOrg", () => {
     expect(auditEventTypes(m.auditWrite)).toEqual([
       { eventType: "org_created", outcome: "failure" },
     ]);
+    // The fast-path rejection must feed org.create.failures, like every
+    // other failure path (was previously audit-only).
+    expect(
+      addMetric.mock.calls.some((c) => c[0] === "org.create.failures"),
+    ).toBe(true);
   });
 
   it("compensates and surfaces already_member when a concurrent create wins the FR5 race", async () => {
