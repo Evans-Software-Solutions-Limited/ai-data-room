@@ -1,7 +1,7 @@
 // POST /orgs/:orgId/users/:userId/suspend — suspend a user per FR21.
 //
 // Slice 1 / T-014b. Wraps `suspendUser` from the application layer.
-// Authorization: cross-org guard + owner-or-admin role.
+// Authorization: cross-org guard + owner-or-editor role.
 //
 // Domain invariants enforced by the application function (sticky
 // #22): no self-suspension, sole-owner cannot be suspended. The

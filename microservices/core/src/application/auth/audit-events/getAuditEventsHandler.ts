@@ -7,7 +7,7 @@
 // lands, this will likely move into a richer BFF aggregate; for
 // v0.1 the minimal shape is sufficient.
 //
-// Authorization: cross-org guard + owner-or-admin role. Audit logs
+// Authorization: cross-org guard + owner-or-editor role. Audit logs
 // can leak business activity (which user signed in, who was
 // invited where, etc.) so role-gating is non-negotiable.
 //

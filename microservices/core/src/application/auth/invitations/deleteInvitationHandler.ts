@@ -2,11 +2,11 @@
 // per FR10.
 //
 // Slice 1 / T-014b. Wraps `revokeInvitation` from the application
-// layer. Authorization: cross-org guard + owner-or-admin role.
+// layer. Authorization: cross-org guard + owner-or-editor role.
 //
 // `revokeInvitation` itself enforces the cross-org guard a second
 // time (the `invitation.orgId === input.orgId` check is sticky #30 —
-// without it, an admin in org A passing org B's invitation id
+// without it, an editor in org A passing org B's invitation id
 // bypasses tenancy). Redundant on the happy path; deliberately
 // kept as defence in depth.
 

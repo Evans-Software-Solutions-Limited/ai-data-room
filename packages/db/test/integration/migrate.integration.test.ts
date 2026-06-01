@@ -19,6 +19,9 @@
 // smoke test doesn't insert data, but kept for symmetry with T-005's
 // repo tests that will populate rows).
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -30,6 +33,30 @@ import {
 } from "./setup";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
+
+/**
+ * Execute a committed migration `.sql` file statement-by-statement
+ * against the given connection (the pool or a transaction handle).
+ * Strips line comments and drizzle's `--> statement-breakpoint`
+ * markers, then splits on `;` — postgres-js refuses multiple commands
+ * in one `unsafe()` call, so each statement is sent individually.
+ */
+async function runMigrationFile(
+  conn: { unsafe: (q: string) => Promise<unknown> },
+  filename: string,
+): Promise<void> {
+  const raw = readFileSync(path.join(MIGRATIONS_FOLDER, filename), "utf8");
+  const statements = raw
+    .split("\n")
+    .map((line) => line.replace(/--.*$/, "")) // drops `-- …` and `--> statement-breakpoint`
+    .join("\n")
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  for (const stmt of statements) {
+    await conn.unsafe(stmt);
+  }
+}
 
 const EXPECTED_TABLES = [
   "audit_events",
@@ -137,5 +164,60 @@ describe("drizzle migrations smoke test", () => {
       ORDER BY table_name
     `;
     expect(rowsAfterReapply.map((r) => r.table_name)).toEqual(EXPECTED_TABLES);
+  });
+
+  // ── Slice 17 / T-000 — role-vocabulary migration (ADR-012) ──────────
+  //
+  // The enum *names* (`org_role`, `invitation_role`) are unchanged by the
+  // rename, so the name-level check above can't see it. These assert the
+  // enum *labels* (`pg_enum.enumlabel`) actually moved to the design's
+  // `owner|editor|viewer` vocabulary and that `admin`/`internal` are gone.
+
+  it("renames the role enum labels to the design vocabulary (T-000)", async () => {
+    const sql = getTestPool();
+    const labels = await sql<{ typname: string; enumlabel: string }[]>`
+      SELECT t.typname, e.enumlabel
+      FROM pg_enum e
+      JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname IN ('org_role', 'invitation_role')
+      ORDER BY t.typname, e.enumsortorder
+    `;
+    const labelsOf = (typname: string) =>
+      labels.filter((r) => r.typname === typname).map((r) => r.enumlabel);
+
+    expect(labelsOf("org_role")).toEqual(["owner", "editor", "viewer"]);
+    expect(labelsOf("invitation_role")).toEqual(["editor", "viewer"]);
+
+    const all = labels.map((r) => r.enumlabel);
+    expect(all).not.toContain("admin");
+    expect(all).not.toContain("internal");
+  });
+
+  it("up + down round-trips and preserves data — a former 'admin' row reads 'editor'", async () => {
+    const sql = getTestPool();
+    // Reverse to the shipped slice-1 vocabulary, seed rows under the OLD
+    // labels, then re-apply the committed forward migration — all inside
+    // one transaction so it's hermetic and net-zero on the global enum.
+    // The ON COMMIT DROP temp table avoids organizations/users FK setup.
+    const result = await sql.begin(async (tx) => {
+      await runMigrationFile(tx, "0004_role_vocab_rename.down.sql");
+      await tx.unsafe(
+        "CREATE TEMP TABLE _role_probe (r org_role) ON COMMIT DROP",
+      );
+      await tx.unsafe(
+        "INSERT INTO _role_probe (r) VALUES ('owner'), ('admin'), ('internal')",
+      );
+      await runMigrationFile(tx, "0004_role_vocab_rename.sql");
+      const rows = await tx<{ r: string }[]>`
+        SELECT r::text AS r FROM _role_probe ORDER BY r::text
+      `;
+      return rows.map((x) => x.r);
+    });
+
+    // RENAME VALUE relabels in place: the row stored while the label was
+    // 'admin' now reads 'editor', 'internal' reads 'viewer', and 'owner'
+    // is untouched. This is the data-preservation guarantee the generated
+    // drop/recreate would have violated on a populated table.
+    expect(result).toEqual(["editor", "owner", "viewer"]);
   });
 });

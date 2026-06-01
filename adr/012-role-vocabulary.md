@@ -1,6 +1,6 @@
 # ADR-012: Role vocabulary — adopt owner / editor / viewer / external
 
-- **Status:** proposed
+- **Status:** accepted (T-000 green, 2026-05-31)
 - **Date:** 2026-05-31
 - **Deciders:** Bradley
 - **Related:** [auth-and-orgs spec](../.kiro/specs/ai-data-room/auth-and-orgs/requirements.md) ·
@@ -59,7 +59,7 @@ Opportunity-scoped external viewers.
 - **Follow-ups / obligations:**
   - **Folded into `org-provisioning` as T-000** (RB-7) — the first build target,
     which already touches memberships/roles. Hand-authored `ALTER TYPE … RENAME
-    VALUE` (+ paired `.down.sql`) for `org_memberships.role` and
+VALUE` (+ paired `.down.sql`) for `org_memberships.role` and
     `invitations.role`; update the canonical zod schemas, repos, guards
     (`authorizeOrgAccess` / `OWNER_ADMIN`), the `/me` role union, the invitation
     role guards + handler body schema, fixtures, and tests in one PR. ADR moves

@@ -45,7 +45,7 @@ describe("TokenHelper", () => {
 
   describe("extractDataFromToken", () => {
     it("should call unpackJWT and return the decoded data", () => {
-      const mockPayload = { sub: "user123", role: "admin" };
+      const mockPayload = { sub: "user123", role: "editor" };
       vi.mocked(unpackJWT).mockReturnValue(mockPayload);
 
       const result = TokenHelper.extractDataFromToken("some-token");

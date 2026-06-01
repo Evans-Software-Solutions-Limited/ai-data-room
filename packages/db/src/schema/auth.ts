@@ -60,7 +60,7 @@ export const userLifecycleState = pgEnum("user_lifecycle_state", [
   "deleted",
 ]);
 
-export const orgRole = pgEnum("org_role", ["owner", "admin", "internal"]);
+export const orgRole = pgEnum("org_role", ["owner", "editor", "viewer"]);
 
 export const externalGrantStatus = pgEnum("external_grant_status", [
   "active",
@@ -73,7 +73,7 @@ export const invitationKind = pgEnum("invitation_kind", [
   "external",
 ]);
 
-export const invitationRole = pgEnum("invitation_role", ["admin", "internal"]);
+export const invitationRole = pgEnum("invitation_role", ["editor", "viewer"]);
 
 export const invitationState = pgEnum("invitation_state", [
   "pending",

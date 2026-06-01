@@ -17,7 +17,7 @@ any later slice builds role-tier logic. Conventions: same as
 
 ## T-000 — Role-vocabulary migration (admin→editor, internal→viewer)
 
-Status: `[ ]`
+Status: `[~]`
 **Scope:** Rename the shipped role enum end to end, per ADR-012. **The canonical
 source of the role union is the zod `RoleSchema` / `InvitationRoleSchema` in
 `packages/api-utils/src/schemas/auth-orgs.ts` — every domain type, repo, and

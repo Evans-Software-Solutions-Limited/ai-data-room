@@ -4,7 +4,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { OWNER_ADMIN, authorizeOrgAccess, isAuthFailure } from "../orgAccess";
+import { OWNER_EDITOR, authorizeOrgAccess, isAuthFailure } from "../orgAccess";
 import type { MembershipRepo } from "../../../../infrastructure/db/membershipRepo";
 
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
@@ -65,7 +65,7 @@ describe("authorizeOrgAccess", () => {
       id: "membership_id",
       orgId: ORG_ID,
       userId: USER_ID,
-      role: "internal",
+      role: "viewer",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -81,7 +81,7 @@ describe("authorizeOrgAccess", () => {
     });
   });
 
-  it("returns the membership when the actor is owner / admin (default allowlist)", async () => {
+  it("returns the membership when the actor is owner / editor (default allowlist)", async () => {
     const { membershipRepo, findByOrgUser } = makeRepo();
     const membership = {
       id: "membership_id",
@@ -102,32 +102,32 @@ describe("authorizeOrgAccess", () => {
     expect(isAuthFailure(result)).toBe(false);
   });
 
-  it("respects a caller-supplied allowlist that broadens beyond OWNER_ADMIN", async () => {
+  it("respects a caller-supplied allowlist that broadens beyond OWNER_EDITOR", async () => {
     const { membershipRepo, findByOrgUser } = makeRepo();
     findByOrgUser.mockResolvedValue({
       id: "membership_id",
       orgId: ORG_ID,
       userId: USER_ID,
-      role: "internal",
+      role: "viewer",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
-    // Future handler that allows internal members through.
+    // Future handler that allows viewer members through.
     const result = await authorizeOrgAccess(
       { actor: ACTOR, paramOrgId: ORG_ID },
       { membershipRepo },
-      ["owner", "admin", "internal"],
+      ["owner", "editor", "viewer"],
     );
 
     expect(isAuthFailure(result)).toBe(false);
   });
 
-  it("OWNER_ADMIN constant pins the v0.1 default to exactly owner + admin", () => {
+  it("OWNER_EDITOR constant pins the v0.1 default to exactly owner + editor", () => {
     // Frozen-by-test pin — adding a role to the default allowlist
     // must be deliberate, not a silent broadening that grants
-    // `internal` users access to admin-tooling endpoints.
-    expect(OWNER_ADMIN).toEqual(["owner", "admin"]);
+    // `viewer` users access to admin-tooling endpoints.
+    expect(OWNER_EDITOR).toEqual(["owner", "editor"]);
   });
 });
 
@@ -147,7 +147,7 @@ describe("isAuthFailure", () => {
       id: "membership_id",
       orgId: ORG_ID,
       userId: USER_ID,
-      role: "admin",
+      role: "editor",
       createdAt: new Date(),
       updatedAt: new Date(),
     });

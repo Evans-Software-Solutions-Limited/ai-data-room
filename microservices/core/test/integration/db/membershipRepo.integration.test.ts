@@ -44,11 +44,11 @@ describe("MembershipRepo (integration)", () => {
     const m = await memberships.create({
       orgId: org.id,
       userId: user.id,
-      role: "admin",
+      role: "editor",
     });
     expect(m.orgId).toBe(org.id);
     expect(m.userId).toBe(user.id);
-    expect(m.role).toBe("admin");
+    expect(m.role).toBe("editor");
   });
 
   it("findByOrgUser() returns the membership when present and null otherwise", async () => {
@@ -59,11 +59,11 @@ describe("MembershipRepo (integration)", () => {
     await memberships.create({
       orgId: org.id,
       userId: user.id,
-      role: "internal",
+      role: "viewer",
     });
 
     const found = await memberships.findByOrgUser(org.id, user.id);
-    expect(found?.role).toBe("internal");
+    expect(found?.role).toBe("viewer");
 
     const missingUser = await memberships.findByOrgUser(
       org.id,
@@ -86,13 +86,13 @@ describe("MembershipRepo (integration)", () => {
     await memberships.create({
       orgId: org.id,
       userId: user2.id,
-      role: "admin",
+      role: "editor",
     });
 
     const all = await memberships.listByOrg(org.id);
     expect(all).toHaveLength(2);
     expect(new Set(all.map((m) => m.role))).toEqual(
-      new Set(["owner", "admin"]),
+      new Set(["owner", "editor"]),
     );
   });
 

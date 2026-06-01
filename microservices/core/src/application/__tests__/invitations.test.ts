@@ -63,7 +63,7 @@ function makeInvitation(overrides: Partial<Invitation> = {}): Invitation {
     orgId: ORG_ID,
     email: "invitee@example.com",
     kind: "internal",
-    role: "internal",
+    role: "viewer",
     opportunitySlug: null,
     invitedBy: ACTOR_ID,
     state: "pending",
@@ -277,11 +277,11 @@ describe("createInvitation", () => {
         createInvitation(
           {
             kind: "internal",
-            role: "internal",
+            role: "viewer",
             email: "invitee@example.com",
             orgId: ORG_ID,
             actorId: ACTOR_ID,
-            actorRole: "internal",
+            actorRole: "viewer",
             audit: AUDIT_CTX,
           },
           deps,
@@ -306,22 +306,22 @@ describe("createInvitation", () => {
         createInvitation(
           {
             kind: "internal",
-            role: "admin",
+            role: "editor",
             email: "newadmin@example.com",
             orgId: ORG_ID,
             actorId: ACTOR_ID,
-            actorRole: "admin",
+            actorRole: "editor",
             audit: AUDIT_CTX,
           },
           deps,
         ),
-      ).rejects.toThrow(/only_owner_can_invite_admin/);
+      ).rejects.toThrow(/only_owner_can_invite_editor/);
 
       expect(deps.createInvitation).not.toHaveBeenCalled();
       expect(deps.auditWrite).toHaveBeenCalledWith(
         expect.objectContaining({
           metadata: expect.objectContaining({
-            reason: "only_owner_can_invite_admin",
+            reason: "only_owner_can_invite_editor",
           }),
         }),
       );
@@ -332,11 +332,11 @@ describe("createInvitation", () => {
         createInvitation(
           {
             kind: "internal",
-            role: "internal",
+            role: "viewer",
             email: "newcontrib@example.com",
             orgId: ORG_ID,
             actorId: ACTOR_ID,
-            actorRole: "admin",
+            actorRole: "editor",
             audit: AUDIT_CTX,
           },
           deps,
@@ -349,7 +349,7 @@ describe("createInvitation", () => {
         createInvitation(
           {
             kind: "internal",
-            role: "admin",
+            role: "editor",
             email: "newadmin@example.com",
             orgId: ORG_ID,
             actorId: ACTOR_ID,
@@ -367,7 +367,7 @@ describe("createInvitation", () => {
       const result = await createInvitation(
         {
           kind: "internal",
-          role: "internal",
+          role: "viewer",
           email: "invitee@example.com",
           orgId: ORG_ID,
           actorId: ACTOR_ID,
@@ -389,7 +389,7 @@ describe("createInvitation", () => {
           orgId: ORG_ID,
           email: "invitee@example.com",
           kind: "internal",
-          role: "internal",
+          role: "viewer",
           opportunitySlug: null,
           invitedBy: ACTOR_ID,
         }),
@@ -404,7 +404,7 @@ describe("createInvitation", () => {
           metadata: expect.objectContaining({
             invitationId: INVITATION_ID,
             kind: "internal",
-            role: "internal",
+            role: "viewer",
             email: "invitee@example.com",
           }),
         }),
@@ -466,7 +466,7 @@ describe("createInvitation", () => {
         createInvitation(
           {
             kind: "internal",
-            role: "internal",
+            role: "viewer",
             email: "invitee@example.com",
             orgId: ORG_ID,
             actorId: ACTOR_ID,
@@ -487,7 +487,7 @@ describe("createInvitation", () => {
         createInvitation(
           {
             kind: "internal",
-            role: "internal",
+            role: "viewer",
             email: "invitee@example.com",
             orgId: ORG_ID,
             actorId: ACTOR_ID,
@@ -570,7 +570,7 @@ describe("revokeInvitation", () => {
             invitationId: INVITATION_ID,
             orgId: ORG_ID,
             actorId: ACTOR_ID,
-            actorRole: "internal",
+            actorRole: "viewer",
             audit: AUDIT_CTX,
           },
           deps,
@@ -589,7 +589,7 @@ describe("revokeInvitation", () => {
           invitationId: INVITATION_ID,
           orgId: ORG_ID,
           actorId: ACTOR_ID,
-          actorRole: "admin",
+          actorRole: "editor",
           audit: AUDIT_CTX,
         },
         deps,
@@ -811,7 +811,7 @@ describe("acceptInvitation", () => {
         id: "55555555-5555-4555-8555-555555555555",
         orgId: ORG_ID,
         userId: ACCEPTING_USER_ID,
-        role: "internal",
+        role: "viewer",
         createdAt: NOW,
         updatedAt: NOW,
       };
@@ -833,7 +833,7 @@ describe("acceptInvitation", () => {
       expect(deps.membershipCreate).toHaveBeenCalledWith({
         orgId: ORG_ID,
         userId: ACCEPTING_USER_ID,
-        role: "internal",
+        role: "viewer",
       });
       expect(deps.externalGrantCreate).not.toHaveBeenCalled();
       expect(deps.invitationTransitionState).toHaveBeenCalledWith(
