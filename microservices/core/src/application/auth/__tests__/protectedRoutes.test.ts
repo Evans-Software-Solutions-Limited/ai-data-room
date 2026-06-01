@@ -15,6 +15,7 @@
 // run in order, and each handler's error→status mapping fires.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import Elysia from "elysia";
 
 const ALL_SECRETS = {
   WORKOS_CLIENT_ID: { value: "client_test_123" },
@@ -85,8 +86,12 @@ interface MockSetup {
   // orgRepo
   orgFindById: ReturnType<typeof vi.fn>;
   orgFindByWorkosOrgId: ReturnType<typeof vi.fn>;
+  orgFindBySlug: ReturnType<typeof vi.fn>;
+  orgCreate: ReturnType<typeof vi.fn>;
   // membershipRepo
   membershipFindByOrgUser: ReturnType<typeof vi.fn>;
+  membershipFindByUser: ReturnType<typeof vi.fn>;
+  membershipCreate: ReturnType<typeof vi.fn>;
   // externalGrantRepo
   grantListByUser: ReturnType<typeof vi.fn>;
   // invitationRepo
@@ -102,6 +107,8 @@ interface MockSetup {
   workosRevokeInvitation: ReturnType<typeof vi.fn>;
   workosListSessions: ReturnType<typeof vi.fn>;
   workosRevokeSession: ReturnType<typeof vi.fn>;
+  workosCreateOrganization: ReturnType<typeof vi.fn>;
+  workosDeleteOrganization: ReturnType<typeof vi.fn>;
 }
 
 function setupMocks(): MockSetup {
@@ -122,6 +129,10 @@ function setupMocks(): MockSetup {
   const workosRevokeInvitation = vi.fn();
   const workosListSessions = vi.fn().mockResolvedValue([]);
   const workosRevokeSession = vi.fn();
+  const workosCreateOrganization = vi
+    .fn()
+    .mockResolvedValue({ id: "org_workos_new" });
+  const workosDeleteOrganization = vi.fn().mockResolvedValue(undefined);
   vi.doMock("@workos-inc/node", () => ({
     WorkOS: class {
       userManagement = {
@@ -135,6 +146,10 @@ function setupMocks(): MockSetup {
         createPasswordReset: vi.fn(),
         getUser: vi.fn(),
         deleteUser: vi.fn(),
+      };
+      organizations = {
+        createOrganization: workosCreateOrganization,
+        deleteOrganization: workosDeleteOrganization,
       };
     },
   }));
@@ -163,19 +178,27 @@ function setupMocks(): MockSetup {
 
   const orgFindById = vi.fn();
   const orgFindByWorkosOrgId = vi.fn();
+  const orgFindBySlug = vi.fn().mockResolvedValue(null);
+  const orgCreate = vi.fn().mockResolvedValue(LOCAL_ORG);
   vi.doMock("../../../infrastructure/db/orgRepo", () => ({
     OrgRepo: class {
       findById = orgFindById;
       findByWorkosOrgId = orgFindByWorkosOrgId;
+      findBySlug = orgFindBySlug;
+      create = orgCreate;
       withTx = () => this;
     },
   }));
 
   const membershipFindByOrgUser = vi.fn();
+  const membershipFindByUser = vi.fn().mockResolvedValue(null);
+  const membershipCreate = vi.fn().mockResolvedValue(OWNER_MEMBERSHIP);
   vi.doMock("../../../infrastructure/db/membershipRepo", () => ({
     MembershipRepo: class {
       findByOrgUser = membershipFindByOrgUser;
+      findByUser = membershipFindByUser;
       findOwnerForOrg = vi.fn().mockResolvedValue(null);
+      create = membershipCreate;
       withTx = () => this;
     },
   }));
@@ -229,7 +252,11 @@ function setupMocks(): MockSetup {
     userCreate,
     orgFindById,
     orgFindByWorkosOrgId,
+    orgFindBySlug,
+    orgCreate,
     membershipFindByOrgUser,
+    membershipFindByUser,
+    membershipCreate,
     grantListByUser,
     invitationCreate,
     invitationFindById,
@@ -241,12 +268,25 @@ function setupMocks(): MockSetup {
     workosRevokeInvitation,
     workosListSessions,
     workosRevokeSession,
+    workosCreateOrganization,
+    workosDeleteOrganization,
   };
 }
 
 async function loadProtectedRoutes() {
   const mod = await import("../protectedRoutes");
   return mod.protectedRoutes;
+}
+
+// Mirrors the production composition in `api.ts`: the top-level
+// `orgRoutes` (with its create-org limiter) mounted alongside
+// `protectedRoutes`. Used by the POST /orgs tests so the rate-limit
+// isolation assertion exercises the real shape — proving the limiter
+// can't leak onto `/me`.
+async function loadOrgApp() {
+  const { orgRoutes } = await import("../../orgs/orgRoutes");
+  const { protectedRoutes } = await import("../protectedRoutes");
+  return new Elysia().use(orgRoutes).use(protectedRoutes);
 }
 
 function makeRequest(
@@ -353,6 +393,35 @@ describe("protectedRoutes", () => {
           fullName: "Alice Example",
         }),
       );
+    });
+
+    it("reflects a just-created org via the membership fallback (T-004)", async () => {
+      // Post-POST /orgs state: the sealed session still has no org
+      // (organizationId null), but a membership now exists. resolveActor
+      // falls back to it so /me flips from {orgId:null} to the new org.
+      mocks.authenticate.mockResolvedValue({
+        authenticated: true,
+        user: SESSION_USER,
+        organizationId: null,
+      });
+      mocks.userFindByWorkosUserId.mockResolvedValue(LOCAL_USER);
+      mocks.userFindById.mockResolvedValue(LOCAL_USER);
+      mocks.membershipFindByUser.mockResolvedValue(OWNER_MEMBERSHIP);
+      mocks.orgFindById.mockResolvedValue(LOCAL_ORG);
+      mocks.membershipFindByOrgUser.mockResolvedValue(OWNER_MEMBERSHIP);
+      mocks.grantListByUser.mockResolvedValue([]);
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest("/me", { sessionCookie: "sealed-blob" }),
+      );
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({
+        orgId: LOCAL_ORG_ID,
+        orgName: LOCAL_ORG.name,
+        role: "owner",
+      });
     });
 
     it("infers role='external' when an unprovisioned user has active grants", async () => {
@@ -650,6 +719,132 @@ describe("protectedRoutes", () => {
       // explicitly so a future regression that lets the Invalid
       // Date through and crashes at the DB layer is caught here.
       expect(mocks.auditListByOrg).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("POST /orgs (org-provisioning)", () => {
+    // A signed-in user with NO org yet (organizationId null →
+    // localOrgId null after resolveActor).
+    function arrangeNoOrgActor() {
+      mocks.authenticate.mockResolvedValue({
+        authenticated: true,
+        user: SESSION_USER,
+        organizationId: null,
+      });
+      mocks.userFindByWorkosUserId.mockResolvedValue(LOCAL_USER);
+      mocks.userFindById.mockResolvedValue(LOCAL_USER);
+      mocks.membershipFindByUser.mockResolvedValue(null);
+    }
+
+    function postOrgs(app: Awaited<ReturnType<typeof loadOrgApp>>) {
+      return app.handle(
+        makeRequest("/orgs", {
+          method: "POST",
+          sessionCookie: "sealed-blob",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: "Acme Ltd" }),
+        }),
+      );
+    }
+
+    it("creates an org (201) for a no-org user and returns {orgId, role}", async () => {
+      arrangeNoOrgActor();
+      const app = await loadOrgApp();
+      const res = await postOrgs(app);
+
+      expect(res.status).toBe(201);
+      expect(await res.json()).toEqual({ orgId: LOCAL_ORG_ID, role: "owner" });
+      expect(mocks.workosCreateOrganization).toHaveBeenCalledWith({
+        name: "Acme Ltd",
+      });
+    });
+
+    it("409 already_in_org when the caller already belongs to an org", async () => {
+      // Default session carries an org; resolveActor resolves localOrgId.
+      mocks.userFindByWorkosUserId.mockResolvedValue(LOCAL_USER);
+      mocks.userFindById.mockResolvedValue(LOCAL_USER);
+      mocks.orgFindByWorkosOrgId.mockResolvedValue(LOCAL_ORG);
+
+      const app = await loadOrgApp();
+      const res = await postOrgs(app);
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({
+        ok: false,
+        reason: "already_in_org",
+      });
+      expect(mocks.workosCreateOrganization).not.toHaveBeenCalled();
+    });
+
+    it("400 invalid_name for a blank (whitespace-only) name", async () => {
+      arrangeNoOrgActor();
+      const app = await loadOrgApp();
+      const res = await app.handle(
+        makeRequest("/orgs", {
+          method: "POST",
+          sessionCookie: "sealed-blob",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: "   " }),
+        }),
+      );
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        ok: false,
+        reason: "invalid_name",
+      });
+      expect(mocks.workosCreateOrganization).not.toHaveBeenCalled();
+    });
+
+    it("500 provisioning_failed when createOrg fails (error → status mapping)", async () => {
+      arrangeNoOrgActor();
+      mocks.workosCreateOrganization.mockRejectedValue(new Error("workos down"));
+
+      const app = await loadOrgApp();
+      const res = await postOrgs(app);
+
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({
+        ok: false,
+        reason: "provisioning_failed",
+      });
+    });
+
+    it("rate-limits POST /orgs at 5/min/IP (NFR4)", async () => {
+      arrangeNoOrgActor();
+      const app = await loadOrgApp();
+      const statuses: number[] = [];
+      for (let i = 0; i < 6; i++) {
+        statuses.push((await postOrgs(app)).status);
+      }
+      // First 5 within budget (not rate-limited), 6th blocked.
+      expect(statuses.slice(0, 5).every((s) => s !== 429)).toBe(true);
+      expect(statuses[5]).toBe(429);
+    });
+
+    it("the create-org limiter does NOT throttle GET /me (top-level isolation)", async () => {
+      // Provisioned actor so /me returns 200. The composed app mirrors
+      // production: orgRoutes (limiter) + protectedRoutes side by side.
+      mocks.userFindByWorkosUserId.mockResolvedValue(LOCAL_USER);
+      mocks.userFindById.mockResolvedValue(LOCAL_USER);
+      mocks.orgFindByWorkosOrgId.mockResolvedValue(LOCAL_ORG);
+      mocks.orgFindById.mockResolvedValue(LOCAL_ORG);
+      mocks.membershipFindByOrgUser.mockResolvedValue(OWNER_MEMBERSHIP);
+
+      const app = await loadOrgApp();
+      const statuses: number[] = [];
+      for (let i = 0; i < 8; i++) {
+        statuses.push(
+          (
+            await app.handle(
+              makeRequest("/me", { sessionCookie: "sealed-blob" }),
+            )
+          ).status,
+        );
+      }
+      // 8 > the create-org limit of 5 — if the limiter leaked onto /me
+      // these would start returning 429. They must not.
+      expect(statuses.every((s) => s === 200)).toBe(true);
     });
   });
 });

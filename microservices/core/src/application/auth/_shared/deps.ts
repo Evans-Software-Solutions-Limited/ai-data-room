@@ -24,6 +24,7 @@ import { InvitationRepo } from "../../../infrastructure/db/invitationRepo";
 import { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
 import { OrgRepo } from "../../../infrastructure/db/orgRepo";
 import { UserRepo } from "../../../infrastructure/db/userRepo";
+import { createLoggingOrgEventPublisher } from "../../../infrastructure/events/orgEventPublisher";
 
 import { workos } from "./workosClient";
 
@@ -38,6 +39,9 @@ export const protectedDeps = {
   invitationRepo: new InvitationRepo(db),
   externalGrantRepo: new ExternalGrantRepo(db),
   auditRepo: new AuditRepo(db),
+  // org-provisioning (slice 17 / T-002) — logging stub; the EventBridge
+  // transport replaces this in T-005 (no change to createOrg / handler).
+  events: createLoggingOrgEventPublisher(),
 };
 
 export type ProtectedDeps = typeof protectedDeps;

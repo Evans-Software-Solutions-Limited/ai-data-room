@@ -72,6 +72,20 @@ describe("MembershipRepo (integration)", () => {
     expect(missingUser).toBeNull();
   });
 
+  it("findByUser() returns the user's single membership, or null (org-provisioning FR5)", async () => {
+    const { org, user } = await seedOrgAndUser({ orgs, users }, "findbyuser");
+    await memberships.create({ orgId: org.id, userId: user.id, role: "owner" });
+
+    const found = await memberships.findByUser(user.id);
+    expect(found?.orgId).toBe(org.id);
+    expect(found?.role).toBe("owner");
+
+    const none = await memberships.findByUser(
+      "00000000-0000-4000-8000-000000000000",
+    );
+    expect(none).toBeNull();
+  });
+
   it("listByOrg() returns every membership for the org", async () => {
     const { org, user: user1 } = await seedOrgAndUser({ orgs, users }, "lista");
     const user2 = await users.create({

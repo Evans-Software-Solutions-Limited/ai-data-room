@@ -48,6 +48,21 @@ export class MembershipRepo {
     return row as OrgMembership;
   }
 
+  /**
+   * The (single) membership for a user, or null. The v0.1
+   * single-membership invariant (one org per user) means at most one
+   * row exists; `org-provisioning`'s `createOrg` (slice 17 / T-002)
+   * uses this to enforce FR5 — reject a second org for a user who
+   * already belongs to one.
+   */
+  async findByUser(userId: string): Promise<OrgMembership | null> {
+    const rows = await this.db
+      .select()
+      .from(orgMemberships)
+      .where(eq(orgMemberships.userId, userId));
+    return firstOrNull(rows as OrgMembership[]);
+  }
+
   async findByOrgUser(
     orgId: string,
     userId: string,
