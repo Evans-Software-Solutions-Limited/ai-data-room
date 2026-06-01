@@ -86,6 +86,17 @@ describe("MembershipRepo (integration)", () => {
     expect(none).toBeNull();
   });
 
+  it("lockForUserCreate() runs the per-user advisory lock (FR5 race guard SQL is valid)", async () => {
+    const { user } = await seedOrgAndUser({ orgs, users }, "lockuser");
+    // Smoke test: proves the hashtext/pg_advisory_xact_lock SQL parses
+    // and executes against real Postgres. (Serialization itself is a
+    // Postgres advisory-lock guarantee, exercised under the createOrg
+    // transaction.)
+    await expect(
+      memberships.lockForUserCreate(user.id),
+    ).resolves.toBeUndefined();
+  });
+
   it("listByOrg() returns every membership for the org", async () => {
     const { org, user: user1 } = await seedOrgAndUser({ orgs, users }, "lista");
     const user2 = await users.create({

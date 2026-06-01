@@ -199,6 +199,7 @@ function setupMocks(): MockSetup {
       findByUser = membershipFindByUser;
       findOwnerForOrg = vi.fn().mockResolvedValue(null);
       create = membershipCreate;
+      lockForUserCreate = vi.fn().mockResolvedValue(undefined);
       withTx = () => this;
     },
   }));

@@ -65,10 +65,12 @@ function makeMocks(): Mocks {
 
   const findByUser = vi.fn().mockResolvedValue(null);
   const membershipCreate = vi.fn().mockResolvedValue(MEMBERSHIP);
+  const lockForUserCreate = vi.fn().mockResolvedValue(undefined);
   const membershipWithTx = vi.fn();
   const membershipRepo = {
     findByUser,
     create: membershipCreate,
+    lockForUserCreate,
     withTx: membershipWithTx,
   } as unknown as MembershipRepo;
   membershipWithTx.mockReturnValue(membershipRepo);
@@ -175,6 +177,22 @@ describe("createOrg", () => {
     expect(auditEventTypes(m.auditWrite)).toEqual([
       { eventType: "org_created", outcome: "failure" },
     ]);
+  });
+
+  it("compensates and surfaces already_member when a concurrent create wins the FR5 race", async () => {
+    // Pre-tx guard passes (null), but the in-tx re-check (under the
+    // advisory lock) finds a membership the racing request just created.
+    m.findByUser.mockResolvedValueOnce(null).mockResolvedValueOnce(MEMBERSHIP);
+
+    await expect(createOrg(params, m.deps)).rejects.toMatchObject({
+      reason: "already_member",
+    });
+    // The WorkOS org was minted pre-tx, so it must be compensated.
+    expect(m.createOrganization).toHaveBeenCalled();
+    expect(m.deleteOrganization).toHaveBeenCalledWith(WORKOS_ORG_ID);
+    // Nothing persisted, no success.
+    expect(m.membershipCreate).not.toHaveBeenCalled();
+    expect(m.emitOrgCreated).not.toHaveBeenCalled();
   });
 
   it("throws provisioning_failed and never enters the tx when the WorkOS create fails", async () => {

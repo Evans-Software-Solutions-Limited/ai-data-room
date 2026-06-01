@@ -157,6 +157,18 @@ export async function createOrg(
       const orgTx = deps.orgRepo.withTx(tx);
       const membershipTx = deps.membershipRepo.withTx(tx);
 
+      // FR5 race backstop. The pre-tx `findByUser` above is the fast
+      // path; this serialises two `POST /orgs` from the same user that
+      // race past it (no `UNIQUE(user_id)` exists — see
+      // `membershipRepo.lockForUserCreate`). The lock makes the second
+      // caller wait, then the re-check sees the first's membership and
+      // aborts as `already_member` (409, not a 500).
+      await membershipTx.lockForUserCreate(actorUserId);
+      const racing = await membershipTx.findByUser(actorUserId);
+      if (racing) {
+        throw new CreateOrgError("already_member");
+      }
+
       const slug = await deriveUniqueSlug(orgTx, input.name);
       const org = await orgTx.create({
         workosOrgId,
@@ -171,7 +183,8 @@ export async function createOrg(
       return { org, membership };
     });
   } catch (err) {
-    // Compensate: best-effort delete the orphaned WorkOS org.
+    // Compensate: best-effort delete the orphaned WorkOS org (created
+    // pre-tx) regardless of why the transaction failed.
     await deps.workos.deleteOrganization(workosOrgId).catch((delErr) => {
       emitCount("org.create.compensation_failed");
       logger.error("org.create.compensation_failed", {
@@ -179,6 +192,13 @@ export async function createOrg(
         error: serializeError(delErr),
       });
     });
+    // A lost FR5 race (the in-tx re-check found a membership) is a
+    // client-state conflict, not a server fault — surface it as
+    // already_member (409), having compensated the WorkOS org.
+    if (err instanceof CreateOrgError && err.reason === "already_member") {
+      await failAndAudit(deps, actorUserId, audit, "already_member_race");
+      throw err;
+    }
     await failAndAudit(deps, actorUserId, audit, "db_transaction_failed");
     throw new CreateOrgError("provisioning_failed", { cause: err });
   }
