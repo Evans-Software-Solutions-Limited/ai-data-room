@@ -50,16 +50,23 @@ export const LifecycleStateSchema = z.enum(["active", "suspended", "deleted"]);
 export const AuditOutcomeSchema = z.enum(["success", "failure"]);
 
 /**
- * Audit event types — exhaustive enumeration of the 21 events
- * required by FR24. Order is the order they appear in the FR; do not
- * reorder casually (consumers may rely on `.options` ordering for
- * dropdowns / docs).
+ * Audit event types — the 21 events required by auth-and-orgs FR24,
+ * plus per-slice additions appended below. Order is the order they
+ * appear in the FR (then by adding slice); do not reorder casually
+ * (consumers may rely on `.options` ordering for dropdowns / docs).
  *
- * The exhaustiveness vs. FR24 is verified in
+ * The exhaustiveness vs. FR24 + the per-slice additions is verified in
  * `__tests__/auth-orgs.test.ts` (the count assertion + per-name
  * presence check).
+ *
+ * Naming convention is snake_case throughout. `org_created` /
+ * `membership_created` are the audit-log event types (system of
+ * record); the EventBridge event for the same moment is the dotted
+ * `org.created` (`ORG_CREATED_DETAIL_TYPE` in `schemas/org.ts`) — two
+ * names for two channels, deliberately.
  */
 export const AuditEventTypeSchema = z.enum([
+  // auth-and-orgs (slice 1) — FR24
   "signup",
   "email_verified",
   "login_success",
@@ -81,6 +88,9 @@ export const AuditEventTypeSchema = z.enum([
   "user_suspended",
   "user_unsuspended",
   "user_deleted",
+  // org-provisioning (slice 17) — T-001
+  "org_created",
+  "membership_created",
 ]);
 
 /**
