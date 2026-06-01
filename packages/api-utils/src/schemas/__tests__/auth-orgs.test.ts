@@ -127,24 +127,37 @@ describe("AuditEventTypeSchema (FR24 exhaustiveness)", () => {
     "user_deleted",
   ] as const;
 
-  it("declares exactly 21 event types (FR24 'all of:' list)", () => {
-    expect(AuditEventTypeSchema.options).toHaveLength(21);
+  // Per-slice additions appended to the audit enum after slice 1.
+  // org-provisioning (slice 17 / T-001) — snake_case to match the FR24
+  // vocabulary; the dotted `org.created` is the EventBridge event, not
+  // an audit type.
+  const ORG_PROVISIONING_EVENT_TYPES = [
+    "org_created",
+    "membership_created",
+  ] as const;
+
+  const ALL_EVENT_TYPES = [
+    ...FR24_EVENT_TYPES,
+    ...ORG_PROVISIONING_EVENT_TYPES,
+  ] as const;
+
+  it("declares exactly 23 event types (21 FR24 + 2 org-provisioning)", () => {
+    expect(AuditEventTypeSchema.options).toHaveLength(23);
     expect(FR24_EVENT_TYPES).toHaveLength(21);
+    expect(ORG_PROVISIONING_EVENT_TYPES).toHaveLength(2);
   });
 
-  it("covers every FR24 event type", () => {
-    for (const type of FR24_EVENT_TYPES) {
+  it("covers every known event type", () => {
+    for (const type of ALL_EVENT_TYPES) {
       expect(AuditEventTypeSchema.parse(type)).toBe(type);
     }
   });
 
-  it("declares no extra event types beyond FR24", () => {
+  it("declares no extra event types beyond the known set", () => {
     const declared = new Set(AuditEventTypeSchema.options);
-    const required = new Set(FR24_EVENT_TYPES);
+    const required = new Set<string>(ALL_EVENT_TYPES);
     for (const type of declared) {
-      expect(required.has(type as (typeof FR24_EVENT_TYPES)[number])).toBe(
-        true,
-      );
+      expect(required.has(type)).toBe(true);
     }
   });
 

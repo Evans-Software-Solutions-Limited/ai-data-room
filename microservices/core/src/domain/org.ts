@@ -21,3 +21,13 @@ export type {
   Role,
   LifecycleState,
 } from "@ai-data-room/api-utils/schemas/auth-orgs";
+
+// org-provisioning (slice 17) request/event contracts. The runtime
+// values (`CreateOrgInputSchema`, `OrgCreatedEventSchema`,
+// `ORG_CREATED_DETAIL_TYPE`) are imported directly from
+// `@ai-data-room/api-utils/schemas/org` where needed — this barrel
+// stays type-only (no runtime side effects; excluded from coverage).
+export type {
+  CreateOrgInput,
+  OrgCreatedEvent,
+} from "@ai-data-room/api-utils/schemas/org";
