@@ -798,7 +798,9 @@ describe("protectedRoutes", () => {
 
     it("500 provisioning_failed when createOrg fails (error → status mapping)", async () => {
       arrangeNoOrgActor();
-      mocks.workosCreateOrganization.mockRejectedValue(new Error("workos down"));
+      mocks.workosCreateOrganization.mockRejectedValue(
+        new Error("workos down"),
+      );
 
       const app = await loadOrgApp();
       const res = await postOrgs(app);
