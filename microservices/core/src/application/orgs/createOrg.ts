@@ -88,6 +88,29 @@ const SLUG_MAX = 64;
 // Leave headroom for a `-NN` / `-<8hex>` uniqueness suffix.
 const SLUG_BASE_MAX = SLUG_MAX - 10;
 const MAX_SLUG_ATTEMPTS = 50;
+// Bounded retries of the whole create transaction on a concurrent slug
+// unique-index collision (two different users whose names normalise to
+// the same slug). The suffix loop only de-dupes against *committed*
+// rows; the loser of a same-instant race re-derives a free slug on
+// retry rather than failing with a 500.
+const MAX_CREATE_ATTEMPTS = 3;
+const SLUG_UNIQUE_CONSTRAINT = "organizations_slug_key";
+
+/** True for the Postgres unique-violation (23505) on the org slug index. */
+function isSlugConflict(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const e = err as {
+    code?: string;
+    constraint_name?: string;
+    message?: string;
+  };
+  return (
+    e.code === "23505" &&
+    (e.constraint_name === SLUG_UNIQUE_CONSTRAINT ||
+      (typeof e.message === "string" &&
+        e.message.includes(SLUG_UNIQUE_CONSTRAINT)))
+  );
+}
 
 /** Normalise a name into a schema-valid slug base (lowercase
  *  alphanumerics + internal hyphens). Falls back to "org" when the
@@ -150,39 +173,58 @@ export async function createOrg(
     throw new CreateOrgError("provisioning_failed", { cause: err });
   }
 
-  // 3. Local mirror + owner membership, atomic.
-  let result: { org: Org; membership: OrgMembership };
-  try {
-    result = await deps.db.transaction(async (tx) => {
-      const orgTx = deps.orgRepo.withTx(tx);
-      const membershipTx = deps.membershipRepo.withTx(tx);
+  // 3. Local mirror + owner membership, atomic — retried on a
+  // concurrent slug collision (see MAX_CREATE_ATTEMPTS).
+  let result: { org: Org; membership: OrgMembership } | undefined;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_CREATE_ATTEMPTS; attempt++) {
+    try {
+      result = await deps.db.transaction(async (tx) => {
+        const orgTx = deps.orgRepo.withTx(tx);
+        const membershipTx = deps.membershipRepo.withTx(tx);
 
-      // FR5 race backstop. The pre-tx `findByUser` above is the fast
-      // path; this serialises two `POST /orgs` from the same user that
-      // race past it (no `UNIQUE(user_id)` exists — see
-      // `membershipRepo.lockForUserCreate`). The lock makes the second
-      // caller wait, then the re-check sees the first's membership and
-      // aborts as `already_member` (409, not a 500).
-      await membershipTx.lockForUserCreate(actorUserId);
-      const racing = await membershipTx.findByUser(actorUserId);
-      if (racing) {
-        throw new CreateOrgError("already_member");
+        // FR5 race backstop. The pre-tx `findByUser` above is the fast
+        // path; this serialises two `POST /orgs` from the same user
+        // that race past it (no `UNIQUE(user_id)` exists — see
+        // `membershipRepo.lockForUserCreate`). The lock makes the second
+        // caller wait, then the re-check sees the first's membership and
+        // aborts as `already_member` (409, not a 500).
+        await membershipTx.lockForUserCreate(actorUserId);
+        const racing = await membershipTx.findByUser(actorUserId);
+        if (racing) {
+          throw new CreateOrgError("already_member");
+        }
+
+        const slug = await deriveUniqueSlug(orgTx, input.name);
+        const org = await orgTx.create({
+          workosOrgId,
+          name: input.name,
+          slug,
+        });
+        const membership = await membershipTx.create({
+          orgId: org.id,
+          userId: actorUserId,
+          role: "owner",
+        });
+        return { org, membership };
+      });
+      lastErr = undefined;
+      break;
+    } catch (err) {
+      lastErr = err;
+      // Concurrent same-slug INSERT from a *different* user (the
+      // per-user advisory lock doesn't serialise across users). Retry —
+      // `deriveUniqueSlug` now sees the committed row and picks the next
+      // suffix. Bounded so a pathological hot slug can't spin forever.
+      if (isSlugConflict(err) && attempt < MAX_CREATE_ATTEMPTS) {
+        emitCount("org.create.slug_conflict_retry");
+        continue;
       }
+      break;
+    }
+  }
 
-      const slug = await deriveUniqueSlug(orgTx, input.name);
-      const org = await orgTx.create({
-        workosOrgId,
-        name: input.name,
-        slug,
-      });
-      const membership = await membershipTx.create({
-        orgId: org.id,
-        userId: actorUserId,
-        role: "owner",
-      });
-      return { org, membership };
-    });
-  } catch (err) {
+  if (!result) {
     // Compensate: best-effort delete the orphaned WorkOS org (created
     // pre-tx) regardless of why the transaction failed.
     await deps.workos.deleteOrganization(workosOrgId).catch((delErr) => {
@@ -195,12 +237,22 @@ export async function createOrg(
     // A lost FR5 race (the in-tx re-check found a membership) is a
     // client-state conflict, not a server fault — surface it as
     // already_member (409), having compensated the WorkOS org.
-    if (err instanceof CreateOrgError && err.reason === "already_member") {
+    if (
+      lastErr instanceof CreateOrgError &&
+      lastErr.reason === "already_member"
+    ) {
       await failAndAudit(deps, actorUserId, audit, "already_member_race");
-      throw err;
+      throw lastErr;
     }
-    await failAndAudit(deps, actorUserId, audit, "db_transaction_failed");
-    throw new CreateOrgError("provisioning_failed", { cause: err });
+    await failAndAudit(
+      deps,
+      actorUserId,
+      audit,
+      isSlugConflict(lastErr)
+        ? "slug_conflict_exhausted"
+        : "db_transaction_failed",
+    );
+    throw new CreateOrgError("provisioning_failed", { cause: lastErr });
   }
 
   // 4a. Audit (post-commit; safeAudit never masks the real outcome).

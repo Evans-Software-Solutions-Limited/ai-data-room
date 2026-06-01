@@ -126,6 +126,16 @@ const params = {
   audit: AUDIT,
 };
 
+/** A postgres-js-shaped unique violation on the org slug index. */
+function slugConflictError() {
+  return Object.assign(
+    new Error(
+      'duplicate key value violates unique constraint "organizations_slug_key"',
+    ),
+    { code: "23505", constraint_name: "organizations_slug_key" },
+  );
+}
+
 function auditEventTypes(auditWrite: ReturnType<typeof vi.fn>) {
   return auditWrite.mock.calls.map((c) => ({
     eventType: c[0].eventType,
@@ -240,6 +250,33 @@ describe("createOrg", () => {
     expect(m.orgCreate).toHaveBeenCalledWith(
       expect.objectContaining({ slug: "acme-ltd-2" }),
     );
+  });
+
+  it("retries on a concurrent slug collision and succeeds (no 500, WorkOS org reused)", async () => {
+    // A different user committed the same slug between our findBySlug and
+    // insert → the first insert hits organizations_slug_key; the retry
+    // re-derives and succeeds.
+    m.orgCreate
+      .mockRejectedValueOnce(slugConflictError())
+      .mockResolvedValue(ORG);
+
+    const result = await createOrg(params, m.deps);
+
+    expect(result.orgId).toBe(ORG_ID);
+    expect(m.orgCreate).toHaveBeenCalledTimes(2);
+    expect(m.createOrganization).toHaveBeenCalledTimes(1); // not re-minted
+    expect(m.deleteOrganization).not.toHaveBeenCalled();
+    expect(m.emitOrgCreated).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up after the retry budget on a persistent slug collision (compensates + 500)", async () => {
+    m.orgCreate.mockRejectedValue(slugConflictError());
+
+    await expect(createOrg(params, m.deps)).rejects.toMatchObject({
+      reason: "provisioning_failed",
+    });
+    expect(m.orgCreate).toHaveBeenCalledTimes(3); // MAX_CREATE_ATTEMPTS
+    expect(m.deleteOrganization).toHaveBeenCalledWith(WORKOS_ORG_ID);
   });
 
   it("succeeds even if the org.created emit fails (best-effort)", async () => {
