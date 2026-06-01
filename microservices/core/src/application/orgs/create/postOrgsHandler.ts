@@ -17,7 +17,11 @@ import Elysia, { status, t } from "elysia";
 
 import { CreateOrgInputSchema } from "@ai-data-room/api-utils/schemas/org";
 
-import { createOrg, CreateOrgError } from "../createOrg";
+import {
+  createOrg,
+  CreateOrgError,
+  recordCreateOrgFailure,
+} from "../createOrg";
 import { protectedDeps } from "../../auth/_shared/deps";
 import { buildAuditContext } from "../../auth/_shared/auditContext";
 import type { ProtectedAuthContext } from "../../auth/guards/authContextTypes";
@@ -32,11 +36,22 @@ export const postOrgsHandler = new Elysia().post(
       actor: ProtectedAuthContext["actor"];
     };
 
+    const audit = buildAuditContext(headers);
+
     // FR5 fast path: a caller whose session already resolves to an org
     // can't create a second one. `createOrg` re-checks against the DB
     // (the authoritative guard + race backstop); this avoids minting a
-    // WorkOS org just to roll it back.
+    // WorkOS org just to roll it back. Record the same failure metric +
+    // audit row as every other FR5 rejection — this is the common path,
+    // and an attempted second-org is an auditable FR5 violation.
     if (actor.localOrgId !== null) {
+      await recordCreateOrgFailure(
+        { auditRepo: protectedDeps.auditRepo },
+        actor.localUserId,
+        audit,
+        "already_in_org",
+        actor.localOrgId,
+      );
       return status(409, { ok: false as const, reason: "already_in_org" });
     }
 
@@ -46,8 +61,6 @@ export const postOrgsHandler = new Elysia().post(
     if (!parsed.success) {
       return status(400, { ok: false as const, reason: "invalid_name" });
     }
-
-    const audit = buildAuditContext(headers);
 
     try {
       const result = await createOrg(

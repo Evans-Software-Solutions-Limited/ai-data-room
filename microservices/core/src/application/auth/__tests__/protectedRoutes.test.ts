@@ -775,6 +775,17 @@ describe("protectedRoutes", () => {
         reason: "already_in_org",
       });
       expect(mocks.workosCreateOrganization).not.toHaveBeenCalled();
+      // The fast-path rejection records the FR5 failure audit (and the
+      // org.create.failures metric) like every other rejection — not a
+      // silent 409.
+      expect(mocks.auditWrite).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: "org_created",
+          outcome: "failure",
+          metadata: expect.objectContaining({ reason: "already_in_org" }),
+        }),
+        expect.anything(),
+      );
     });
 
     it("400 invalid_name for a blank (whitespace-only) name", async () => {

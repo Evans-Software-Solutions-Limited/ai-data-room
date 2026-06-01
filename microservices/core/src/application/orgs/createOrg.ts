@@ -149,10 +149,11 @@ export async function createOrg(
   // top of the handler's fast `actor.localOrgId` check).
   const existing = await deps.membershipRepo.findByUser(actorUserId);
   if (existing) {
-    // Route through failAndAudit so this — the most common rejection —
-    // is counted in `org.create.failures` like every other failure path
-    // (not merely audited). Pass the existing org for audit context.
-    await failAndAudit(
+    // Count + audit via the shared helper like every other failure path.
+    // (Post the handler fast-path fix, this pre-tx guard is the rare
+    // race window between resolveActor's findByUser and this one — the
+    // common already-in-org case is rejected at the handler.)
+    await recordCreateOrgFailure(
       deps,
       actorUserId,
       audit,
@@ -170,7 +171,12 @@ export async function createOrg(
     });
     workosOrgId = workosOrg.id;
   } catch (err) {
-    await failAndAudit(deps, actorUserId, audit, "workos_create_failed");
+    await recordCreateOrgFailure(
+      deps,
+      actorUserId,
+      audit,
+      "workos_create_failed",
+    );
     throw new CreateOrgError("provisioning_failed", { cause: err });
   }
 
@@ -242,10 +248,15 @@ export async function createOrg(
       lastErr instanceof CreateOrgError &&
       lastErr.reason === "already_member"
     ) {
-      await failAndAudit(deps, actorUserId, audit, "already_member_race");
+      await recordCreateOrgFailure(
+        deps,
+        actorUserId,
+        audit,
+        "already_member_race",
+      );
       throw lastErr;
     }
-    await failAndAudit(
+    await recordCreateOrgFailure(
       deps,
       actorUserId,
       audit,
@@ -305,8 +316,15 @@ export async function createOrg(
   };
 }
 
-async function failAndAudit(
-  deps: CreateOrgDeps,
+/**
+ * Emit `org.create.failures` + write the `org_created` failure audit row
+ * for a rejected create attempt. Exported so the `POST /orgs` handler's
+ * `already_in_org` fast-path records the same metric + audit as
+ * `createOrg`'s own failure paths (otherwise the most common FR5
+ * rejection would be invisible to alerting and the audit log).
+ */
+export async function recordCreateOrgFailure(
+  deps: { auditRepo: AuditRepo },
   actorUserId: string,
   audit: AuditContext,
   reason: string,
