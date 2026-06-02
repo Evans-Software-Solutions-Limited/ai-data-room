@@ -25,6 +25,9 @@ export default $config({
     // see that file's header for the declare-when-shipped rationale.
     const secrets = await import("./infra/secrets");
     const db = await import("./infra/db");
+    // `events` before `api`: the core API Lambda links the EventBus
+    // (org-provisioning T-005), so the bus must be constructed first.
+    const events = await import("./infra/events");
     const api = await import("./infra/api");
     const observability = await import("./infra/observability");
     const web = await import("./infra/web");
@@ -37,6 +40,7 @@ export default $config({
       _wiring: {
         secrets: Boolean(secrets),
         db: Boolean(db),
+        events: Boolean(events),
         observability: Boolean(observability),
       },
     };

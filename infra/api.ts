@@ -10,6 +10,7 @@ import {
   planetscale_database_url,
   e2e_auth_secret,
 } from "./secrets";
+import { eventBus } from "./events";
 
 // `args` is SST's Lambda function input shape. We only touch `runtime`,
 // so we type that one field. Widening to any surface SST passes would
@@ -101,6 +102,10 @@ coreAPI.route("$default", {
     workos_webhook_secret,
     workos_cookie_password,
     planetscale_database_url,
+    // org-provisioning (T-005): lets `createOrg` PutEvents `org.created`.
+    // The link grants `events:*` on this bus (Bus getSSTLink) and
+    // surfaces `Resource.CoreEventBus.name`.
+    eventBus,
     ...(e2e_auth_secret ? [e2e_auth_secret] : []),
   ],
   environment: {

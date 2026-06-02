@@ -113,12 +113,22 @@ Awaits stay sequential — Drizzle's tx wraps one Postgres connection (sticky #1
 
 ## Open questions
 
-- WorkOS-create-then-DB-tx ordering: if the DB tx fails after the WorkOS org is
-  created, do we compensate (delete the WorkOS org) or accept a logged orphan +
-  reconcile later? Leaning compensate-on-failure; resolve in T-002.
-- Should `POST /orgs` also accept the first invite(s) inline, or strictly
-  org-only (invites via `access-control`)? Leaning org-only here; the wizard
-  composes invites.
+_All resolved as the slice landed — see
+[`docs/slices/org-provisioning.md`](../../../../docs/slices/org-provisioning.md)
+§Resolved design questions for the full rationale._
+
+- ~~WorkOS-create-then-DB-tx ordering: compensate or accept a logged
+  orphan?~~ **RESOLVED (T-002): compensate.** WorkOS org created pre-tx;
+  a tx failure best-effort-deletes it. A failed delete is logged +
+  metered (`org.create.compensation_failed`) for reconciliation. See
+  `createOrg.ts`.
+- ~~Emit reliability of `org.created`?~~ **RESOLVED (T-005): post-commit,
+  best-effort, idempotent consumer.** Emitted after commit; a publish
+  failure is logged + metered (`org.provision.room_handoff_failed`), not
+  thrown. EventBridge at-least-once is safe because the consumer keys
+  idempotency on `org_id` (NFR2). See `eventBridgeOrgEventPublisher.ts`.
+- ~~Should `POST /orgs` accept inline invites?~~ **RESOLVED: org-only.**
+  Invites compose via `access-control` + the slice-9 wizard.
 
 ## Sign-off
 

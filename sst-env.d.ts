@@ -42,6 +42,17 @@ declare module "sst" {
       "type": "sst.aws.ApiGatewayV2"
       "url": string
     }
+    // MANUAL ENTRY (org-provisioning T-005) — pending first `bun sst dev`
+    // regen. The EventBus is real (declared in `infra/events.ts`, linked
+    // in `infra/api.ts`); this stanza lets `Resource.CoreEventBus.name`
+    // typecheck before SST is re-run locally. Matches the Bus
+    // `getSSTLink` shape (`{ name, arn }`). Safe to delete on the next
+    // regen — it'll come back identical.
+    "CoreEventBus": {
+      "type": "sst.aws.Bus"
+      "name": string
+      "arn": string
+    }
     "web": {
       "type": "sst.aws.StaticSite"
       "url": string

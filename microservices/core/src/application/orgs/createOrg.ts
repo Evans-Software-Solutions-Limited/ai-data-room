@@ -41,7 +41,10 @@ import type { OrgRepo } from "../../infrastructure/db/orgRepo";
 import type { OrgEventPublisher } from "../../infrastructure/events/orgEventPublisher";
 import type { WorkOSClient } from "../../infrastructure/workos/client";
 import { logger } from "../../infrastructure/logging/logger";
-import { emitCount } from "../../infrastructure/observability/metrics";
+import {
+  emitCount,
+  emitLatency,
+} from "../../infrastructure/observability/metrics";
 import { type AuditContext, safeAudit } from "../_audit-context";
 
 export type CreateOrgErrorReason =
@@ -152,6 +155,10 @@ export async function createOrg(
   deps: CreateOrgDeps,
 ): Promise<CreateOrgResult> {
   const { actorUserId, input, audit } = params;
+  // Wall-clock for `org.create.latency_ms` (design §Observability) —
+  // measures the whole successful provision (WorkOS + tx + audit + emit).
+  // Failure paths are tracked by `org.create.failures`, not latency.
+  const startedAt = Date.now();
 
   // 1. FR5 — single-membership guard (correctness + race backstop on
   // top of the handler's fast `actor.localOrgId` check).
@@ -316,6 +323,7 @@ export async function createOrg(
   }
 
   emitCount("org.created.count");
+  emitLatency("org.create.latency_ms", Date.now() - startedAt);
   return {
     orgId: result.org.id,
     role: "owner",

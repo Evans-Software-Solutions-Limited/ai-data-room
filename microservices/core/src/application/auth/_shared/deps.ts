@@ -24,7 +24,7 @@ import { InvitationRepo } from "../../../infrastructure/db/invitationRepo";
 import { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
 import { OrgRepo } from "../../../infrastructure/db/orgRepo";
 import { UserRepo } from "../../../infrastructure/db/userRepo";
-import { createLoggingOrgEventPublisher } from "../../../infrastructure/events/orgEventPublisher";
+import { createEventBridgeOrgEventPublisher } from "../../../infrastructure/events/eventBridgeOrgEventPublisher";
 
 import { workos } from "./workosClient";
 
@@ -39,9 +39,13 @@ export const protectedDeps = {
   invitationRepo: new InvitationRepo(db),
   externalGrantRepo: new ExternalGrantRepo(db),
   auditRepo: new AuditRepo(db),
-  // org-provisioning (slice 17 / T-002) — logging stub; the EventBridge
-  // transport replaces this in T-005 (no change to createOrg / handler).
-  events: createLoggingOrgEventPublisher(),
+  // org-provisioning (slice 17 / T-005) — EventBridge transport for
+  // `org.created`. `busName` is the EventBus declared in `infra/events.ts`
+  // and linked to this Lambda in `infra/api.ts`; the link also grants the
+  // `events:*` IAM permission (see the Bus `getSSTLink`).
+  events: createEventBridgeOrgEventPublisher({
+    busName: Resource.CoreEventBus.name,
+  }),
 };
 
 export type ProtectedDeps = typeof protectedDeps;

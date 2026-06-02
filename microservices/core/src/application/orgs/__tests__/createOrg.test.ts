@@ -154,6 +154,7 @@ describe("createOrg", () => {
   });
 
   it("creates the WorkOS org, local mirror, and owner membership, then emits org.created", async () => {
+    const addMetric = vi.spyOn(metrics, "addMetric");
     const result = await createOrg(params, m.deps);
 
     expect(result).toMatchObject({ orgId: ORG_ID, role: "owner" });
@@ -178,6 +179,11 @@ describe("createOrg", () => {
       { eventType: "org_created", outcome: "success" },
       { eventType: "membership_created", outcome: "success" },
     ]);
+    // The successful provision meters create-count + latency
+    // (design §Observability `org.create.latency_ms`).
+    const emitted = addMetric.mock.calls.map((c) => c[0]);
+    expect(emitted).toContain("org.created.count");
+    expect(emitted).toContain("org.create.latency_ms");
   });
 
   it("rejects a caller who already has a membership (FR5), counts the failure, without touching WorkOS", async () => {
