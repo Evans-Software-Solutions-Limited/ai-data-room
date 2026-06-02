@@ -85,7 +85,7 @@ test asserts the two new events.
 
 ## T-002 — Application: createOrg transaction
 
-Status: `[~]`
+Status: `[x]`
 **Scope:** `createOrg` — single-membership guard, `withTx` orchestration (WorkOS
 createOrg → local `orgs` mirror → `owner` membership → `safeAudit`), emit
 `org.created` on commit. Resolve the WorkOS-create-then-tx-failure
@@ -100,7 +100,7 @@ failure leaves no orphan, audit + event emitted.
 
 ## T-003 — Handler: POST /orgs in meRoutes
 
-Status: `[~]`
+Status: `[x]`
 **Scope:** `postOrgsHandler` mounted in `meRoutes` (no `requireOrg`); maps
 result to `{ orgId, role }`; rate-limited (reuse slice-1 limiter).
 **Files (likely):** `application/orgs/create/postOrgsHandler.ts`,
@@ -114,7 +114,7 @@ response shape.
 
 ## T-004 — /me resolves orgId + role post-creation
 
-Status: `[~]`
+Status: `[x]`
 **Scope:** Confirm `resolveActor` / `/me` returns the real `{ orgId, role:
 'owner' }` once a membership exists (slice-1 lazy-mirror already supports this;
 add the post-creation assertion + any wiring).
