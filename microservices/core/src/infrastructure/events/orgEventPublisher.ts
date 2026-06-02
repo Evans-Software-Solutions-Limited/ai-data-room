@@ -1,16 +1,17 @@
-// Org domain-event publisher port + its v0.1 stub.
+// Org domain-event publisher port + its logging stub.
 //
 // Slice 17 / T-002. `createOrg` emits `org.created` on commit so
 // `room-and-folders` can provision the canonical room (FR3). The
-// transport is EventBridge, but that infrastructure (an SST bus + the
-// PutEvents adapter) lands in T-005 — and T-005 is an infra change that
-// needs `sst diff`, so it ships in its own PR.
+// application depends on this PORT (the `OrgEventPublisher` interface);
+// the concrete transport is injected by `deps.ts`.
 //
-// To keep the create-org path complete and fully unit-testable *now*,
-// the application depends on this PORT (the `OrgEventPublisher`
-// interface), and T-002 wires the logging stub below. T-005 replaces
-// the stub with an EventBridge adapter implementing the same interface —
-// no change to `createOrg` or the handler.
+// As of T-005 the wired transport is EventBridge — see
+// `eventBridgeOrgEventPublisher.ts` (an SST bus in `infra/events.ts` +
+// the `PutEvents` adapter). The logging stub below stays as the
+// no-AWS fallback for unit tests and any local context without a
+// deployed bus; both implement the same interface, so swapping is a
+// one-line change in `deps.ts` with no change to `createOrg` or the
+// handler.
 
 import { ORG_CREATED_DETAIL_TYPE } from "@ai-data-room/api-utils/schemas/org";
 import type { OrgCreatedEvent } from "@ai-data-room/api-utils/schemas/org";

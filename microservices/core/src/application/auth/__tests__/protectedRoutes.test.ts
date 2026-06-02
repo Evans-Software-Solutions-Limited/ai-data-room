@@ -23,6 +23,12 @@ const ALL_SECRETS = {
   WORKOS_COOKIE_PASSWORD: { value: "x".repeat(32) },
   WORKOS_WEBHOOK_SECRET: { value: "whsec_test" },
   PLANETSCALE_DATABASE_URL: { value: "postgres://stub" },
+  // org-provisioning T-005: `deps.ts` reads `Resource.CoreEventBus.name`
+  // to construct the EventBridge `org.created` publisher.
+  CoreEventBus: {
+    name: "core-bus-test",
+    arn: "arn:aws:events:eu-west-2:000000000000:event-bus/core-bus-test",
+  },
 };
 
 const LOCAL_USER_ID = "11111111-1111-4111-8111-111111111111";
@@ -160,6 +166,18 @@ function setupMocks(): MockSetup {
         cb({}),
       ),
     }),
+  }));
+
+  // org-provisioning T-005: stub the EventBridge SDK so the wired
+  // `org.created` publisher (in `deps.ts`) never reaches the network on
+  // the POST /orgs path. `PutEvents` resolves with no failed entries.
+  vi.doMock("@aws-sdk/client-eventbridge", () => ({
+    EventBridgeClient: class {
+      send = vi.fn().mockResolvedValue({ FailedEntryCount: 0 });
+    },
+    PutEventsCommand: class {
+      constructor(public input: unknown) {}
+    },
   }));
 
   // Repo classes — mocked to instances whose methods are vi.fn()s
