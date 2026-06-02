@@ -14,6 +14,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MetricUnit } from "@aws-lambda-powertools/metrics";
+import Elysia from "elysia";
 
 type SecretBag = {
   WORKOS_CLIENT_ID: { value: string };
@@ -848,5 +849,74 @@ describe("publicRoutes — getSignOutHandler", () => {
     expect(sdk.authenticate).toHaveBeenCalledTimes(1);
     expect(userFindByWorkosUserId).toHaveBeenCalledWith("user_wos_db_outage");
     expect(auditWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe("publicRoutes — login rate-limit scope (NFR4 regression)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockSst(ALL_SECRETS);
+  });
+
+  afterEach(() => {
+    vi.doUnmock("sst");
+    vi.doUnmock("@workos-inc/node");
+    vi.doUnmock("@ai-data-room/db");
+  });
+
+  // Mirrors the production composition in `api.ts`: publicRoutes (with
+  // the login limiter) mounted alongside protectedRoutes (which owns
+  // /me). The login limiter must stay scoped to the public auth routes
+  // — a route-local `.onBeforeHandle` — so it can't throttle /me. The
+  // earlier `.use(rateLimit(...))` (`onRequest` from a named plugin)
+  // leaked across the whole composed app and 429'd /me at 10/min/IP;
+  // this is the regression guard for that.
+  async function loadComposedApp() {
+    const { publicRoutes } = await import("../publicRoutes");
+    const { protectedRoutes } = await import("../protectedRoutes");
+    return new Elysia().use(publicRoutes).use(protectedRoutes);
+  }
+
+  it("the login limiter does NOT throttle GET /me (route-local scope)", async () => {
+    mockWorkOS();
+    const app = await loadComposedApp();
+
+    // /me with no session cookie hits `requireAuth` → 401 `no_session`
+    // (no WorkOS call). If the login limiter leaked onto /me, the 11th+
+    // request from the same IP would flip to 429. It must not: every
+    // response stays 401, well past the 10/min login cap.
+    const statuses: number[] = [];
+    for (let i = 0; i < 12; i++) {
+      const res = await app.handle(
+        new Request("http://localhost/me", {
+          headers: { "x-forwarded-for": "203.0.113.7" },
+        }),
+      );
+      statuses.push(res.status);
+    }
+
+    expect(statuses.some((s) => s === 429)).toBe(false);
+    expect(statuses.every((s) => s === 401)).toBe(true);
+  });
+
+  it("still rate-limits the public auth routes at 10/min/IP", async () => {
+    // The other half of the swap: moving to `.onBeforeHandle` must not
+    // weaken the NFR4 cap on the routes it IS meant to gate. 11 hits on
+    // /auth/sign-in from one IP → first 10 redirect (302), 11th blocked.
+    mockWorkOS({ authorizationUrl: "https://authkit.example/login" });
+    const app = await loadComposedApp();
+
+    const statuses: number[] = [];
+    for (let i = 0; i < 11; i++) {
+      const res = await app.handle(
+        new Request("http://localhost/auth/sign-in", {
+          headers: { "x-forwarded-for": "203.0.113.8" },
+        }),
+      );
+      statuses.push(res.status);
+    }
+
+    expect(statuses.slice(0, 10).every((s) => s === 302)).toBe(true);
+    expect(statuses[10]).toBe(429);
   });
 });
