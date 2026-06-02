@@ -20,12 +20,17 @@
 // them, the next request through the FR16 MFA gate would reject
 // despite WorkOS / AuthKit having already enforced enrolment.
 //
-// **Org and membership are NOT lazy-created.** A WorkOS user fresh
-// off `/auth/signup` has no WorkOS organization, so
-// `input.organizationId` is `null` and we set `actor.localOrgId =
-// null`. Org provisioning lands in slice 9 (`onboarding-flow`); /me
-// returns a `{ orgId: null, role: null, ... }` shape per FR14 until
-// then.
+// **Org resolution: session first, membership fallback.** The WorkOS
+// sealed session carries `input.organizationId` (the WorkOS org id),
+// resolved to a local UUID via the mirror. But a user who just created
+// their org via `POST /orgs` (org-provisioning, slice 17) has a local
+// membership while their sealed session still predates the org
+// (`organizationId` null). So when the session yields no org we fall
+// back to the user's membership (`findByUser` — the single-membership
+// invariant means at most one). A WorkOS user fresh off `/auth/signup`
+// with neither still gets `actor.localOrgId = null` and the FR14
+// `{ orgId: null, role: null, ... }` /me shape. Membership is NOT
+// lazy-created here — only `createOrg` writes it.
 //
 // **No transaction.** Lazy-create is a single-row insert; the unique
 // index on `users.workos_user_id` catches a concurrent race (two
@@ -33,6 +38,7 @@
 // Wrapping in a transaction would just add round trips for no
 // safety win.
 
+import type { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
 import type { OrgRepo } from "../../../infrastructure/db/orgRepo";
 import type { UserRepo } from "../../../infrastructure/db/userRepo";
 import type { User } from "@ai-data-room/api-utils/schemas/auth-orgs";
@@ -44,6 +50,7 @@ import type { ActorContext, AuthContext } from "./authContextTypes";
 export interface ResolveActorDeps {
   userRepo: UserRepo;
   orgRepo: OrgRepo;
+  membershipRepo: MembershipRepo;
 }
 
 export async function resolveActor(
@@ -71,6 +78,17 @@ export async function resolveActor(
         workosUserId: input.user.id,
         workosOrgId: input.organizationId,
       });
+    }
+  }
+
+  // Membership fallback (org-provisioning, slice 17). The session
+  // carried no usable org, but the user may have created one via
+  // `POST /orgs` after their session was minted. Single-membership
+  // invariant → `findByUser` returns at most one row = their org.
+  if (localOrgId === null) {
+    const membership = await deps.membershipRepo.findByUser(localUser.id);
+    if (membership) {
+      localOrgId = membership.orgId;
     }
   }
 

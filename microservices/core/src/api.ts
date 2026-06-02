@@ -24,6 +24,7 @@ import { logger } from "./infrastructure/logging/logger";
 import { flushMetrics } from "./infrastructure/observability/metrics";
 import { protectedRoutes } from "./application/auth/protectedRoutes";
 import { publicRoutes } from "./application/auth/publicRoutes";
+import { orgRoutes } from "./application/orgs/orgRoutes";
 import { getHelloWorldHandler } from "./application/hello-world/get/helloWorldGetHandler";
 
 // `loggerPlugin` must run before any other `.use()` so its `.derive()` lands
@@ -33,6 +34,7 @@ const app = new Elysia()
   .use(openapi())
   .use(getHelloWorldHandler)
   .use(publicRoutes)
+  .use(orgRoutes)
   .use(protectedRoutes);
 
 export type CoreApi = typeof app;

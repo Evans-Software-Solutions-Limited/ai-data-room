@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "../../../../infrastructure/logging/logger";
 import { resolveActor } from "../resolveActor";
+import type { MembershipRepo } from "../../../../infrastructure/db/membershipRepo";
 import type { OrgRepo } from "../../../../infrastructure/db/orgRepo";
 import type { UserRepo } from "../../../../infrastructure/db/userRepo";
 
@@ -55,9 +56,11 @@ const LOCAL_ORG = {
 interface Repos {
   userRepo: UserRepo;
   orgRepo: OrgRepo;
+  membershipRepo: MembershipRepo;
   findByWorkosUserId: ReturnType<typeof vi.fn>;
   userCreate: ReturnType<typeof vi.fn>;
   findByWorkosOrgId: ReturnType<typeof vi.fn>;
+  membershipFindByUser: ReturnType<typeof vi.fn>;
 }
 
 function makeRepos(): Repos {
@@ -71,12 +74,21 @@ function makeRepos(): Repos {
   const findByWorkosOrgId = vi.fn();
   const orgRepo = { findByWorkosOrgId } as unknown as OrgRepo;
 
+  // Defaults to "no membership" so the session-org path is exercised
+  // unchanged; the org-provisioning fallback tests override it.
+  const membershipFindByUser = vi.fn().mockResolvedValue(null);
+  const membershipRepo = {
+    findByUser: membershipFindByUser,
+  } as unknown as MembershipRepo;
+
   return {
     userRepo,
     orgRepo,
+    membershipRepo,
     findByWorkosUserId,
     userCreate,
     findByWorkosOrgId,
+    membershipFindByUser,
   };
 }
 
@@ -109,6 +121,47 @@ describe("resolveActor", () => {
         },
       });
       expect(repos.userCreate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("membership fallback — org-provisioning (slice 17)", () => {
+    const MEMBERSHIP = {
+      id: "99999999-9999-4999-8999-999999999999",
+      orgId: LOCAL_ORG_ID,
+      userId: LOCAL_USER_ID,
+      role: "owner" as const,
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      updatedAt: new Date("2026-01-01T00:00:00Z"),
+    };
+
+    it("resolves localOrgId from the membership when the session has no org", async () => {
+      // A user who just created an org via POST /orgs: session still
+      // predates the org (organizationId null) but a membership exists.
+      const repos = makeRepos();
+      repos.findByWorkosUserId.mockResolvedValue(LOCAL_USER);
+      repos.membershipFindByUser.mockResolvedValue(MEMBERSHIP);
+
+      const result = await resolveActor(
+        { user: WORKOS_USER, organizationId: null },
+        repos,
+      );
+
+      expect(result.actor.localOrgId).toBe(LOCAL_ORG_ID);
+      expect(repos.findByWorkosOrgId).not.toHaveBeenCalled();
+    });
+
+    it("prefers the session org and skips the membership lookup when both exist", async () => {
+      const repos = makeRepos();
+      repos.findByWorkosUserId.mockResolvedValue(LOCAL_USER);
+      repos.findByWorkosOrgId.mockResolvedValue(LOCAL_ORG);
+
+      const result = await resolveActor(
+        { user: WORKOS_USER, organizationId: WORKOS_ORG_ID },
+        repos,
+      );
+
+      expect(result.actor.localOrgId).toBe(LOCAL_ORG_ID);
+      expect(repos.membershipFindByUser).not.toHaveBeenCalled();
     });
   });
 

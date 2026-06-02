@@ -32,6 +32,7 @@ import type {
   AuthenticationResponse,
   CreatePasswordResetOptions,
   Invitation,
+  Organization,
   PasswordReset,
   RevokeSessionOptions,
   SendInvitationOptions,
@@ -55,6 +56,7 @@ export type {
   CookieSession,
   CreatePasswordResetOptions,
   Invitation,
+  Organization,
   PasswordReset,
   RevokeSessionOptions,
   SendInvitationOptions,
@@ -102,6 +104,15 @@ export interface WorkOSClient {
   deleteUser(userId: string): Promise<void>;
   createInvitation(payload: SendInvitationOptions): Promise<Invitation>;
   revokeInvitation(invitationId: string): Promise<Invitation>;
+  /**
+   * Create a WorkOS organization (slice 17 / org-provisioning T-002).
+   * Called *before* the local DB transaction in `createOrg`; if that
+   * transaction then fails, `deleteOrganization` compensates so we
+   * don't leak an orphaned WorkOS org.
+   */
+  createOrganization(payload: { name: string }): Promise<Organization>;
+  /** Best-effort compensation for a failed create-org transaction. */
+  deleteOrganization(organizationId: string): Promise<void>;
   sendPasswordResetEmail(
     options: CreatePasswordResetOptions,
   ): Promise<PasswordReset>;
@@ -165,6 +176,12 @@ export function createWorkOSClient(config: WorkOSClientConfig): WorkOSClient {
     deleteUser: (userId) => um.deleteUser(userId),
     createInvitation: (payload) => um.sendInvitation(payload),
     revokeInvitation: (invitationId) => um.revokeInvitation(invitationId),
+    // Organizations live on the SDK's `organizations` surface, not
+    // `userManagement` — they're the only non-`um` calls in the wrapper.
+    createOrganization: (payload) =>
+      sdk.organizations.createOrganization(payload),
+    deleteOrganization: (organizationId) =>
+      sdk.organizations.deleteOrganization(organizationId),
     // See file header for the createPasswordReset → sendPasswordResetEmail
     // rename rationale.
     sendPasswordResetEmail: (options) => um.createPasswordReset(options),

@@ -5,7 +5,7 @@
 // the suspension flow (T-012) to enforce sole-owner-cannot-be-
 // suspended, and the role-change audit emitter (T-013).
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { DbOrTx, Tx } from "@ai-data-room/db";
 import { schema } from "@ai-data-room/db";
 import type {
@@ -46,6 +46,44 @@ export class MembershipRepo {
       .values(input)
       .returning();
     return row as OrgMembership;
+  }
+
+  /**
+   * The (single) membership for a user, or null. The v0.1
+   * single-membership invariant (one org per user) means at most one
+   * row exists; `org-provisioning`'s `createOrg` (slice 17 / T-002)
+   * uses this to enforce FR5 — reject a second org for a user who
+   * already belongs to one.
+   */
+  async findByUser(userId: string): Promise<OrgMembership | null> {
+    const rows = await this.db
+      .select()
+      .from(orgMemberships)
+      .where(eq(orgMemberships.userId, userId));
+    return firstOrNull(rows as OrgMembership[]);
+  }
+
+  /**
+   * Transaction-scoped advisory lock serialising concurrent create-org
+   * attempts for one user (org-provisioning FR5). There is deliberately
+   * no `UNIQUE(user_id)` on `org_memberships` — multi-membership is a
+   * future option — so two `POST /orgs` from the same user landing in
+   * the same instant could otherwise both pass the single-membership
+   * `findByUser` guard and create two orgs. `createOrg` takes this lock
+   * at the top of its transaction, then re-checks `findByUser` inside
+   * it: the second caller blocks here until the first commits, then
+   * sees the membership and aborts. The lock is released automatically
+   * on commit/rollback. Call on a tx-bound repo (`withTx`) — on the
+   * pool it would release at statement end and serialise nothing.
+   *
+   * `hashtext` maps the UUID to the int key `pg_advisory_xact_lock`
+   * needs; a hash collision only over-serialises two unrelated users
+   * (a rare, harmless extra wait), never a correctness problem.
+   */
+  async lockForUserCreate(userId: string): Promise<void> {
+    await this.db.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${userId})::bigint)`,
+    );
   }
 
   async findByOrgUser(
