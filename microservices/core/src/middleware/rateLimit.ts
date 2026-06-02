@@ -171,11 +171,16 @@ function applyDecision(
 }
 
 /**
- * `onRequest` rate-limit plugin for an entire (public) bundle. NOTE:
- * `onRequest` from this named plugin propagates across the whole
- * composed app — fine for `publicRoutes` (its own top-level surface),
- * but use `rateLimitBeforeHandle` when the limiter must stay on one
- * route within a shared app.
+ * `onRequest` rate-limit plugin. ⚠️ `onRequest` from this named plugin
+ * propagates across the WHOLE composed app — once it's `.use`d, it
+ * throttles every route the top-level app serves, not just the bundle
+ * it was attached to. `publicRoutes` is composed alongside the
+ * protected routes in `api.ts`, so it is NOT an isolated top-level
+ * surface: this form leaked the login cap onto `/me`. Prefer
+ * `rateLimitBeforeHandle` for any bundle that shares an app with
+ * others — it stays scoped to its own instance's routes. This
+ * `onRequest` form is retained only for a genuinely standalone app
+ * (and the NFR4 matrix test that exercises the limiter in isolation).
  */
 export function rateLimit(config: RateLimitConfig) {
   const limit = createRateLimiter(config);

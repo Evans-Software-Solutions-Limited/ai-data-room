@@ -20,11 +20,14 @@
 //
 // `POST /orgs` (org-provisioning, slice 17) is NOT here — it lives in
 // its own top-level `orgRoutes` bundle (`application/orgs/orgRoutes.ts`)
-// so its create-org rate limiter is isolated. An `onRequest` rate
-// limiter applied to a sub-bundle of this composed instance leaks onto
-// every route in the instance (including `/me`); a separate top-level
-// app — the same boundary that isolates `publicRoutes` from these
-// routes — is the only reliable scope (proven by the route tests).
+// and rate-limits via a route-local `.onBeforeHandle`. The reliable
+// scope for a limiter is `.onBeforeHandle` (instance-local, the same
+// scoping `requireOrg` relies on), NOT a separate top-level app: an
+// `onRequest` limiter from a named plugin propagates across the whole
+// composed app regardless of which bundle it's attached to — that's
+// how `publicRoutes`' login cap once leaked onto `/me` (now fixed by
+// switching it to `.onBeforeHandle` too). Both regressions are pinned
+// by the route tests.
 //
 // Shared deps live in `_shared/deps.ts` (module scope; per FDP
 // convention + sticky #41 warm-Lambda reuse). The handlers also
