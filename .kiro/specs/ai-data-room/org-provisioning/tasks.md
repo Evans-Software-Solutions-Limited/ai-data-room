@@ -1,8 +1,8 @@
 # Tasks — ai-data-room / org-provisioning
 
-**Status:** signed off (Bradley, 2026-05-31) — ready to execute
+**Status:** complete — all tasks shipped (T-000–T-006)
 **Design:** [./design.md](./design.md)
-**Last updated:** 2026-05-31
+**Last updated:** 2026-06-02
 
 Assumes `auth-and-orgs` merged (tagged `v0.1.0-auth-and-orgs`). Executes in
 `microservices/core` (`application/orgs/*`), reusing slice-1 repos + the WorkOS
@@ -128,7 +128,7 @@ creation.
 
 ## T-005 — Provisioning handoff contract (consumed by room-and-folders)
 
-Status: `[ ]`
+Status: `[x]`
 **Scope:** Emit `org.created` to EventBridge with the documented payload; define
 the idempotent-subscriber contract that `room-and-folders` implements (keyed on
 `org_id`, no-op if canonical folders exist). This task owns the **producer +
@@ -143,7 +143,7 @@ safe by contract.
 
 ## T-006 — Observability + slice sign-off
 
-Status: `[ ]`
+Status: `[x]`
 **Scope:** create-count / latency / failures / room-handoff metrics + alarms;
 traceability matrix; sign-off; tag.
 **Files (likely):** `infrastructure/observability/metrics.ts`, `infra/*`,
