@@ -1,8 +1,8 @@
 # Tasks — ai-data-room / tenant-isolation
 
-**Status:** draft
+**Status:** signed off — ready to execute (review delegated per Bradley, 2026-06-02)
 **Design:** [./design.md](./design.md)
-**Last updated:** 2026-05-31
+**Last updated:** 2026-06-02
 
 Assumes `auth-and-orgs` is merged. Executes inside `microservices/core`
 (`infrastructure/db/*`) and `packages/db`. Lands **before**
@@ -19,15 +19,18 @@ via the existing Docker compose, layered architecture, 90% coverage gate).
 ## T-001 — Audit: confirm `org_id` on every tenant-scoped table
 
 Status: `[ ]`
-**Scope:** Enumerate current tenant-scoped tables; confirm each carries
-`org_id` (directly or via FK). Produce the `TENANT_SCOPED_TABLES` /
-`TENANT_AGNOSTIC_TABLES` registry content. Flag any scoped table missing a
-usable `org_id`.
+**Scope:** Enumerate current tables; classify each into the **three** buckets
+(design §registry): `TENANT_SCOPED_TABLES` (carries `org_id`),
+`TENANT_AGNOSTIC_TABLES` (no `org_id`; org-is-tenant or global infra), and
+`IDENTITY_TABLES` (`users` — global identity, tenancy via the
+`org_memberships` edge, no `org_id` column). Confirm each scoped table actually
+carries `org_id`; note `audit_events.org_id` is nullable. Flag any table that
+_should_ be scoped but lacks a usable `org_id`.
 **Files (likely):** `microservices/core/src/infrastructure/db/tenancy.ts`.
-**DoD:** Registry committed; any gap documented (migration deferred to T-002
-only if found).
+**DoD:** Registry committed (three lists); any gap documented (migration
+deferred to T-002 only if found).
 **Tests required:** Unit test asserting every Drizzle table is classified in
-exactly one of the two registry lists (no unclassified table).
+**exactly one** of the three registry lists (no unclassified, no duplicate).
 
 ---
 
@@ -64,9 +67,11 @@ path exists.
 ## T-004 — Backfill `auth-and-orgs` repos onto the factory
 
 Status: `[ ]`
-**Scope:** Route the existing org-scoped repositories (`userRepo`,
-`membershipRepo`, `invitationRepo`, `externalGrantRepo`, `auditRepo` reads)
-through `scopedRepo`. Keep `orgRepo`, `webhookDeliveryRepo` tenant-agnostic.
+**Scope:** Route the existing **tenant-scoped** repositories (`membershipRepo`,
+`invitationRepo`, `externalGrantRepo`, `auditRepo` reads) through `scopedRepo`.
+**`userRepo` is exempt** (identity table, no `org_id`, used by the pre-tenancy
+`resolveActor` bootstrap — see design §"Identity & the bootstrap path"); keep
+`orgRepo`, `webhookDeliveryRepo` tenant-agnostic.
 **Files (likely):** `infrastructure/db/*Repo.ts`, callers in `application/*`.
 **DoD:** Slice-1 unit + integration suites stay green; no behaviour change.
 **Tests required:** Existing suites pass; add a regression that a slice-1 read
