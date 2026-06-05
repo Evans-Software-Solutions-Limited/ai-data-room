@@ -22,6 +22,10 @@ type SecretBag = {
   WORKOS_WEBHOOK_SECRET: { value: string };
   WORKOS_COOKIE_PASSWORD: { value: string };
   PLANETSCALE_DATABASE_URL: { value: string };
+  // Bus link shape ({ name, arn }) — `deps.ts` (loaded by the
+  // composed-app rate-limit-scope tests via protectedRoutes) reads
+  // `Resource.CoreEventBus.name` to build the EventBridge publisher.
+  CoreEventBus: { name: string; arn: string };
 };
 
 const ALL_SECRETS: SecretBag = {
@@ -31,6 +35,10 @@ const ALL_SECRETS: SecretBag = {
   // The SDK requires >= 32 chars for AES-256 derivation.
   WORKOS_COOKIE_PASSWORD: { value: "x".repeat(32) },
   PLANETSCALE_DATABASE_URL: { value: "postgres://stub" },
+  CoreEventBus: {
+    name: "core-bus-test",
+    arn: "arn:aws:events:eu-west-2:000000000000:event-bus/core-bus-test",
+  },
 };
 
 function mockSst(secrets: SecretBag) {
@@ -44,6 +52,18 @@ function mockSst(secrets: SecretBag) {
   vi.doMock("@ai-data-room/db", () => ({
     getDb: vi.fn().mockReturnValue({}),
     schema: new Proxy({}, { get: () => ({}) }),
+  }));
+  // `deps.ts` (loaded transitively by the composed-app rate-limit-scope
+  // tests via protectedRoutes) constructs the EventBridge `org.created`
+  // publisher. Stub the SDK so module load never reaches the network; no
+  // public-route test triggers a `PutEvents`.
+  vi.doMock("@aws-sdk/client-eventbridge", () => ({
+    EventBridgeClient: class {
+      send = vi.fn().mockResolvedValue({ FailedEntryCount: 0 });
+    },
+    PutEventsCommand: class {
+      constructor(public input: unknown) {}
+    },
   }));
 }
 
