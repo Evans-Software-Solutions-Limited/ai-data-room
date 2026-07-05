@@ -1,8 +1,8 @@
 # Requirements — ai-data-room / tenant-isolation
 
-**Status:** draft
+**Status:** signed off (review delegated to Claude agent per Bradley, 2026-06-02)
 **Owner:** Bradley
-**Last updated:** 2026-05-31
+**Last updated:** 2026-06-02
 **Brief:** [../../../briefs/ai-data-room.md](../../../briefs/ai-data-room.md)
 **Slice index:** [../README.md](../README.md)
 **Depends on:** `auth-and-orgs`
@@ -66,9 +66,13 @@ entire value proposition is confidentiality.
   the `org_id` predicate into every read and stamps it on every write. Direct
   construction of a tenant-scoped repository without an `org_id` shall not be
   possible from application code.
-- **FR4** — A table is "tenant-scoped" if it carries (directly or via FK) an
-  `org_id`. A canonical registry of tenant-scoped vs. tenant-agnostic tables
-  (e.g. `webhook_deliveries`, plan catalogue) shall be maintained in code.
+- **FR4** — A canonical registry maintained in code shall classify every table
+  into exactly one of **three** buckets: **tenant-scoped** (carries an `org_id`
+  column → injectable `WHERE org_id = $1` predicate), **tenant-agnostic** (no
+  `org_id`; the org _is_ the tenant, e.g. `orgs`, or global infra, e.g.
+  `webhook_deliveries`, plan catalogue), and **identity** (global rows with no
+  `org_id` whose tenancy is the `org_memberships` _edge_, not a column — i.e.
+  `users`). Identity tables are not scoped by predicate (see FR7).
 - **FR5** — Cross-org operations that are legitimately needed (e.g. admin
   platform metrics) shall go through a separate, explicitly-named API that
   does not reuse the tenant-scoped factory.
@@ -78,8 +82,14 @@ entire value proposition is confidentiality.
 - **FR6** — A lint / CI guard shall fail the build if a tenant-scoped table is
   referenced outside the `scopedRepo` factory (raw `db.select(...)` against a
   scoped table is a violation).
-- **FR7** — The `auth-and-orgs` repositories that are already org-scoped shall
-  be backfilled onto the factory so slice 1 and slice 2 share one mechanism.
+- **FR7** — The `auth-and-orgs` repositories over **tenant-scoped** tables
+  (`membershipRepo`, `invitationRepo`, `externalGrantRepo`, and `auditRepo`
+  reads) shall be backfilled onto the factory so slice 1 and slice 2 share one
+  mechanism. **`userRepo` is exempt** — `users` is an identity table with no
+  `org_id`, and its lookups run inside `resolveActor` _before_ a tenant context
+  exists (you need the user row to discover the org). It stays an unscoped
+  identity repo; "users in org A" is answered by the scoped membership repo.
+  `orgRepo` and `webhookDeliveryRepo` stay tenant-agnostic.
 
 ### Audit
 
@@ -128,18 +138,21 @@ entire value proposition is confidentiality.
 - Multi-region / data-residency partitioning → Phase 2.
 - Per-tenant encryption keys → Phase 2 (compliance track).
 
-## Open questions
+## Open questions (resolved in design)
 
-- **Factory shape:** a `scopedRepo(orgId)` wrapper vs. a mandatory first
-  argument on every repo method. Leaning wrapper — harder to forget, matches
-  FDP. Resolve in design.
-- **System-scope ergonomics:** how retention sweeps / webhook handlers express
-  "operate on org X" without a request actor. Leaning an explicit
-  `systemScope(orgId)` constructor with its own audit tag.
-- **Lint mechanism:** custom ESLint rule vs. a grep-based CI tripwire (cf.
-  `auth-and-orgs` NFR-matrix test). Leaning the tripwire for speed at v0.1.
+- ~~**Factory shape:**~~ **RESOLVED: `scopedRepo(orgId)` wrapper** (harder to
+  forget, one audit point, matches FDP).
+- ~~**System-scope ergonomics:**~~ **RESOLVED: explicit `systemScope(orgId)`**
+  constructor with its own audit tag; no implicit all-orgs handle.
+- ~~**Lint mechanism:**~~ **RESOLVED: grep-based CI tripwire** (cf. the
+  `auth-and-orgs` NFR-matrix test) for v0.1.
+- **`users`/identity classification + bootstrap path** (surfaced in review,
+  2026-06-02): `users` has no `org_id`; resolved as an identity table with
+  `userRepo` exempt from scoping — see FR4 / FR7 and design §"Identity & the
+  bootstrap path".
 
 ## Sign-off
 
-- [ ] Bradley reviewed
-- [ ] Design phase unblocked
+- [x] Reviewed (delegated to Claude agent per Bradley's instruction, 2026-06-02;
+      review surfaced the `users`/identity + bootstrap gap, resolved in FR4/FR7)
+- [x] Design phase unblocked

@@ -1,8 +1,8 @@
 # Design — ai-data-room / tenant-isolation
 
-**Status:** draft
+**Status:** signed off (review delegated to Claude agent per Bradley, 2026-06-02)
 **Requirements:** [./requirements.md](./requirements.md)
-**Last updated:** 2026-05-31
+**Last updated:** 2026-06-02
 **Depends on:** `auth-and-orgs`
 **ADR:** [ADR-011](../../../adr/011-multi-tenant-isolation.md)
 
@@ -35,12 +35,14 @@ Conforms to the patterns slice 1 shipped (`auth-and-orgs` HANDOFF stickies):
 ```mermaid
 flowchart TD
   Req[Authenticated request] --> RA[resolveActor<br/>auth-and-orgs]
+  RA -. bootstrap: unscoped .-> UR[userRepo<br/>identity, no org_id]
   RA --> TC[TenantContext<br/>localOrgId]
   TC --> SF[scopedRepo orgId factory]
-  SF --> R1[UserRepo']
+  SF --> R1[MembershipRepo']
   SF --> R2[DocumentRepo']
   SF --> R3[...every tenant-scoped repo]
-  R1 --> Q[(Postgres)]
+  UR --> Q[(Postgres)]
+  R1 --> Q
   R2 --> Q
   R3 --> Q
 
@@ -91,31 +93,68 @@ are constructed normally and are **not** exported from the factory.
 
 ### Tenant-scoped table registry
 
-A single source of truth in code:
+A single source of truth in code. **Three buckets, not two** — the slice-1
+schema audit (T-001) showed `users` is neither cleanly scoped nor agnostic:
 
 ```ts
 // infrastructure/db/tenancy.ts
+// Carry `org_id` directly → simple `WHERE org_id = $1` predicate.
 export const TENANT_SCOPED_TABLES = [
-  "users",
   "org_memberships",
   "invitations",
   "external_access_grants",
-  "audit_events",
+  "audit_events", // org_id is NULLABLE — see note below
   "documents",
   "document_versions",
   "opportunities",
   // ...extended as each slice adds tables
 ] as const;
+// No `org_id`; the org IS the tenant, or the row is global infra.
 export const TENANT_AGNOSTIC_TABLES = [
   "orgs",
   "webhook_deliveries",
   "plan_catalogue",
 ] as const;
+// Global identity rows with NO `org_id` column. Tenancy is the
+// `org_memberships` EDGE, not a column on the row. See "Identity &
+// the bootstrap path" below — `users` is NOT scoped by a predicate.
+export const IDENTITY_TABLES = ["users"] as const;
 ```
 
 `orgs` itself is tenant-agnostic at the row level (the org _is_ the tenant) but
 lookups by id are still constrained to the caller's own org at the application
 layer.
+
+**`audit_events.org_id` is nullable** (system / no-local-actor events — e.g.
+`logout` for an unprovisioned user, `recordCreateOrgFailure` with no org). The
+scoped `WHERE org_id = $A` predicate therefore returns only A's rows and
+correctly **excludes NULL-org rows** — those are visible only under
+`systemScope`. This is intended: a NULL-org audit row belongs to no tenant.
+
+### Identity & the bootstrap path (`users`)
+
+`users` carries **no `org_id`** (verified against `packages/db/src/schema/auth.ts`):
+a user is a global identity, and a user can have **zero** orgs — the lazy-mirror
+state (`/me` → `{ orgId: null }` pre-org-creation) and external users (grants,
+not memberships). So `users` cannot be scoped by a row predicate, and —
+critically — `userRepo`'s identity lookups (`findByWorkosUserId`, `findById`,
+`create`) run **inside `resolveActor`, before any tenant context exists**: you
+need the user row to discover the org. Routing `userRepo` through
+`scopedRepo(orgId)` would be a chicken-and-egg deadlock.
+
+Resolution (matches FDP, where identity is global and tenancy is the membership
+edge):
+
+- `users` is an **identity table** — `userRepo` stays a plain, unscoped repo
+  used for the pre-tenancy identity bootstrap. It is **not** exported from
+  `scopedRepo`, and the CI tripwire (FR6) treats `users` as a non-scoped table.
+- "The users **in** org A" is a tenant question answered by the **scoped
+  `org_memberships` repo** (a join from the membership edge), not by reading
+  `users` directly. Any later need to list org members goes through the scoped
+  membership repo.
+- `userRepo.create`/update still only ever touch the caller's own identity row
+  (keyed by `workos_user_id`), so there is no cross-tenant read path through it
+  — it simply isn't an org-scoped table to begin with.
 
 ### System scope
 
@@ -190,16 +229,35 @@ No new tables. The slice adds:
   team already trusts the NFR-matrix tripwire pattern. Revisit if false
   positives bite.
 
-## Open questions
+## External actors (no membership)
 
-- Does `audit_events` need the same scoped factory, or is its existing
-  append-only writer + cursor enough? Leaning: route reads through the factory,
-  keep the canonical `recordAuditEvent` writer.
-- Should the property test run against a real Postgres (integration) or a
-  fake? Leaning integration (Docker compose already exists) so the SQL
-  predicate is actually exercised.
+External users have **zero memberships** (access via `external_access_grants`,
+not `org_memberships`), so `resolveActor` yields no `localOrgId` for them and
+they get **no `scopedRepo` handle**. That is correct for this slice:
+`external_access_grants` is a tenant-scoped table owned by the **granting** org
+— internal users of org A manage org A's grants through the scoped factory. An
+external actor's _own_ read path (which documents they may see, scoped to an
+Opportunity) is grant-level authorisation owned by `access-control` (slice 3),
+which sits _above_ this org-level isolation. This slice does not give external
+actors a tenant context; it guarantees that internal org-scoped queries can't
+leak across orgs.
+
+## Open questions (resolved)
+
+- ~~Does `audit_events` need the scoped factory, or is the append-only writer +
+  cursor enough?~~ **RESOLVED:** route audit **reads** through the scoped
+  factory (so an org's audit view is org-scoped); keep the canonical
+  `recordAuditEvent`/`safeAudit` **writer** unchanged. NULL-org rows are
+  system-only (see registry note).
+- ~~Property test against real Postgres or a fake?~~ **RESOLVED: real Postgres**
+  (the existing Docker-compose integration harness, port 5433) so the actual
+  SQL `WHERE org_id` predicate is exercised, not a mock. T-006.
+- ~~Factory shape (wrapper vs. per-method arg)?~~ **RESOLVED (requirements): a
+  `scopedRepo(orgId)` wrapper** — harder to forget, one audit point, matches FDP.
+- ~~Lint mechanism (ESLint rule vs. grep tripwire)?~~ **RESOLVED: grep tripwire**
+  in the spirit of `security/__tests__/nfr-matrix.test.ts` for v0.1.
 
 ## Sign-off
 
-- [ ] Bradley reviewed
-- [ ] Tasks phase unblocked
+- [x] Reviewed (delegated to Claude agent per Bradley's instruction, 2026-06-02)
+- [x] Tasks phase unblocked
