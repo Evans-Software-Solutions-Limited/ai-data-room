@@ -233,6 +233,87 @@ export class DocumentRepo extends ScopedRepo {
   }
 
   /**
+   * Active documents in a canonical folder, each joined to its current
+   * version in one round-trip (T-008, NFR4: avoids an N+1 over up to 500
+   * docs). Mirrors `getWithCurrentVersion`'s LEFT JOIN — scoping BOTH
+   * tables, not just `documents` in the WHERE — for the same reason: a
+   * `current_version_id` pointing at a foreign-org version must never
+   * leak that row. Ordered by display name for a stable listing.
+   */
+  async listByCanonicalFolderWithVersion(
+    folder: CanonicalFolder,
+  ): Promise<DocumentWithCurrentVersion[]> {
+    const rows = await this.db
+      .select()
+      .from(documents)
+      .leftJoin(
+        documentVersions,
+        and(
+          eq(documents.currentVersionId, documentVersions.id),
+          eq(documentVersions.orgId, this.orgId),
+        ),
+      )
+      .where(
+        this.scoped(
+          documents.orgId,
+          and(
+            eq(documents.folderKind, "canonical"),
+            eq(documents.canonicalFolder, folder),
+            eq(documents.state, "active"),
+          ),
+        ),
+      )
+      .orderBy(asc(documents.displayName));
+    return (
+      rows as { documents: Document; document_versions: VersionRow | null }[]
+    ).map((row) => ({
+      document: row.documents,
+      currentVersion: row.document_versions
+        ? rowToVersion(row.document_versions)
+        : null,
+    }));
+  }
+
+  /**
+   * Active documents in an Opportunity subroom, each joined to its
+   * current version in one round-trip (T-008, NFR4). Same LEFT JOIN
+   * scoping as `listByCanonicalFolderWithVersion`. Ordered by display
+   * name.
+   */
+  async listByOpportunityWithVersion(
+    opportunityId: string,
+  ): Promise<DocumentWithCurrentVersion[]> {
+    const rows = await this.db
+      .select()
+      .from(documents)
+      .leftJoin(
+        documentVersions,
+        and(
+          eq(documents.currentVersionId, documentVersions.id),
+          eq(documentVersions.orgId, this.orgId),
+        ),
+      )
+      .where(
+        this.scoped(
+          documents.orgId,
+          and(
+            eq(documents.opportunityId, opportunityId),
+            eq(documents.state, "active"),
+          ),
+        ),
+      )
+      .orderBy(asc(documents.displayName));
+    return (
+      rows as { documents: Document; document_versions: VersionRow | null }[]
+    ).map((row) => ({
+      document: row.documents,
+      currentVersion: row.document_versions
+        ? rowToVersion(row.document_versions)
+        : null,
+    }));
+  }
+
+  /**
    * Upload-complete transition (T-007): flip a `draft` document to
    * `active` and point it at its first/newest version. Compare-and-set on
    * `state='draft'` so a double-complete is a `null` no-op, and scoped so
