@@ -2,7 +2,7 @@
 
 **Status:** draft
 **Owner:** Bradley
-**Last updated:** 2026-04-21
+**Last updated:** 2026-07-16
 **Brief:** [../../../briefs/ai-data-room.md](../../../briefs/ai-data-room.md)
 **Slice index:** [../README.md](../README.md)
 **Depends on:** `auth-and-orgs`
@@ -53,14 +53,23 @@ integration lands late.
 
 ### Plan catalogue (v0.1)
 
-- **FR1** — Three plans at v0.1. **Exact pricing TBD** — placeholder
-  numbers below, to confirm with Bradley in design phase:
+- **FR1** — **Two published plans at v0.1** per
+  [ADR-013](../../../../adr/013-launch-pricing-model.md) (accepted
+  2026-07-16). Price points and the per-org axis are fixed by the ADR;
+  quota numbers below are indicative — finalise in design phase within
+  ADR-013's principles (external invitees never billable; AI quota
+  in-plan, hard block at cap):
 
-| Plan        | Users (internal) | Active external grants | Opportunities | AI sense-checks / mo | Q&A questions / mo | Price / month |
-| ----------- | ---------------- | ---------------------- | ------------- | -------------------- | ------------------ | ------------- |
-| **Starter** | 3                | 10                     | 3             | 100                  | 500                | £99           |
-| **Growth**  | 10               | 50                     | 20            | 500                  | 2,000              | £299          |
-| **Scale**   | 30               | 200                    | 100           | 2,000                | 10,000             | £799          |
+| Plan         | Users (internal) | Active external grants | Opportunities | AI sense-checks / mo | Q&A questions / mo | Price / month |
+| ------------ | ---------------- | ---------------------- | ------------- | -------------------- | ------------------ | ------------- |
+| **Starter**  | 3                | unlimited (fair use)   | 3             | 100                  | 500                | £99           |
+| **Business** | 10               | unlimited              | unlimited     | 500                  | 2,000              | £279          |
+
+Annual billing at ~15–20% discount alongside monthly. The former
+third self-serve tier ("Scale") is dropped at launch — revisit via a
+superseding ADR if self-serve demand outgrows Business. The anchor
+customer runs on the enterprise/custom row (FR2) as a negotiated
+annual contract (£3–8k/yr band), never a published tier.
 
 - **FR2** — An **enterprise/custom** plan exists as a row in the
   backing table but is not self-serve; Bradley sets limits via the
@@ -205,9 +214,10 @@ upgrade_url: '/settings/billing' }`.
 
 ## Open questions
 
-- Final pricing — the numbers in FR1 are placeholders. Decide with
-  Bradley in design phase; compare to Ansarada / Datasite / Intralinks
-  on a per-seat / per-GB basis.
+- ~~Final pricing~~ — **Resolved 2026-07-16 per
+  [ADR-013](../../../../adr/013-launch-pricing-model.md):** £99 / £279
+  two-tier published pricing, per-org axis, AI quota in-plan; only the
+  per-tier quota numbers remain for design phase.
 - Stripe Tax on or off at v0.1? Leaning **on** — avoids a Phase 2
   scramble when first non-UK customer lands.
 - Plan enforcement for **AI sense-check quota** — hard block vs.

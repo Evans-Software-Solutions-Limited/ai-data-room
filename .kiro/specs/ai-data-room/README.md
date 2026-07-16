@@ -112,9 +112,10 @@ given its own slice.**
 - ma-workflow / rfp-response
 - internal-kb-mode
 - storage-sync (onedrive/gdrive)
-- watermark-preview-drm — _decision pending:_ hold at Phase 2 if we stay in the
-  SME vendor/RFP lane; pull forward only if chasing regulated M&A (see
-  `docs/product/positioning.md`).
+- watermark-preview-drm — _decided (Bradley, 2026-07-16):_ **hold at Phase 2**
+  — we stay in the SME vendor/RFP lane; nothing in the vendor-onboarding use
+  case demands it, and watermarking can be a paid-tier upsell later. Revisit
+  only if chasing regulated M&A (see `docs/product/positioning.md`).
 - soc2-iso27001 (compliance track)
 
 ## Change log
@@ -206,3 +207,17 @@ infrastructure,middleware}` skeleton created with one folder per
   extension; `EXPECTED_TABLES` one-liner per new table, sticky #25). **Pending
   Bradley sign-off on ADR-011, slices 10–17 (requirements + design), and the
   watermark/fence-view timing call.**
+- 2026-07-16 — Decision batch at the restart audit (Bradley, in-session):
+  **`room-and-folders` (slice 2) requirements + design signed off**, amended
+  with a seventh canonical folder **`07_Information_Security`** per the fintech
+  vendor-pack norms research (`docs/product/fintech-vendor-pack-norms.md` —
+  new reference doc). Downstream specs that enumerate the canonical folders
+  (`access-control`, `ai-doc-sensecheck`, `ai-search-qna`) reconcile to seven
+  folders at their own design/tasks sign-off. **Launch pricing decided** —
+  [ADR-013](../../../adr/013-launch-pricing-model.md) (two published tiers
+  £99/£279, per-org axis, anchor customer on negotiated annual contract);
+  billing FR1 updated. **Doc-checklist content source resolved** — seeded from
+  the norms doc, Curtis dependency removed (optional reviewer). **Watermark/
+  fence-view decided** — hold at Phase 2 (see Phase-2 backlog above). Still
+  pending: ADR-011 acceptance (flips at tenant-isolation T-006) and sign-off
+  on slices 3–9 / 11–16 designs.

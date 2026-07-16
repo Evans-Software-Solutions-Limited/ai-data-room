@@ -218,7 +218,7 @@ production, measured via a weekly audit query.
 
 Status: `[ ]`
 **Scope:** Vite SPA route `/room` (React Router entry): renders
-the six canonical folders + `Opportunities/` list. Clicking a
+the seven canonical folders + `Opportunities/` list. Clicking a
 folder → list documents. Uses `/me` + `/rooms` responses.
 Deliberately plain UI; polish in `admin-dashboard` /
 `onboarding-flow`.

@@ -1,8 +1,8 @@
 # Requirements — ai-data-room / doc-checklist
 
 **Status:** draft
-**Owner:** Bradley (Curtis as vendor-workflow SME)
-**Last updated:** 2026-04-21
+**Owner:** Bradley (content source: [fintech vendor-pack norms](../../../../docs/product/fintech-vendor-pack-norms.md); Curtis optional reviewer — resolved 2026-07-16)
+**Last updated:** 2026-07-16
 **Brief:** [../../../briefs/ai-data-room.md](../../../briefs/ai-data-room.md)
 **Slice index:** [../README.md](../README.md)
 **Depends on:** `room-and-folders`
@@ -10,7 +10,7 @@
 ## Context
 
 This is the feature that turns a folder into a **self-managing checklist**.
-For each of the six canonical folders (and optionally each Opportunity
+For each of the seven canonical folders (and optionally each Opportunity
 subroom), there is a predefined list of document **slots** — e.g. in
 `05_Legal`: Articles of Association, Certificate of Incorporation,
 Shareholder Register. Uploading a doc fills a slot. The UI surfaces a
@@ -31,7 +31,7 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
 ## User stories
 
 - **US1** — _As a new org, I want a pre-populated checklist for each
-  of the six canonical folders so I know exactly what to upload._
+  of the seven canonical folders so I know exactly what to upload._
 - **US2** — _As an internal contributor, I want to upload a document
   against a specific slot (e.g. "Articles of Association") so the
   system knows that slot is filled._
@@ -70,8 +70,13 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
     Shareholder Register, material contracts, IP register.
   - `06_Operations` — org chart, key policies (privacy, IT, HR),
     insurance certificates, supplier list.
-  - **Canonical content TBD with Curtis** in the design phase; this
-    requirements doc fixes the shape, not the exact wording.
+  - `07_Information_Security` — SOC 2 / ISO 27001 evidence, PCI DSS
+    AoC, pen-test attestation, security policies, SIG/CAIQ Lite
+    response (added 2026-07-16 with the seventh canonical folder).
+  - **Canonical content is seeded from
+    [docs/product/fintech-vendor-pack-norms.md](../../../../docs/product/fintech-vendor-pack-norms.md)**
+    (resolved 2026-07-16 — no SME dependency); this requirements doc
+    fixes the shape, not the exact wording.
 - **FR2** — Each slot in a template shall have: `slot_id`, `title`,
   `description`, `guidance` (markdown, optional), `required` flag,
   `expected_file_types` (subset of the MIME types `room-and-folders`
@@ -79,7 +84,8 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
 - **FR3** — Opportunity subrooms shall have a **default per-
   Opportunity template** (e.g. "Vendor Onboarding" = one slot per
   vendor questionnaire category). Admins may override the default
-  on subroom creation. Default set TBD with Curtis.
+  on subroom creation. Default set seeded from the vendor-questionnaire
+  categories in the norms doc (resolved 2026-07-16).
 - **FR4** — The system shall ship an **admin-editable template** per
   org: an admin can add, edit, hide, or reorder slots within their
   org's copy of a template without affecting other orgs. The canonical
@@ -154,7 +160,7 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
 ## Acceptance criteria
 
 - **AC-US1** — A new org sees the canonical checklist in each of the
-  six folders immediately, with every slot in state `empty`.
+  seven folders immediately, with every slot in state `empty`.
 - **AC-US2** — An internal user uploads `accounts_2024.pdf` into
   `02_Financials` and selects the "Latest audited accounts" slot;
   the slot state becomes `uploaded` (or `approved` / `rejected`
@@ -205,9 +211,16 @@ actually fits the slot** — that's `ai-doc-sensecheck`.
   MVP? Leaning **keep approvals** — it's the interface through which
   Capital Pay and other early customers get their sign-off control
   without us building an approval workflow later.
-- Curtis-driven slot list finalisation — should we meet with Curtis
-  during the **requirements** phase of this slice or during **design**?
-  Leaning **design**, so we're not blocked here on SME availability.
+- ~~Curtis-driven slot list finalisation~~ — **Resolved 2026-07-16
+  (Bradley):** slot content is sourced from the fintech vendor-pack
+  norms research
+  ([docs/product/fintech-vendor-pack-norms.md](../../../../docs/product/fintech-vendor-pack-norms.md))
+  — no SME dependency; a Curtis review becomes an optional later
+  validation pass. Two related decisions recorded there: the canonical
+  folder set stays **fixed in code** (now seven folders — a
+  `07_Information_Security` template is required), and checklist
+  templates are **data-driven** per folder so vertical template packs
+  can vary without schema change (per-org overrides Phase 2).
 
 ## Sign-off
 

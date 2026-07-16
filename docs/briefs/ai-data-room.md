@@ -6,7 +6,7 @@
 **Status:** brief (pending Bradley sign-off before spec phase)
 **Owner:** Bradley
 **Created:** 2026-04-21
-**Last updated:** 2026-04-21
+**Last updated:** 2026-07-16 (folder structure +07; pricing question resolved)
 
 ## Problem
 
@@ -73,13 +73,14 @@ least one of which is external to Capital Pay's network. Leading indicator:
 04_Product
 05_Legal
 06_Operations
+07_Information_Security
 Opportunities/
   Vendor_A/
   Vendor_B/
   ...
 ```
 
-The six numbered folders are the **canonical room**. `Opportunities/` is
+The seven numbered folders are the **canonical room** (`07_Information_Security` added at room-and-folders sign-off, 2026-07-16 — see `docs/product/fintech-vendor-pack-norms.md`). `Opportunities/` is
 a container for per-external-party subrooms (vendors, VCs, RFP buyers),
 each with scoped access to a subset of canonical folders + its own workspace.
 
@@ -87,7 +88,7 @@ each with scoped access to a subset of canonical folders + its own workspace.
 
 - Auth + orgs + MFA; tiered roles (owner / admin / internal contributor /
   external viewer).
-- The six canonical folders + `Opportunities/` subrooms. Upload, preview,
+- The seven canonical folders + `Opportunities/` subrooms. Upload, preview,
   download, delete.
 - **Doc checklist per canonical folder** — fixed template of required docs
   per category. Visible completion state drives self-service onboarding.
@@ -124,7 +125,9 @@ each with scoped access to a subset of canonical folders + its own workspace.
 - Repo location: `mnt/projects/ai-data-room/` or under `personal/`? Needs
   to pick a GitHub org (Evans-Software-Solutions-Limited is the obvious
   fit since this is your SaaS, not Capital Pay's).
-- One plan at launch vs. tiered (free/starter/pro)? Affects billing slice.
+- ~~One plan at launch vs. tiered (free/starter/pro)?~~ **Resolved
+  2026-07-16:** two published tiers + trial, per
+  [ADR-013](../../adr/013-launch-pricing-model.md).
 
 ## Next step
 

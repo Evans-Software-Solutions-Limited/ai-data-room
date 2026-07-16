@@ -24,8 +24,8 @@ These gate clean implementation and let us sign off "docs + foundation current."
 | ----------------------------------------------------------- | --------------------------------------------------------------------------- | -------- | --------------------------------- |
 | Sign off [ADR-011](../../adr/011-multi-tenant-isolation.md) | Accept (or amend) row-level tenant isolation as a slice-2 prerequisite.     | Bradley  | Yes — gates slice 2               |
 | Redaction scope call                                        | Decide: document redaction in MVP (proposed) vs Phase 2.                    | Bradley  | Yes — gates the slice-2 task list |
-| Watermark/fence-view call                                   | Confirm Phase 2 (SME lane) or pull forward (M&A).                           | Bradley  | No                                |
-| Merge T-022 (PR #28)                                        | Finish slice-1 sign-off + tag `v0.1.0-auth-and-orgs`.                       | Bradley  | No (parallel)                     |
+| Watermark/fence-view call                                   | ✅ Done 2026-07-16 — confirmed Phase 2 (SME lane).                          | Bradley  | No                                |
+| Merge T-022 (PR #28)                                        | ✅ Done 2026-05-31 — merged + tagged `v0.1.0-auth-and-orgs`.                | Bradley  | No (parallel)                     |
 | RB-2 — e2e stage                                            | Provision e2e env + WorkOS test tenant so slice-1 Playwright actually runs. | Bradley  | No (before GA)                    |
 | RB-4 — delete `hello-world` cruft                           | Remove template scaffolding from `core` + `workers`.                        | chore PR | No                                |
 
@@ -116,11 +116,11 @@ Spec:
 ## Sign-off checklist (what "docs up to date" means)
 
 - [ ] ADR-011 reviewed — `proposed` → `accepted` or amended.
-- [ ] `org-provisioning` (slice 17) requirements + design signed off.
-- [ ] `tenant-isolation` (slice 10) requirements + design signed off.
+- [x] `org-provisioning` (slice 17) requirements + design signed off (PR #32, 2026-05-31).
+- [x] `tenant-isolation` (slice 10) requirements + design signed off (PR #40, 2026-07-05).
 - [ ] `document-redaction` (slice 11) requirements + design signed off;
       manual half confirmed for MVP.
-- [ ] Watermark/fence-view timing — confirmed.
+- [x] Watermark/fence-view timing — confirmed 2026-07-16: hold at Phase 2.
 - [ ] This plan's Phase 1 order — accepted.
 - [ ] First implementation target = `org-provisioning` T-001; first branch
       `feat/org-provisioning-T-001-create-org-dto`.
