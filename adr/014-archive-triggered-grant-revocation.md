@@ -83,7 +83,13 @@ behind a cross-slice call into a slice that does not exist yet.
   `external_access_grants` (resolve at grant creation; revoke/enforce by id),
   which access-control (slice 3) should adopt when it builds the real grant
   model. This is temporally safe until then: grant _enforcement_ itself does
-  not ship until slice 3.
+  not ship until slice 3. **Now scoped** in the access-control spec:
+  `access-control/tasks.md` T-001 (add the `opportunity_id` FK + backfill +
+  remove room-and-folders' slug coupling, incl. deleting
+  `retargetOpportunitySlug`) and T-007 (stamp + revoke by `opportunity_id`),
+  with the design's §"`opportunity_slug` → `opportunity_id` FK" noting the
+  invitation-carries-id follow-on needed to fully close the
+  invite-accept-after-rename edge.
 
 ## References
 
