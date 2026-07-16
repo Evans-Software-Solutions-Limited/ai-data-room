@@ -10,7 +10,7 @@ Solutions Limited (Bradley Simms-Evans's company). First paying customer:
 Capital Pay (where Bradley is incoming CTO), but commercial — not a
 special deal.
 
-Nine feature slices shipping toward `v1.0.0-mvp`. Specs live in
+Seventeen feature slices shipping toward `v1.0.0-mvp`. Specs live in
 `.kiro/specs/ai-data-room/<slice>/{requirements,design,tasks}.md` —
 that's the contract a PR must satisfy.
 
@@ -143,26 +143,35 @@ What we deliberately **don't** mirror from FDP yet:
 
 ## Slice dependency order
 
-Per `.kiro/specs/ai-data-room/README.md`:
+Seventeen slices. Numbers are a **stable index, not run order** — the
+canonical ordered backlog lives in
+`.kiro/specs/ai-data-room/README.md` and
+`docs/product/implementation-plan.md`. True run order starts:
 
 ```
-1. auth-and-orgs       — foundation
-2. room-and-folders    — depends on 1
-3. access-control      — depends on 2
-4. doc-checklist       — depends on 2
-5. ai-doc-sensecheck   — depends on 2
-6. ai-search-qna       — depends on 2 (also needs pgvector)
-7. admin-dashboard     — BFF aggregate; depends on 1–6
-8. billing-subscription — parallelisable with 2–6 once 1 is done
-9. onboarding-flow     — ties 1 + 8 together; ships last
+1. auth-and-orgs        — SHIPPED (v0.1.0-auth-and-orgs)
+17. org-provisioning    — SHIPPED (v0.2.0-org-provisioning)
+10. tenant-isolation    — IN PROGRESS (T-001 done; gates slice 2 per ADR-011)
+2. room-and-folders     — next; unlocks everything customer-visible
+3. access-control       — depends on 2
+4. doc-checklist        — depends on 2
+5. ai-doc-sensecheck    — depends on 2 + 4
+6. ai-search-qna        — depends on 2 (needs pgvector)
+7. admin-dashboard      — BFF aggregate; depends on 1–6
+8. billing-subscription — parallelisable once 1 is done
+9. onboarding-flow      — ships last
+11–16. redaction, viewer, notifications, search-ocr, data-export,
+       virus-scanning — post-core; see specs README for deps
 ```
 
 Slices 4 / 5 / 6 can run in parallel once slice 2 lands.
 
 ## Currently in flight
 
-See `HANDOFF.md` at repo root for the in-flight state. Read that next
-if you're picking up the work cold.
+Per-slice truth is the `**Status:**` header + task ticks in each
+slice's `tasks.md` (kept current by the post-merge tick chore).
+Session handoffs are delivered in chat, not committed files — there is
+no HANDOFF.md.
 
 ## Where not to write
 

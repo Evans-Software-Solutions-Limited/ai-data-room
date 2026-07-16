@@ -1,8 +1,8 @@
 # Tasks — ai-data-room / tenant-isolation
 
-**Status:** signed off — ready to execute (review delegated per Bradley, 2026-06-02)
+**Status:** in progress — T-001 shipped (PR #42); T-002–T-008 remaining
 **Design:** [./design.md](./design.md)
-**Last updated:** 2026-06-02
+**Last updated:** 2026-07-16
 
 Assumes `auth-and-orgs` is merged. Executes inside `microservices/core`
 (`infrastructure/db/*`) and `packages/db`. Lands **before**
@@ -18,7 +18,7 @@ via the existing Docker compose, layered architecture, 90% coverage gate).
 
 ## T-001 — Audit: confirm `org_id` on every tenant-scoped table
 
-Status: `[ ]`
+Status: `[x]` (merged PR #42 — `infrastructure/db/tenancy.ts` registry + classification test)
 **Scope:** Enumerate current tables; classify each into the **three** buckets
 (design §registry): `TENANT_SCOPED_TABLES` (carries `org_id`),
 `TENANT_AGNOSTIC_TABLES` (no `org_id`; org-is-tenant or global infra), and

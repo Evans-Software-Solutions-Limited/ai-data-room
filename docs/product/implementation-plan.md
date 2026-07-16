@@ -14,7 +14,7 @@ and the [spec index](../../.kiro/specs/ai-data-room/README.md).
 1. Start at the lowest-numbered open item in the current phase.
 2. Branch per task: `feat/<slice>-T-XXX-<short-desc>` (or `chore/<desc>`).
 3. Honour the slice's `tasks.md` DoD + the 90% coverage gate.
-4. Tick `[x]` in `tasks.md` after merge; refresh `HANDOFF.md` at each transition.
+4. Tick `[x]` in `tasks.md` after merge; deliver the session handoff in chat (no committed handoff file).
 
 ## Phase 0 — clear the decks (no new product code)
 

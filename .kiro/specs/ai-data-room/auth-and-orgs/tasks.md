@@ -1,8 +1,8 @@
 # Tasks — ai-data-room / auth-and-orgs
 
-**Status:** draft
+**Status:** complete — all tasks shipped (T-001–T-022), tagged `v0.1.0-auth-and-orgs`
 **Design:** [./design.md](./design.md)
-**Last updated:** 2026-04-21
+**Last updated:** 2026-07-16
 
 Tasks are written for a Claude Code agent to execute inside the target
 repo (`Evans-Software-Solutions-Limited/ai-data-room`, scaffolded from
@@ -477,7 +477,7 @@ nightly.
 
 ## T-022 — Slice sign-off checklist
 
-Status: `[~]` (in flight — branch `feat/auth-and-orgs-T-022-sign-off-and-tag`).
+Status: `[x]` (merged PR #28; tagged `v0.1.0-auth-and-orgs`).
 **Scope:** Final pass: verify every FR, NFR, and AC has at least one
 corresponding test. Run the `engineering:deploy-checklist` skill.
 Tag `v0.1.0-auth-and-orgs` when merged to `main`.

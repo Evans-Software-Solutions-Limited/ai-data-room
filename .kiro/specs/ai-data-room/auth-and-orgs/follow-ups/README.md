@@ -6,9 +6,11 @@
 
 ## What this directory is
 
-Slice 1 (`auth-and-orgs`) shipped at 21/22 tasks (T-022 sign-off in
-flight on PR #28). During the slice, eleven follow-ups were flagged
-in `HANDOFF.md` as "not blocking, but worth doing soon." Per Bradley's
+Slice 1 (`auth-and-orgs`) shipped complete at 22/22 tasks (T-022
+sign-off merged in PR #28; tagged `v0.1.0-auth-and-orgs`). During the
+slice, eleven follow-ups were flagged in the handoff (archived at
+`docs/archive/2026-05-31-handoff-auth-and-orgs.md`) as "not blocking,
+but worth doing soon." Per Bradley's
 call on 2026-05-26: each gets its own kiro three-file mini-spec
 (`requirements.md` → `design.md` → `tasks.md`) and its own background
 task. **Not bundled.** Per the `feedback_kiro_spec_driven` memory rule,

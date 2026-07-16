@@ -6,7 +6,7 @@ AI-native secure data room. First revenue-stream SaaS from Evans Software Soluti
 >
 > All context lives in this repo. Start with [`AGENTS.md`](./AGENTS.md) (or [`CLAUDE.md`](./CLAUDE.md) if you're a Claude-family agent), then read the brief at [`docs/briefs/ai-data-room.md`](./docs/briefs/ai-data-room.md), then dive into the slice you're picking up at [`.kiro/specs/ai-data-room/<slice>/`](./.kiro/specs/ai-data-room/). Architecture decisions live in [`adr/`](./adr/).
 >
-> If you're a fresh agent walking in cold, read [`HANDOFF.md`](./HANDOFF.md) too — it covers what's currently in flight.
+> If you're a fresh agent walking in cold, current per-slice status is the `**Status:**` header + task ticks in each slice's `tasks.md`. Session handoffs are delivered in chat, not committed files.
 
 ## Stack
 

@@ -1,4 +1,10 @@
-# HANDOFF.md
+# HANDOFF.md — ARCHIVED snapshot (2026-05-31)
+
+> **Archived 2026-07-16.** This is the final slice-1 handoff snapshot,
+> kept for the sticky-knowledge notes referenced by ADRs and the
+> sign-off matrix. It is NOT current state — per-slice truth lives in
+> each slice's `tasks.md`; session handoffs are delivered in chat, not
+> committed files.
 
 > Ephemeral. Describes what's currently in flight and what the next
 > session should pick up. Refreshed at every task transition; delete
