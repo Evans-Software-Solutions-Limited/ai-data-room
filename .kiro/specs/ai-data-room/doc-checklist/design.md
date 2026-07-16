@@ -153,8 +153,9 @@ export const Financials: TemplateDefinition = {
 };
 ```
 
-Canonical content (exact wording, exact slots) is finalised with
-**Curtis** during the build of this slice. Design contract: each
+Canonical content (exact wording, exact slots) is seeded from
+[docs/product/fintech-vendor-pack-norms.md](../../../../docs/product/fintech-vendor-pack-norms.md)
+(resolved 2026-07-16; Curtis review optional). Design contract: each
 slot must have a `plainLanguage` field — that's the one
 `ai-doc-sensecheck` leans on.
 
@@ -263,9 +264,11 @@ All under `/orgs/:orgId/`. All behind `requires(...)` from
   (e.g. "latest accounts 2024" → "latest accounts 2025"). Versioning
   the slot-assignment matches the versioning of the document itself.
 
-- **Curtis-driven content in design phase not requirements** —
-  keeps requirements shippable without SME availability; design
-  phase is where concrete slot lists get nailed.
+- **Research-sourced content, not SME-driven** (amended 2026-07-16) —
+  originally slot content waited on Curtis; now seeded from the
+  fintech vendor-pack norms research, which removes the SME
+  availability dependency entirely. Concrete slot lists still get
+  nailed in this slice's build (T-003), sourced from the norms doc.
 
 ## Security
 

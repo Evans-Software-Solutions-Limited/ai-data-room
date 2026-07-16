@@ -1,15 +1,15 @@
 # Requirements — ai-data-room / room-and-folders
 
-**Status:** draft
+**Status:** signed off (Bradley, 2026-07-16 — amended: `07_Information_Security` added as a seventh canonical folder per the fintech vendor-pack norms research, [docs/product/fintech-vendor-pack-norms.md](../../../../docs/product/fintech-vendor-pack-norms.md))
 **Owner:** Bradley
-**Last updated:** 2026-04-21
+**Last updated:** 2026-07-16
 **Brief:** [../../../briefs/ai-data-room.md](../../../briefs/ai-data-room.md)
 **Slice index:** [../README.md](../README.md)
 **Depends on:** `auth-and-orgs`
 
 ## Context
 
-Delivers the room itself — a fixed six-folder canonical structure per org,
+Delivers the room itself — a fixed seven-folder canonical structure per org,
 plus an `Opportunities/` container that can hold one or more subrooms
 (e.g. `Vendor_A`, `Vendor_B`). Enables uploading, listing, downloading,
 and deleting documents. This slice owns the **structure** and the
@@ -24,12 +24,12 @@ that sits on top of each folder — that's `doc-checklist`.
   external viewers listing/downloading within their Opportunity scope.
 - **Roles (from `auth-and-orgs`):** `owner`, `editor`, `viewer`,
   `external`. External users only see Opportunity subrooms they have a
-  grant for; the six canonical folders are never shown to external users.
+  grant for; the seven canonical folders are never shown to external users.
 
 ## User stories
 
 - **US1** — _As an owner whose org has just been created, I want the
-  canonical six-folder room pre-provisioned so I don't have to decide
+  canonical seven-folder room pre-provisioned so I don't have to decide
   what the folders should be._
 - **US2** — _As an owner/editor, I want to create a new Opportunity
   subroom (e.g. `Vendor_C`) when we engage a new counterparty so I can
@@ -64,12 +64,13 @@ that sits on top of each folder — that's `doc-checklist`.
   - `04_Product`
   - `05_Legal`
   - `06_Operations`
+  - `07_Information_Security`
   - `Opportunities/` (container, starts empty)
-- **FR2** — The six canonical top-level folders shall not be renameable,
+- **FR2** — The seven canonical top-level folders shall not be renameable,
   reorderable, or deletable by any user role at v0.1. The
   Bradley-prescribed structure is the product.
 - **FR3** — Additional folders shall not be creatable at the top level
-  by any user role. No nesting of custom folders inside the six
+  by any user role. No nesting of custom folders inside the seven
   canonical folders at v0.1.
 
 ### Opportunity subrooms
@@ -89,7 +90,7 @@ that sits on top of each folder — that's `doc-checklist`.
 ### Document upload
 
 - **FR8** — Internal users (owner/editor/viewer) shall be able to
-  upload files into any of the six canonical folders or any
+  upload files into any of the seven canonical folders or any
   Opportunity subroom. External users shall not upload at v0.1
   (separate Phase-2 "external-upload" work exists in the backlog).
 - **FR9** — Supported file types at v0.1: **PDF, DOCX, XLSX, PPTX,
@@ -158,7 +159,7 @@ that sits on top of each folder — that's `doc-checklist`.
 ## Acceptance criteria
 
 - **AC-US1** — Signing up a new org results in an immediately-visible
-  room with exactly the six canonical folders and an empty
+  room with exactly the seven canonical folders and an empty
   `Opportunities/` container — no manual provisioning step.
 - **AC-US2** — An owner creates an Opportunity subroom named
   `Vendor_C`; it appears in `Opportunities/` for internal users; no
@@ -179,8 +180,8 @@ that sits on top of each folder — that's `doc-checklist`.
 - **AC-US7** — An external user invited to `Vendor_A` sees only that
   subroom's contents; they cannot list or download from any canonical
   folder or any other Opportunity.
-- **AC-US8** — Navigation UI renders the six canonical folders in the
-  prescribed order (`01_` → `06_`) followed by the `Opportunities/`
+- **AC-US8** — Navigation UI renders the seven canonical folders in the
+  prescribed order (`01_` → `07_`) followed by the `Opportunities/`
   container, consistently across all roles that can see them.
 
 ## Non-goals (for this slice)
@@ -197,14 +198,16 @@ that sits on top of each folder — that's `doc-checklist`.
 
 ## Open questions
 
-- Should video files (MP4/MOV) be supported in v0.1? Leaning **no** —
-  unusual in the target vendor-onboarding wedge, inflates storage cost,
-  and we can add later without schema change.
-- Retention window for archived Opportunity subrooms: 90 days vs. 30.
-  Leaning 90 for regulator-friendly posture.
-- Do we want a `README`-style per-folder description field at v0.1 to
-  orient new users? Leaning **yes, display-only**, populated from
-  `doc-checklist` defaults — defer to that slice.
+All resolved at sign-off (Bradley, 2026-07-16) — leanings confirmed:
+
+- Video files (MP4/MOV) in v0.1? **Resolved: no** — unusual in the
+  target vendor-onboarding wedge, inflates storage cost, addable later
+  without schema change.
+- Retention window for archived Opportunity subrooms? **Resolved:
+  90 days** for regulator-friendly posture.
+- `README`-style per-folder description field at v0.1? **Resolved:
+  yes, display-only**, populated from `doc-checklist` defaults —
+  deferred to that slice.
 
 ## Sign-off
 

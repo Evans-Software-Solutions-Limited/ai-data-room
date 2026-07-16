@@ -40,12 +40,14 @@ Status: `[ ]`
 **Scope:** Create `microservices/core/domain/checklist/templates/`
 with one file per canonical folder + `opportunity_default.ts` +
 `index.ts`. Each file exports a typed `TemplateDefinition` const.
-**v0.1 scope for content**: placeholder slot lists pending Curtis
-review. The shape is what ships; the exact slots land in T-003.
+**v0.1 scope for content**: placeholder slot lists; the exact slots
+land in T-003, sourced from
+`docs/product/fintech-vendor-pack-norms.md`. The shape is what ships.
 **Files (likely):**
 `microservices/core/domain/checklist/templates/*.ts`,
 `microservices/core/domain/checklist/types.ts`.
-**DoD:** All seven template files present, typed, passing
+**DoD:** All eight template files present (seven canonical folders +
+opportunity default), typed, passing
 `tsc --strict`; exported from `index.ts`.
 **Tests required:** Vitest — schema validation of each template's
 shape (all slot_keys stable + unique within template; all
@@ -53,16 +55,17 @@ shape (all slot_keys stable + unique within template; all
 
 ---
 
-## T-003 — Domain: Curtis-signed canonical content
+## T-003 — Domain: canonical content from fintech vendor-pack norms
 
 Status: `[ ]`
-**Scope:** Replace placeholder slot lists in T-002 with the
-Curtis-approved canonical slots for the six folders +
-Opportunity default. This task is **blocking** — Curtis has to sign
-off on wording + criteria before merge.
+**Scope:** Replace placeholder slot lists in T-002 with canonical
+slots for the seven folders + Opportunity default, derived from
+`docs/product/fintech-vendor-pack-norms.md` (resolved 2026-07-16 —
+no SME dependency; a Curtis review is an optional later validation
+pass, not a merge gate).
 **Files (likely):** Same as T-002.
-**DoD:** Each template has Curtis's name + date in a header comment;
-PR merged with Curtis as co-reviewer.
+**DoD:** Each template header comment cites the norms doc + date;
+Bradley approves via normal PR review.
 **Tests required:** Snapshot test of each template's slot list +
 criteria — future edits must be deliberate.
 
@@ -395,5 +398,6 @@ Parallelisable after T-005:
 
 1. All AC-US\* in `requirements.md` pass in Playwright.
 2. T-024 traceability + ADR-006 merged.
-3. Curtis has signed off on the canonical template content (T-003).
+3. Canonical template content matches the fintech vendor-pack norms
+   doc (T-003); Curtis validation optional post-ship.
 4. `v0.4.0-doc-checklist` tagged.

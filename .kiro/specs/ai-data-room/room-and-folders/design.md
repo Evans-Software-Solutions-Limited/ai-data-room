@@ -1,13 +1,13 @@
 # Design — ai-data-room / room-and-folders
 
-**Status:** draft
+**Status:** signed off (Bradley, 2026-07-16 — amended: seventh canonical folder `07_Information_Security` per fintech vendor-pack norms research; all open-question leanings confirmed)
 **Requirements:** [./requirements.md](./requirements.md)
-**Last updated:** 2026-04-21
+**Last updated:** 2026-07-16
 **Depends on:** `auth-and-orgs` design
 
 ## Summary
 
-Room structure is **virtual, stored in Postgres**; the six canonical
+Room structure is **virtual, stored in Postgres**; the seven canonical
 folders are implicit (constant enum, no DB rows) and the
 `Opportunities/*` subrooms are DB rows. Document bytes live in **S3**
 under a per-org prefix, encrypted with a KMS customer-managed key.
@@ -76,7 +76,7 @@ Partial index: `where status='active'` for fast nav queries.
 
 ### Canonical folders — **not a DB table**
 
-The six canonical folders are a **const enum** in code:
+The seven canonical folders are a **const enum** in code:
 
 ```ts
 export const CANONICAL_FOLDERS = [
@@ -86,6 +86,7 @@ export const CANONICAL_FOLDERS = [
   "04_Product",
   "05_Legal",
   "06_Operations",
+  "07_Information_Security",
 ] as const;
 export type CanonicalFolder = (typeof CANONICAL_FOLDERS)[number];
 ```
@@ -413,6 +414,9 @@ back once live.
 
 ## Open questions
 
+All resolved at sign-off (Bradley, 2026-07-16) — every leaning below
+confirmed as the decision:
+
 - Single shared docs bucket (per env) vs. bucket-per-org — shared is
   simpler and S3 prefix isolation is sufficient for correctness.
   Leaning **shared**; revisit if a large customer demands their own
@@ -431,5 +435,5 @@ back once live.
 
 ## Sign-off
 
-- [ ] Bradley reviewed
-- [ ] Tasks phase unblocked
+- [x] Bradley reviewed (2026-07-16, via audit session — amendment: +`07_Information_Security`)
+- [x] Tasks phase unblocked
