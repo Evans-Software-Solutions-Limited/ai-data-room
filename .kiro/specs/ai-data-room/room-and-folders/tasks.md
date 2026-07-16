@@ -135,7 +135,7 @@ aws-sdk-client-mock; unit tests for validation branches.
 
 ## T-008 — Application: document listing + download
 
-Status: `[ ]`
+Status: `[x]` (PR #60)
 **Scope:** `listFolderContents` (canonical or opportunity),
 `getDocument` (with pre-signed GET URL), `listVersions`. Returns
 only `state='active'` documents by default. Pre-signed URL TTL

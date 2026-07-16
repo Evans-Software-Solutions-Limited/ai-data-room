@@ -16,6 +16,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  PutObjectTaggingCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 
@@ -289,6 +290,43 @@ describe("createS3DocumentStore", () => {
         Bucket: BUCKET,
         Key: KEY,
         VersionId: "v-123",
+      });
+    });
+  });
+
+  describe("tagObject", () => {
+    it("sends the tag set as an S3 TagSet without a version", async () => {
+      s3Mock.on(PutObjectTaggingCommand as never).resolves({});
+      const store = createS3DocumentStore({
+        client: s3Mock as never,
+        bucket: BUCKET,
+      });
+
+      await store.tagObject(KEY, { state: "hard-deleted" });
+
+      const call = s3Mock.commandCalls(PutObjectTaggingCommand as never)[0];
+      expect(call.args[0].input).toEqual({
+        Bucket: BUCKET,
+        Key: KEY,
+        Tagging: { TagSet: [{ Key: "state", Value: "hard-deleted" }] },
+      });
+    });
+
+    it("sends the VersionId when tagging a specific version", async () => {
+      s3Mock.on(PutObjectTaggingCommand as never).resolves({});
+      const store = createS3DocumentStore({
+        client: s3Mock as never,
+        bucket: BUCKET,
+      });
+
+      await store.tagObject(KEY, { state: "hard-deleted" }, "v-123");
+
+      const call = s3Mock.commandCalls(PutObjectTaggingCommand as never)[0];
+      expect(call.args[0].input).toMatchObject({
+        Bucket: BUCKET,
+        Key: KEY,
+        VersionId: "v-123",
+        Tagging: { TagSet: [{ Key: "state", Value: "hard-deleted" }] },
       });
     });
   });
