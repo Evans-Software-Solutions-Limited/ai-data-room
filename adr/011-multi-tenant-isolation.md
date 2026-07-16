@@ -1,8 +1,16 @@
 # ADR-011: Row-level multi-tenant isolation before document storage ships
 
-- **Status:** proposed
-- **Date:** 2026-05-31
+- **Status:** accepted
+- **Date:** 2026-05-31 (proposed) · 2026-07-16 (accepted)
 - **Deciders:** Bradley (+ Curtis for vendor-workflow review)
+- **Accepted:** on the green `tenant-isolation` slice (10) property test —
+  `microservices/core/test/integration/db/tenantIsolation.property.integration.test.ts`
+  (T-006, NFR1/AC-US4) proves no `scopedRepo(orgA)` read returns a foreign-org
+  row over `fast-check`-generated distributions against real Postgres. The
+  Option B mechanism (factory + registry + CI tripwire + property test) is
+  shipped: T-002 factory, T-003 `systemScope`, T-004 backfill, T-005 tripwire,
+  T-006 property test. Postgres RLS (Option A) remains the deferred SOC 2-track
+  follow-up.
 - **Related:** [brief](../docs/briefs/ai-data-room.md) ·
   [auth-and-orgs spec](../.kiro/specs/ai-data-room/auth-and-orgs/requirements.md) ·
   [room-and-folders spec](../.kiro/specs/ai-data-room/room-and-folders/requirements.md) ·
