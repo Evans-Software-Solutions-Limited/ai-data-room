@@ -1,8 +1,8 @@
 # Design — ai-data-room / auth-and-orgs
 
-**Status:** draft
+**Status:** signed off — implemented (T-022 sign-off matrix merged PR #28; shipped as `v0.1.0-auth-and-orgs`)
 **Requirements:** [./requirements.md](./requirements.md)
-**Last updated:** 2026-04-21
+**Last updated:** 2026-07-16
 
 ## Summary
 

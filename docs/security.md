@@ -90,7 +90,8 @@ will still trip it.
 - **MFA challenge metrics + alarm.** AuthKit owns the challenge flow
   and the v8.13 WorkOS SDK doesn't surface challenge-level events.
   Deferred alongside the WorkOS event-name investigation tracked in
-  `HANDOFF.md`.
+  the archived slice-1 handoff
+  (`docs/archive/2026-05-31-handoff-auth-and-orgs.md`).
 - **PII redaction in non-audit logs.** `recordAuditEvent` strips
   forbidden material from audit metadata, and the matrix grep catches
   direct log-call regressions, but there's no centralised redactor.

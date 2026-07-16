@@ -4,8 +4,10 @@
 [positioning](./positioning.md) and the
 [spec index](../../.kiro/specs/ai-data-room/README.md).
 
-> Purpose: promote the production-readiness risks that are currently scattered
-> across `HANDOFF.md` follow-ups into **tracked release blockers**, and record
+> Purpose: promote the production-readiness risks that were scattered across
+> the slice-1 handoff follow-ups (archived at
+> `../archive/2026-05-31-handoff-auth-and-orgs.md`) into **tracked release
+> blockers**, and record
 > the genuine spec gaps surfaced by the 2026 competitive scan. This is a
 > planning artifact, not a spec — each blocker should graduate into a kiro task
 > in the owning slice.
