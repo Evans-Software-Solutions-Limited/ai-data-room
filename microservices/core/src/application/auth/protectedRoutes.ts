@@ -38,6 +38,7 @@ import Elysia from "elysia";
 import { getAuditEventsHandler } from "./audit-events/getAuditEventsHandler";
 import { requireAuth } from "./guards/requireAuth";
 import { requireOrg } from "./guards/requireOrg";
+import { resolveTenantContext } from "./guards/resolveTenantContext";
 import { resolveActorPlugin } from "./_shared/resolveActorPlugin";
 import { deleteInvitationHandler } from "./invitations/deleteInvitationHandler";
 import { getInvitationsHandler } from "./invitations/getInvitationsHandler";
@@ -55,6 +56,10 @@ const orgScopedRoutes = new Elysia()
   .resolve(requireAuth)
   .resolve(resolveActorPlugin)
   .onBeforeHandle(requireOrg)
+  // FR1: after `requireOrg` has asserted a non-null `localOrgId`, lift it into
+  // a request-scoped `TenantContext` that later-slice handlers pass to
+  // `scopedRepo`. Runs after the gate so the org is guaranteed present.
+  .resolve(resolveTenantContext)
   .use(postInvitationsHandler)
   .use(getInvitationsHandler)
   .use(deleteInvitationHandler)
