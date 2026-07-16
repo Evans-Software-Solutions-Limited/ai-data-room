@@ -36,7 +36,7 @@ deferred to T-002 only if found).
 
 ## T-002 — `scopedRepo(orgId)` factory + TenantContext
 
-Status: `[ ]`
+Status: `[x]` (merged PR #45 — `infrastructure/db/scoped.ts` `ScopedRepo` base + `scopedRepo`/`tenantContext` factory; `resolveTenantContext` guard mounted in `orgScopedRoutes`)
 **Scope:** Implement `TenantContext` (request-scoped `localOrgId`) and the
 `scopedRepo(orgId, db)` factory. Define the scoped-repo base contract:
 constructor takes `orgId`, reads inject the predicate, writes stamp + verify
