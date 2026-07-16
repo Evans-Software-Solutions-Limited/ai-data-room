@@ -188,3 +188,54 @@ export function scopedRepo(orgId: OrgId, db: DbOrTx): ScopedRepos {
     // T-004: `membership`, `invitations`, `externalGrants`, `auditReads`, …
   };
 }
+
+/**
+ * The audit tag every system-initiated operation carries (FR2). `actor` is a
+ * fixed literal so a system write can never be mistaken for a user's, and
+ * `reason` names the job/webhook that ran — the application layer expands
+ * this into an audit event's metadata (see `application/_audit-context.ts`
+ * `systemAuditContext`). There is no anonymous system path: a `reason` is
+ * mandatory.
+ */
+export interface SystemAuditTag {
+  readonly actor: "system";
+  readonly reason: string;
+}
+
+/**
+ * A tenant scope for an operation with no authenticated actor — a retention
+ * sweep, a webhook handler, a cron job. It bundles the same org-bound
+ * `ScopedRepos` a request would get with the mandatory system audit tag.
+ */
+export interface SystemScope {
+  readonly orgId: OrgId;
+  readonly repos: ScopedRepos;
+  readonly audit: SystemAuditTag;
+}
+
+/**
+ * The ONLY way a system path obtains tenant-scoped repos (FR2). Crucially it
+ * still requires a concrete `orgId`: a system job must NAME the org(s) it
+ * touches (loop over `systemScope(orgId, …)` per org), because there is
+ * deliberately no "all orgs" handle anywhere in this module — an unscoped
+ * system read is exactly the cross-tenant hole ADR-011 forbids. `reason` is
+ * mandatory so every system access is attributable in the audit trail.
+ */
+export function systemScope(
+  orgId: OrgId,
+  db: DbOrTx,
+  opts: { reason: string },
+): SystemScope {
+  assertOrgId(orgId);
+  const reason = opts?.reason;
+  if (typeof reason !== "string" || reason.length === 0) {
+    throw new ScopedRepoError(
+      "systemScope requires a non-empty reason naming the job/webhook",
+    );
+  }
+  return {
+    orgId,
+    repos: scopedRepo(orgId, db),
+    audit: { actor: "system", reason },
+  };
+}

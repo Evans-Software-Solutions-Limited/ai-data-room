@@ -9,8 +9,11 @@ import { MetricUnit } from "@aws-lambda-powertools/metrics";
 
 import { metrics } from "../../infrastructure/observability/metrics";
 import { logger } from "../../infrastructure/logging/logger";
-import { safeAudit } from "../_audit-context";
+import { safeAudit, systemAuditContext } from "../_audit-context";
+import { recordAuditEvent } from "../audit";
+import { systemScope } from "../../infrastructure/db/scoped";
 import type { AuditRepo } from "../../infrastructure/db/auditRepo";
+import type { DbOrTx } from "@ai-data-room/db";
 
 function makeAuditRepo(
   write: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(undefined),
@@ -79,5 +82,56 @@ describe("safeAudit", () => {
       vi.fn().mockRejectedValue(new Error("boom")),
     );
     await expect(safeAudit({ auditRepo }, EVENT)).resolves.toBeUndefined();
+  });
+});
+
+describe("systemAuditContext (tenant-isolation T-003 / FR2)", () => {
+  const ORG = "22222222-2222-4222-8222-222222222222";
+
+  it("expands a system scope's audit tag into null-actor system audit fields", () => {
+    const scope = systemScope(ORG, {} as DbOrTx, { reason: "retention-sweep" });
+    expect(systemAuditContext(scope.audit)).toEqual({
+      sourceIp: "127.0.0.1",
+      userAgent: "system",
+      actorUserId: null,
+      metadata: { actor: "system", reason: "retention-sweep" },
+    });
+  });
+
+  it("produces an audit event that carries the system tag through the real writer (DoD)", async () => {
+    // End-to-end: systemScope tag → systemAuditContext → recordAuditEvent's
+    // canonical validation (incl. `sourceIp: z.string().ip()`, which the
+    // loopback sentinel must satisfy) → the written row. Proves the audit
+    // event actually carries `{ actor: 'system', reason }` and a null actor,
+    // not just that the helper returns the right shape.
+    const scope = systemScope(ORG, {} as DbOrTx, {
+      reason: "webhook:retention",
+    });
+    const write = vi
+      .fn()
+      .mockResolvedValue({ id: "evt", occurredAt: new Date() });
+    const auditRepo = makeAuditRepo(write);
+
+    await recordAuditEvent(
+      {
+        eventType: "user_deleted",
+        outcome: "success",
+        orgId: scope.orgId,
+        ...systemAuditContext(scope.audit),
+      },
+      { auditRepo },
+    );
+
+    expect(write).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "user_deleted",
+        outcome: "success",
+        orgId: ORG,
+        actorUserId: null,
+        sourceIp: "127.0.0.1",
+        userAgent: "system",
+        metadata: { actor: "system", reason: "webhook:retention" },
+      }),
+    );
   });
 });

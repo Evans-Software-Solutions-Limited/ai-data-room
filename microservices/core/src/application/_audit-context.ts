@@ -7,6 +7,7 @@
 import { serializeError } from "@ai-data-room/api-utils/logging";
 
 import type { AuditRepo } from "../infrastructure/db/auditRepo";
+import type { SystemAuditTag } from "../infrastructure/db/scoped";
 import { logger } from "../infrastructure/logging/logger";
 import { emitCount } from "../infrastructure/observability/metrics";
 
@@ -20,6 +21,35 @@ import { recordAuditEvent } from "./audit";
 export interface AuditContext {
   sourceIp: string;
   userAgent: string;
+}
+
+// A system-initiated audit event has no external client. `AuditEventSchema`
+// still requires a valid IP (`z.string().ip()`), so we stamp the IPv4
+// loopback — semantically "originated locally, inside our own system", never
+// a real client address. Paired with `userAgent: "system"` and a null actor.
+const SYSTEM_SOURCE_IP = "127.0.0.1";
+const SYSTEM_USER_AGENT = "system";
+
+/**
+ * The audit fields a system operation (tenant-isolation T-003 `systemScope`)
+ * records: no request context, no user actor, and a metadata tag naming the
+ * job so a `systemScope` write is always attributable and never looks like a
+ * user's. Spread this into a `recordAuditEvent` / `safeAudit` call alongside
+ * the event type, outcome, and `orgId` the system scope names.
+ */
+export interface SystemAuditContext extends AuditContext {
+  actorUserId: null;
+  metadata: { actor: "system"; reason: string };
+}
+
+/** Expand a `systemScope(...).audit` tag into the audit fields above (FR2). */
+export function systemAuditContext(tag: SystemAuditTag): SystemAuditContext {
+  return {
+    sourceIp: SYSTEM_SOURCE_IP,
+    userAgent: SYSTEM_USER_AGENT,
+    actorUserId: null,
+    metadata: { actor: tag.actor, reason: tag.reason },
+  };
 }
 
 /**

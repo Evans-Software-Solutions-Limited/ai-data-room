@@ -17,6 +17,7 @@ import {
   ScopedRepo,
   ScopedRepoError,
   scopedRepo,
+  systemScope,
   tenantContext,
   type OrgId,
 } from "../scoped";
@@ -177,5 +178,37 @@ describe("scopedRepo factory", () => {
     const missingDb = () => scopedRepo(ORG_A);
     expect(typeof missingAll).toBe("function");
     expect(typeof missingDb).toBe("function");
+  });
+});
+
+describe("systemScope (FR2 — audited system path)", () => {
+  it("binds an org-scoped repo bundle and carries the system audit tag", () => {
+    const scope = systemScope(ORG_A, fakeDb, { reason: "retention-sweep" });
+    expect(scope.orgId).toBe(ORG_A);
+    expect(typeof scope.repos.withTx).toBe("function");
+    expect(scope.audit).toEqual({ actor: "system", reason: "retention-sweep" });
+  });
+
+  it("requires a concrete org — there is no all-orgs handle (runtime backstop)", () => {
+    expect(() => systemScope("", fakeDb, { reason: "sweep" })).toThrow(
+      ScopedRepoError,
+    );
+  });
+
+  it("requires a non-empty reason so every system access is attributable", () => {
+    expect(() => systemScope(ORG_A, fakeDb, { reason: "" })).toThrow(
+      ScopedRepoError,
+    );
+  });
+
+  it("is a compile-time error to omit the org (no default-all system path)", () => {
+    // The concrete-org requirement is what makes "no implicit all-orgs
+    // default" a type-level guarantee, not just a runtime check.
+    // @ts-expect-error orgId, db and opts are all required
+    const missingAll = () => systemScope();
+    // @ts-expect-error db and opts are required
+    const missingRest = () => systemScope(ORG_A);
+    expect(typeof missingAll).toBe("function");
+    expect(typeof missingRest).toBe("function");
   });
 });
