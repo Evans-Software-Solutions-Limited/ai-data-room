@@ -144,6 +144,12 @@ export const OpportunitySchema = z.object({
 export const DocumentVersionSchema = z.object({
   id: z.string().uuid(),
   documentId: z.string().uuid(),
+  // Tenant-scoping column, denormalised from the parent document in
+  // T-003 so `document_versions` is directly scopable (see the schema
+  // reconciliation note in `packages/db/src/schema/rooms.ts`). Present on
+  // the aggregate like every other scoped row; the client DTO
+  // (`DocumentVersionDTOSchema`) deliberately omits it.
+  orgId: z.string().uuid(),
   versionNumber: z.number().int().positive(),
   originalFilename: z.string().min(1).max(255),
   mimeType: MimeTypeEnum,

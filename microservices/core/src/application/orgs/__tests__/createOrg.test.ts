@@ -99,6 +99,10 @@ function makeMocks(): Mocks {
     invitations: {} as unknown as ScopedRepos["invitations"],
     externalGrants: {} as unknown as ScopedRepos["externalGrants"],
     auditReads: {} as unknown as ScopedRepos["auditReads"],
+    opportunities: {} as unknown as ScopedRepos["opportunities"],
+    documents: {} as unknown as ScopedRepos["documents"],
+    documentVersions: {} as unknown as ScopedRepos["documentVersions"],
+    documentDeletions: {} as unknown as ScopedRepos["documentDeletions"],
     withTx: vi.fn(),
   });
 

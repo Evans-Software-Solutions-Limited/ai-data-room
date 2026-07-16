@@ -277,6 +277,7 @@ describe("DocumentVersionSchema", () => {
   const validVersion = {
     id: VERSION_ID,
     documentId: DOCUMENT_ID,
+    orgId: ORG_ID,
     versionNumber: 1,
     originalFilename: "Term Sheet.pdf",
     mimeType: "application/pdf" as const,
@@ -296,6 +297,12 @@ describe("DocumentVersionSchema", () => {
     expect(() =>
       DocumentVersionSchema.parse({ ...validVersion, versionNumber: 0 }),
     ).toThrow();
+  });
+
+  it("rejects a missing orgId", () => {
+    const { orgId: _orgId, ...noOrg } = validVersion;
+    void _orgId;
+    expect(() => DocumentVersionSchema.parse(noOrg)).toThrow();
   });
 });
 

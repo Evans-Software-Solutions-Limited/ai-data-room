@@ -30,6 +30,7 @@ import {
 } from "@ai-data-room/db/test/integration/setup";
 import { schema } from "@ai-data-room/db";
 import type { InvitationState } from "@ai-data-room/api-utils/schemas/auth-orgs";
+import { CANONICAL_FOLDERS } from "@ai-data-room/api-utils/schemas/rooms";
 
 import { scopedRepo } from "../../../src/infrastructure/db/scoped";
 import { OrgRepo } from "../../../src/infrastructure/db/orgRepo";
@@ -53,6 +54,9 @@ interface OrgDist {
   invites: InvitationState[];
   grants: number;
   audits: number;
+  // room-and-folders (slice 2) / T-004 scoped repos.
+  opps: number;
+  docs: number;
 }
 
 const orgDist: fc.Arbitrary<OrgDist> = fc.record({
@@ -60,6 +64,8 @@ const orgDist: fc.Arbitrary<OrgDist> = fc.record({
   invites: fc.array(fc.constantFrom(...INVITE_STATES), { maxLength: 4 }),
   grants: fc.integer({ min: 0, max: 3 }),
   audits: fc.integer({ min: 0, max: 3 }),
+  opps: fc.integer({ min: 0, max: 2 }),
+  docs: fc.integer({ min: 0, max: 3 }),
 });
 
 describe("Cross-tenant isolation property (T-006, NFR1 / AC-US4)", () => {
@@ -158,7 +164,70 @@ describe("Cross-tenant isolation property (T-006, NFR1 / AC-US4)", () => {
       );
     }
 
-    return { orgId: org.id, memberUserIds, invitations };
+    // room-and-folders (T-004): opportunities.
+    const opportunityIds: string[] = [];
+    for (let i = 0; i < dist.opps; i++) {
+      const opp = await scoped.opportunities.create({
+        slug: `Opp_${uniq()}`,
+        name: `Opp ${i}`,
+        createdBy: base.id,
+      });
+      opportunityIds.push(opp.id);
+    }
+
+    // Documents (each activated with one version) split across canonical
+    // folders and — when the org has any — opportunity subrooms.
+    const documentIds: string[] = [];
+    const versionIds: string[] = [];
+    for (let i = 0; i < dist.docs; i++) {
+      const intoOpp = opportunityIds.length > 0 && i % 2 === 1;
+      const doc = await scoped.documents.create(
+        intoOpp
+          ? {
+              folderKind: "opportunity",
+              opportunityId: opportunityIds[i % opportunityIds.length]!,
+              displayName: `doc_${uniq()}.pdf`,
+              createdBy: base.id,
+            }
+          : {
+              folderKind: "canonical",
+              canonicalFolder: CANONICAL_FOLDERS[i % CANONICAL_FOLDERS.length]!,
+              displayName: `doc_${uniq()}.pdf`,
+              createdBy: base.id,
+            },
+      );
+      const version = await scoped.documentVersions.create({
+        documentId: doc.id,
+        versionNumber: 1,
+        originalFilename: `doc_${i}.pdf`,
+        mimeType: "application/pdf",
+        sizeBytes: 1024,
+        sha256: "ab".repeat(32), // 64-char hex → 32-byte digest
+        s3Key: `orgs/${org.id}/documents/${doc.id}/v1`,
+        uploadedBy: base.id,
+      });
+      await scoped.documents.markActive(doc.id, version.id);
+      documentIds.push(doc.id);
+      versionIds.push(version.id);
+    }
+    // One deletion record (if any docs) to populate document_deletions for
+    // the scoped-read isolation check — the doc stays active; this row only
+    // has to exist under the org for the cross-tenant read to be meaningful.
+    if (documentIds.length > 0) {
+      await scoped.documentDeletions.create({
+        documentId: documentIds[0]!,
+        softDeletedBy: base.id,
+      });
+    }
+
+    return {
+      orgId: org.id,
+      memberUserIds,
+      invitations,
+      opportunityIds,
+      documentIds,
+      versionIds,
+    };
   }
 
   it("no scoped read under org A ever returns an org-B (or null-org) row", async () => {
@@ -208,6 +277,26 @@ describe("Cross-tenant isolation property (T-006, NFR1 / AC-US4)", () => {
         const audits = await scopedA.auditReads.list({ limit: 200 });
         seenOrgIds.push(...audits.map((e) => e.orgId));
 
+        // room-and-folders (T-004) scoped reads under A.
+        const activeOpps = await scopedA.opportunities.listActive();
+        seenOrgIds.push(...activeOpps.map((o) => o.orgId));
+
+        for (const folder of CANONICAL_FOLDERS) {
+          const canonDocs =
+            await scopedA.documents.listByCanonicalFolder(folder);
+          seenOrgIds.push(...canonDocs.map((d) => d.orgId));
+        }
+        for (const oppId of a.opportunityIds) {
+          const oppDocs = await scopedA.documents.listByOpportunity(oppId);
+          seenOrgIds.push(...oppDocs.map((d) => d.orgId));
+        }
+        for (const docId of a.documentIds) {
+          const versions = await scopedA.documentVersions.listByDocument(docId);
+          seenOrgIds.push(...versions.map((v) => v.orgId));
+          const dels = await scopedA.documentDeletions.listByDocument(docId);
+          seenOrgIds.push(...dels.map((x) => x.orgId));
+        }
+
         // THE invariant: nothing org-B, nothing null-org, everything org-A.
         expect(seenOrgIds).not.toContain(b.orgId);
         expect(seenOrgIds).not.toContain(null);
@@ -220,6 +309,28 @@ describe("Cross-tenant isolation property (T-006, NFR1 / AC-US4)", () => {
         }
         for (const bUserId of b.memberUserIds) {
           expect(await scopedA.membership.findMember(bUserId)).toBeNull();
+        }
+
+        // Cross-tenant PK reads on the room aggregates must miss under A,
+        // never leak B's row.
+        for (const bOppId of b.opportunityIds) {
+          expect(await scopedA.opportunities.findById(bOppId)).toBeNull();
+          // listByOpportunity for B's subroom under A returns nothing.
+          expect(
+            await scopedA.documents.listByOpportunity(bOppId),
+          ).toHaveLength(0);
+        }
+        for (const bDocId of b.documentIds) {
+          expect(await scopedA.documents.findById(bDocId)).toBeNull();
+          expect(
+            await scopedA.documents.getWithCurrentVersion(bDocId),
+          ).toBeNull();
+          expect(
+            await scopedA.documentVersions.listByDocument(bDocId),
+          ).toHaveLength(0);
+        }
+        for (const bVerId of b.versionIds) {
+          expect(await scopedA.documentVersions.findById(bVerId)).toBeNull();
         }
 
         // Cross-tenant WRITE isolation: a scoped state-transition on B's

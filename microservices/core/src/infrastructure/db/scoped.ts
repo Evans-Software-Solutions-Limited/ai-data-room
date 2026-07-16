@@ -50,9 +50,13 @@ import type { DbOrTx, Tx } from "@ai-data-room/db";
 // that it and the repo files it owns are the CI tripwire's carve-out from
 // "no raw access to a tenant-scoped table outside the factory".
 import { ScopedAuditReadRepo } from "./auditRepo";
+import { DocumentDeletionRepo } from "./documentDeletionRepo";
+import { DocumentRepo } from "./documentRepo";
+import { DocumentVersionRepo } from "./documentVersionRepo";
 import { ExternalGrantRepo } from "./externalGrantRepo";
 import { InvitationRepo } from "./invitationRepo";
 import { MembershipRepo } from "./membershipRepo";
+import { OpportunityRepo } from "./opportunityRepo";
 import { assertOrgId, ScopedRepoError, type OrgId } from "./scopedRepoBase";
 
 export * from "./scopedRepoBase";
@@ -69,6 +73,11 @@ export interface ScopedRepos {
   readonly invitations: InvitationRepo;
   readonly externalGrants: ExternalGrantRepo;
   readonly auditReads: ScopedAuditReadRepo;
+  // room-and-folders (slice 2) / T-004
+  readonly opportunities: OpportunityRepo;
+  readonly documents: DocumentRepo;
+  readonly documentVersions: DocumentVersionRepo;
+  readonly documentDeletions: DocumentDeletionRepo;
   withTx(tx: Tx): ScopedRepos;
 }
 
@@ -90,6 +99,10 @@ export function scopedRepo(orgId: OrgId, db: DbOrTx): ScopedRepos {
     invitations: new InvitationRepo(db, orgId),
     externalGrants: new ExternalGrantRepo(db, orgId),
     auditReads: new ScopedAuditReadRepo(db, orgId),
+    opportunities: new OpportunityRepo(db, orgId),
+    documents: new DocumentRepo(db, orgId),
+    documentVersions: new DocumentVersionRepo(db, orgId),
+    documentDeletions: new DocumentDeletionRepo(db, orgId),
     // Rebinding onto a tx re-enters the factory with the same org, so the
     // whole bundle stays scoped inside a `db.transaction(...)` callback.
     withTx: (tx) => scopedRepo(orgId, tx),

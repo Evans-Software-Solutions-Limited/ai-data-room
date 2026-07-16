@@ -273,6 +273,34 @@ function setupMocks(): MockSetup {
     },
   }));
 
+  // room-and-folders (slice 2) / T-004 scoped repos. Imported by the
+  // real `scoped.ts` factory (which this suite exercises via
+  // `resolveScopedRepos`); mocked as empty classes so their real
+  // modules' top-level `const { table } = schema` never runs against
+  // this file's schema-less `@ai-data-room/db` mock. No route under
+  // test touches them.
+  vi.doMock("../../../infrastructure/db/opportunityRepo", () => ({
+    OpportunityRepo: class {
+      withTx = () => this;
+    },
+  }));
+  vi.doMock("../../../infrastructure/db/documentRepo", () => ({
+    DocumentRepo: class {
+      withTx = () => this;
+    },
+  }));
+  vi.doMock("../../../infrastructure/db/documentVersionRepo", () => ({
+    DocumentVersionRepo: class {
+      withTx = () => this;
+    },
+    rowToVersion: vi.fn(),
+  }));
+  vi.doMock("../../../infrastructure/db/documentDeletionRepo", () => ({
+    DocumentDeletionRepo: class {
+      withTx = () => this;
+    },
+  }));
+
   // T-004: bootstrap reads that run BEFORE a tenant context exists —
   // `resolveActor`'s membership fallback, `/me`'s self-read of the
   // caller's own grants, and (unused by this test file, but stubbed
