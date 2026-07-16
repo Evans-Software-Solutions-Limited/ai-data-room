@@ -52,7 +52,7 @@ mismatched explicit `org_id`; `withTx` preserves scope.
 
 ## T-003 — `systemScope(orgId)` + audited system path
 
-Status: `[ ]`
+Status: `[x]` (merged PR #46 — `systemScope` in `scoped.ts` + `systemAuditContext` in `_audit-context.ts`)
 **Scope:** Explicit system-scope constructor for jobs/webhooks with an audit
 tag `{ actor: 'system', reason }`. No implicit all-orgs handle.
 **Files (likely):** `infrastructure/db/scoped.ts`,
@@ -66,7 +66,7 @@ path exists.
 
 ## T-004 — Backfill `auth-and-orgs` repos onto the factory
 
-Status: `[ ]`
+Status: `[x]` (merged PR #47 — 4 repos onto `ScopedRepo`; `resolveScopedRepos` guard injects `ctx.scoped`; `bootstrapRepo.ts` carve-out; `tenantScoping.integration.test.ts` regression)
 **Scope:** Route the existing **tenant-scoped** repositories (`membershipRepo`,
 `invitationRepo`, `externalGrantRepo`, `auditRepo` reads) through `scopedRepo`.
 **`userRepo` is exempt** (identity table, no `org_id`, used by the pre-tenancy
