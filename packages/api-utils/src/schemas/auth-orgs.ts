@@ -100,6 +100,10 @@ export const AuditEventTypeSchema = z.enum([
   // room-and-folders (slice 2) — T-008
   "folder_listed",
   "file_downloaded",
+  // room-and-folders (slice 2) — T-009 (document deletion lifecycle, FR17/FR18)
+  "file_soft_deleted",
+  "file_restored",
+  "file_hard_deleted",
 ]);
 
 /**

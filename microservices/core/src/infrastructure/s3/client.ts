@@ -54,6 +54,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  PutObjectTaggingCommand,
   S3Client,
   UploadPartCommand,
   type CompletedPart,
@@ -235,6 +236,36 @@ export function createS3DocumentStore(deps: S3DocumentStoreDeps) {
           Bucket: bucket,
           Key: key,
           ...(versionId ? { VersionId: versionId } : {}),
+        }),
+      );
+    },
+
+    /**
+     * Replace an object's tag set (§Storage layout). The hard-delete path
+     * (T-009) uses this to stamp `state=hard-deleted` on each version's
+     * object; the bucket lifecycle rule (T-001) reclaims tagged objects
+     * after a 7-day ops grace, so we mark-for-reclaim here rather than
+     * deleting the bytes outright. `PutObjectTagging` REPLACES the whole
+     * tag set (S3 has no "add one tag" op), which is what we want — the
+     * only tag we set on document objects is this state marker. Pass
+     * `versionId` to tag a specific S3 object version.
+     */
+    async tagObject(
+      key: string,
+      tags: Record<string, string>,
+      versionId?: string,
+    ): Promise<void> {
+      await client.send(
+        new PutObjectTaggingCommand({
+          Bucket: bucket,
+          Key: key,
+          ...(versionId ? { VersionId: versionId } : {}),
+          Tagging: {
+            TagSet: Object.entries(tags).map(([Key, Value]) => ({
+              Key,
+              Value,
+            })),
+          },
         }),
       );
     },
