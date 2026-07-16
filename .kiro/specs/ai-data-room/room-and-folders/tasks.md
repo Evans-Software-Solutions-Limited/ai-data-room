@@ -101,7 +101,7 @@ pre-signed URL format.
 
 ## T-006 — Application: opportunity CRUD
 
-Status: `[ ]`
+Status: `[x]` (PR #57)
 **Scope:** `createOpportunity`, `renameOpportunity`,
 `archiveOpportunity`, `listOpportunities`. Enforce slug regex,
 uniqueness per org, archive → revoke-external-grants via

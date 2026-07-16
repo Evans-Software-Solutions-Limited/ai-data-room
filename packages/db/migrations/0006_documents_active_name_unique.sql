@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "documents_active_canonical_name_key" ON "documents" USING btree ("org_id","canonical_folder","display_name") WHERE state = 'active' AND folder_kind = 'canonical';--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "documents_active_opportunity_name_key" ON "documents" USING btree ("org_id","opportunity_id","display_name") WHERE state = 'active' AND folder_kind = 'opportunity';

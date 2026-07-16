@@ -96,6 +96,48 @@ export class DocumentRepo extends ScopedRepo {
     return row as Document;
   }
 
+  /**
+   * The active document with `displayName` in the given folder, or `null`
+   * (T-007 filename-collision detection, FR13). Matches `state='active'`
+   * + the folder (canonical folder or opportunity id) + display name,
+   * scoped to the bound org. Ordered by `created_at` so the result is
+   * deterministic if (against the FR13 invariant, which the app upholds)
+   * two active docs ever share a name — there is no DB unique on it.
+   */
+  async findActiveByName(
+    input: { displayName: string } & (
+      | { folderKind: "canonical"; canonicalFolder: CanonicalFolder }
+      | { folderKind: "opportunity"; opportunityId: string }
+    ),
+  ): Promise<Document | null> {
+    const folderMatch =
+      input.folderKind === "canonical"
+        ? and(
+            eq(documents.folderKind, "canonical"),
+            eq(documents.canonicalFolder, input.canonicalFolder),
+          )
+        : and(
+            eq(documents.folderKind, "opportunity"),
+            eq(documents.opportunityId, input.opportunityId),
+          );
+    const rows = await this.db
+      .select()
+      .from(documents)
+      .where(
+        this.scoped(
+          documents.orgId,
+          and(
+            eq(documents.state, "active"),
+            eq(documents.displayName, input.displayName),
+            folderMatch,
+          ),
+        ),
+      )
+      .orderBy(asc(documents.createdAt))
+      .limit(1);
+    return firstOrNull(rows as Document[]);
+  }
+
   /** A single document by id within the bound org, or `null`. */
   async findById(id: string): Promise<Document | null> {
     const rows = await this.db

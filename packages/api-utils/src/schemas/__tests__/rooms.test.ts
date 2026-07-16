@@ -21,6 +21,10 @@ import {
   FolderPathSchema,
   RoomDTOSchema,
   FolderListingDTOSchema,
+  UploadTargetSchema,
+  UploadInitiateSchema,
+  UploadCompleteSchema,
+  MAX_UPLOAD_BYTES,
 } from "../rooms";
 
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
@@ -434,5 +438,89 @@ describe("FolderListingDTOSchema", () => {
 
   it("rejects a missing documents array", () => {
     expect(() => FolderListingDTOSchema.parse({})).toThrow();
+  });
+});
+
+describe("UploadTargetSchema", () => {
+  it("parses the canonical and opportunity variants", () => {
+    expect(
+      UploadTargetSchema.parse({ kind: "canonical", folder: "02_Financials" }),
+    ).toEqual({ kind: "canonical", folder: "02_Financials" });
+    expect(
+      UploadTargetSchema.parse({
+        kind: "opportunity",
+        opportunityId: OPPORTUNITY_ID,
+      }),
+    ).toEqual({ kind: "opportunity", opportunityId: OPPORTUNITY_ID });
+  });
+
+  it("rejects a canonical target with an unknown folder", () => {
+    expect(() =>
+      UploadTargetSchema.parse({ kind: "canonical", folder: "08_Other" }),
+    ).toThrow();
+  });
+});
+
+describe("UploadInitiateSchema (FR9/FR10)", () => {
+  const base = {
+    target: { kind: "canonical" as const, folder: "02_Financials" as const },
+    filename: "Term Sheet.pdf",
+    mimeType: "application/pdf" as const,
+    sizeBytes: 1024,
+  };
+
+  it("parses a valid initiate body", () => {
+    expect(UploadInitiateSchema.parse(base).filename).toBe("Term Sheet.pdf");
+  });
+
+  it("rejects an unsupported mime type (FR9)", () => {
+    expect(() =>
+      UploadInitiateSchema.parse({ ...base, mimeType: "application/zip" }),
+    ).toThrow();
+  });
+
+  it("accepts exactly the max size and rejects one byte over (FR10)", () => {
+    expect(
+      UploadInitiateSchema.parse({ ...base, sizeBytes: MAX_UPLOAD_BYTES })
+        .sizeBytes,
+    ).toBe(MAX_UPLOAD_BYTES);
+    expect(() =>
+      UploadInitiateSchema.parse({ ...base, sizeBytes: MAX_UPLOAD_BYTES + 1 }),
+    ).toThrow();
+  });
+
+  it("rejects a zero/negative size", () => {
+    expect(() =>
+      UploadInitiateSchema.parse({ ...base, sizeBytes: 0 }),
+    ).toThrow();
+  });
+
+  it("rejects a filename longer than 255 chars", () => {
+    expect(() =>
+      UploadInitiateSchema.parse({ ...base, filename: "a".repeat(256) }),
+    ).toThrow();
+  });
+});
+
+describe("UploadCompleteSchema", () => {
+  const base = {
+    uploadId: "upload-abc",
+    documentId: DOCUMENT_ID,
+    versionId: VERSION_ID,
+    parts: [{ partNumber: 1, eTag: "etag-1" }],
+  };
+
+  it("parses a valid complete body", () => {
+    expect(UploadCompleteSchema.parse(base).parts).toHaveLength(1);
+  });
+
+  it("rejects an empty parts array", () => {
+    expect(() => UploadCompleteSchema.parse({ ...base, parts: [] })).toThrow();
+  });
+
+  it("rejects a non-uuid documentId", () => {
+    expect(() =>
+      UploadCompleteSchema.parse({ ...base, documentId: "nope" }),
+    ).toThrow();
   });
 });

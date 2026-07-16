@@ -313,6 +313,57 @@ export const FolderListingDTOSchema = z.object({
   documents: z.array(DocumentDTOSchema),
 });
 
+// ─── Upload request schemas (T-007) ──────────────────────────────────
+
+/**
+ * Where an upload lands: one of the seven canonical folders, or an
+ * Opportunity subroom by id. Distinct from `FolderPathSchema` — the
+ * client initiating an upload identifies an opportunity by id only (it
+ * needn't know the slug), so no `slug` on the opportunity variant.
+ */
+export const UploadTargetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("canonical"), folder: CanonicalFolderSchema }),
+  z.object({
+    kind: z.literal("opportunity"),
+    opportunityId: z.string().uuid(),
+  }),
+]);
+
+/** Max single-file size (FR10). */
+export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+
+/**
+ * `POST /uploads/initiate` body. `mimeType` ∈ `MimeTypeEnum` enforces
+ * FR9 (unsupported types rejected here); `sizeBytes` ≤ `MAX_UPLOAD_BYTES`
+ * enforces FR10 — both at the schema boundary before any S3 call.
+ */
+export const UploadInitiateSchema = z.object({
+  target: UploadTargetSchema,
+  filename: z.string().min(1).max(255),
+  mimeType: MimeTypeEnum,
+  sizeBytes: z.number().int().positive().max(MAX_UPLOAD_BYTES),
+});
+
+/**
+ * `POST /uploads/:uploadId/complete` body. The client echoes the ticket
+ * `initiateUpload` returned (`documentId` / `versionId` / `uploadId`) —
+ * completion is safe because every DB write is org-scoped and the S3
+ * `uploadId` is bound to the server-derived object key.
+ */
+export const UploadCompleteSchema = z.object({
+  uploadId: z.string().min(1),
+  documentId: z.string().uuid(),
+  versionId: z.string().uuid(),
+  parts: z
+    .array(
+      z.object({
+        partNumber: z.number().int().positive(),
+        eTag: z.string().min(1),
+      }),
+    )
+    .min(1),
+});
+
 // ─── Inferred types (re-exported from `core/src/domain/room.ts`) ──────
 
 export type OpportunityStatus = z.infer<typeof OpportunityStatusSchema>;
@@ -331,3 +382,7 @@ export type DocumentDTO = z.infer<typeof DocumentDTOSchema>;
 export type OpportunityDTO = z.infer<typeof OpportunityDTOSchema>;
 export type RoomDTO = z.infer<typeof RoomDTOSchema>;
 export type FolderListingDTO = z.infer<typeof FolderListingDTOSchema>;
+
+export type UploadTarget = z.infer<typeof UploadTargetSchema>;
+export type UploadInitiate = z.infer<typeof UploadInitiateSchema>;
+export type UploadComplete = z.infer<typeof UploadCompleteSchema>;
