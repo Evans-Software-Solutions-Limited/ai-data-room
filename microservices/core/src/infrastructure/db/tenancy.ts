@@ -39,6 +39,15 @@ export const TENANT_SCOPED_TABLES = [
   "invitations",
   "external_access_grants",
   "audit_events",
+  // room-and-folders (slice 2) / T-003. All four carry a direct `org_id`
+  // → `organizations.id`. `document_versions.org_id` is denormalised
+  // from its parent document specifically so it can be scoped like every
+  // other per-tenant table (see the reconciliation note in
+  // `packages/db/src/schema/rooms.ts`); its scoped repo lands in T-004.
+  "opportunities",
+  "documents",
+  "document_versions",
+  "document_deletions",
 ] as const;
 
 /**

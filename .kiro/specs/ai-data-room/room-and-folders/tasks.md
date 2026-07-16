@@ -39,7 +39,7 @@ after 7 days.
 
 ## T-002 — Domain: types + zod schemas
 
-Status: `[ ]`
+Status: `[x]` (PR #52)
 **Scope:** `Opportunity`, `Document`, `DocumentVersion`, `FolderPath`
 discriminated union, `CanonicalFolder` enum const, `MimeTypeEnum`,
 `DocumentState`, `OpportunityStatus`. DTOs for listings + single-doc

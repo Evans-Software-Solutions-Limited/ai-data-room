@@ -5,8 +5,8 @@
 // 1. The committed `migrations/*.sql` files apply cleanly against the
 //    integration database (Postgres 16, the same major version
 //    PlanetScale runs).
-// 2. Every table defined in `src/schema/auth.ts` exists after apply,
-//    and the enum types are present.
+// 2. Every table defined in the schema (`auth.ts` + `rooms.ts`) exists
+//    after apply, and the enum types are present.
 // 3. A clean rollback (drop the public schema) and re-apply leaves the
 //    database in its starting state — proving migrations are
 //    reversible at the catastrophic-rollback level. Per-migration
@@ -60,8 +60,13 @@ async function runMigrationFile(
 
 const EXPECTED_TABLES = [
   "audit_events",
+  // room-and-folders (slice 2) / T-003
+  "document_deletions",
+  "document_versions",
+  "documents",
   "external_access_grants",
   "invitations",
+  "opportunities",
   "org_memberships",
   "organizations",
   "users",
@@ -70,10 +75,14 @@ const EXPECTED_TABLES = [
 
 const EXPECTED_ENUMS = [
   "audit_outcome",
+  // room-and-folders (slice 2) / T-003
+  "document_state",
   "external_grant_status",
+  "folder_kind",
   "invitation_kind",
   "invitation_role",
   "invitation_state",
+  "opportunity_status",
   "org_role",
   "org_status",
   "user_lifecycle_state",
@@ -99,7 +108,7 @@ describe("drizzle migrations smoke test", () => {
     await expect(applyMigrations()).resolves.not.toThrow();
   });
 
-  it("creates every table defined in src/schema/auth.ts", async () => {
+  it("creates every table defined in the schema (auth + rooms)", async () => {
     const sql = getTestPool();
     // No need to filter `__drizzle_migrations` — it lives in the
     // separate `drizzle` schema (drizzle-orm 0.30+), so the

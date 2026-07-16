@@ -5,8 +5,8 @@
 // Slice 1 — auth-and-orgs
 export * from "./auth";
 
-// Slice 2 — room-and-folders (exports land when slice 2 T-001 runs)
-// export * from "./rooms";
+// Slice 2 — room-and-folders (T-003)
+export * from "./rooms";
 
 // Slice 3 — access-control
 // export * from "./access-control";

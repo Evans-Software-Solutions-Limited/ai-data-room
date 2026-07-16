@@ -36,6 +36,13 @@
       "when": 1780264192407,
       "tag": "0004_role_vocab_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784211270610,
+      "tag": "0005_room_and_folders",
+      "breakpoints": true
     }
   ]
 }
