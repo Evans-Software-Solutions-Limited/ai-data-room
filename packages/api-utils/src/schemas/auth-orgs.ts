@@ -91,6 +91,10 @@ export const AuditEventTypeSchema = z.enum([
   // org-provisioning (slice 17) — T-001
   "org_created",
   "membership_created",
+  // room-and-folders (slice 2) — T-006 (Opportunity subroom lifecycle, FR19)
+  "opportunity_created",
+  "opportunity_renamed",
+  "opportunity_archived",
 ]);
 
 /**

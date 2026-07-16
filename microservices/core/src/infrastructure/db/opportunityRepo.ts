@@ -87,10 +87,15 @@ export class OpportunityRepo extends ScopedRepo {
   }
 
   /**
-   * Rename an Opportunity (FR5) — slug + display name. Preserves all
-   * documents and grants (they reference the id, not the slug). Returns
-   * the updated row, or `null` if the id is unknown / belongs to a
-   * foreign org, so the handler can return 404 rather than 500.
+   * Rename an Opportunity (FR5) — slug + display name. Documents are
+   * preserved automatically (they reference `opportunity_id`, not the
+   * slug). External grants, however, reference the MUTABLE
+   * `opportunity_slug`, so the application layer (`renameOpportunity`,
+   * T-006) must re-key them in the same transaction via
+   * `ExternalGrantRepo.retargetOpportunitySlug` — this repo method only
+   * touches the `opportunities` row. Returns the updated row, or `null`
+   * if the id is unknown / belongs to a foreign org, so the handler can
+   * return 404 rather than 500.
    */
   async rename(
     id: string,
