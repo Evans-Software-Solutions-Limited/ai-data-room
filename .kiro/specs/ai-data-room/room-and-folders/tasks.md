@@ -69,7 +69,7 @@ test DB, insert each table's happy-path row, query, roll back.
 
 ## T-004 — Infrastructure: repositories
 
-Status: `[ ]`
+Status: `[x]` (PR #54)
 **Scope:** `OpportunityRepo`, `DocumentRepo`, `DocumentVersionRepo`,
 `DocumentDeletionRepo`. Query methods: list-by-folder, list-by-
 opportunity, get-with-current-version, create-version, soft-delete,
