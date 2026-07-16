@@ -70,10 +70,41 @@ Columns added to the existing table (migration in this slice):
 | `revoked_at`        | `timestamptz` nullable                                        |                                                                           |
 | `revoked_by`        | `uuid` nullable FK `users.id`                                 |                                                                           |
 
-Existing columns (`org_id`, `user_id`, `opportunity_slug`,
-`granted_by`) stay. `opportunity_slug` will be migrated to
-`opportunity_id` FK when that table exists (see T-003 in this
-slice's tasks.md).
+Existing columns (`org_id`, `user_id`, `granted_by`) stay.
+
+#### `opportunity_slug` → `opportunity_id` FK (T-001)
+
+In `auth-and-orgs` v0.1 a grant referenced its Opportunity subroom by
+the **mutable** `opportunity_slug` text column, because the
+`opportunities` table did not exist yet. `room-and-folders` (slice 2)
+shipped that table and, as a stopgap, re-keys grants' slug inside
+`renameOpportunity` (`ExternalGrantRepo.retargetOpportunitySlug`) so
+archive-triggered revocation still matches the current slug — see
+[ADR-014](../../../adr/014-archive-triggered-grant-revocation.md)
+("Known residual"). That stopgap leaves one edge open: an invite created
+while the slug was `X`, **accepted after** the subroom is renamed to `Y`,
+produces a grant keyed on the stale `X` that archive-revocation (matching
+on `Y`) misses. This slice adopts the durable fix ADR-014 defers to it:
+
+- **Add `opportunity_id uuid NOT NULL FK opportunities(id)`** (T-001),
+  tenant-scoped (`org_id` already present), backfilled from
+  `(org_id, opportunity_slug)`, then **drop `opportunity_slug`**.
+- **Stamp `opportunity_id` at grant creation** (T-007). To be
+  rename-proof end-to-end the id must be fixed no later than invite
+  time: resolving slug→id only at _accept_ time still breaks if the
+  subroom was renamed in the pending window (the stale slug resolves to
+  nothing). The clean form carries `opportunity_id` on the invitation
+  itself — a small `auth-and-orgs` invitation follow-on (add
+  `opportunity_id` to `invitations`, set at invite creation) — so accept
+  copies the id verbatim. Flag this dependency in T-007.
+- **Revocation + enforcement key on `opportunity_id`, never the slug**
+  (`GrantRepo` T-003, lifecycle T-007, the download revalidator T-012).
+- **Remove `room-and-folders`'s slug coupling** as part of T-001: the
+  slug column removal breaks `ExternalGrantRepo.revokeActiveForOpportunity`
+  and `retargetOpportunitySlug`, so this migration re-keys
+  `revokeActiveForOpportunity` on `opportunity_id`, updates
+  `archiveOpportunity` to pass the id, and deletes the now-redundant
+  `retargetOpportunitySlug` rename stopgap.
 
 ### `nda_templates`
 

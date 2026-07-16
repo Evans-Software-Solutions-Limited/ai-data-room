@@ -21,11 +21,23 @@ Status: `[ ]`
 `nda_template_id`, `nda_acceptance_id`, `revoked_at`, `revoked_by`).
 Create `nda_templates`, `nda_acceptances`, `internal_exclusions`
 tables. Replace `opportunity_slug` column with `opportunity_id` FK
-(data migration to `opportunities.id` using slug lookup).
+→ `opportunities.id` (backfill from `(org_id, opportunity_slug)`),
+per design §"`opportunity_slug` → `opportunity_id` FK" and
+[ADR-014](../../../adr/014-archive-triggered-grant-revocation.md).
+Dropping the slug column breaks `room-and-folders`'s
+`ExternalGrantRepo`, so this task also: re-keys
+`revokeActiveForOpportunity` on `opportunity_id`, updates
+`archiveOpportunity` to pass the id, and **deletes the
+`retargetOpportunitySlug` rename stopgap** (no longer needed once grants
+key on the immutable id).
 **Files (likely):** `packages/db/schema/access.ts`,
-`packages/db/migrations/*.sql`.
+`packages/db/migrations/*.sql`,
+`microservices/core/src/infrastructure/db/externalGrantRepo.ts`,
+`microservices/core/src/application/room/opportunities.ts`.
 **DoD:** Migrations apply + roll back in test; slug→id data migration
-verified against seeded data.
+verified against seeded data; room-and-folders' rename/archive tests
+pass without the re-key hack; the `retargetOpportunitySlug` unit +
+integration coverage is removed with the method.
 **Tests required:** Integration migration test.
 
 ---
@@ -107,12 +119,21 @@ decorator; a fixture handler without one fails.
 
 Status: `[ ]`
 **Scope:** `createExternalGrant` (integrates with auth-and-orgs
-invitation flow), `revokeGrant`, `editGrantExpiry`, `editGrantTier`,
-`listGrants` with FR16 filters. Each writes audit events.
+invitation flow) — **stamps `opportunity_id`** (not slug) on the grant,
+resolved from the invitation; to be rename-proof the id must be fixed at
+invite time, so this depends on the invitation carrying `opportunity_id`
+(a small `auth-and-orgs` follow-on — see design §"`opportunity_slug` →
+`opportunity_id` FK"; if that follow-on isn't done, resolve the current
+Opportunity at creation and document the residual). `revokeGrant`,
+`editGrantExpiry`, `editGrantTier`, `listGrants` with FR16 filters — all
+key on `opportunity_id`. Each writes audit events.
 **Files (likely):**
 `microservices/core/application/access/grants.ts`.
-**DoD:** FR1–FR4, FR6 covered.
-**Tests required:** Unit for each branch.
+**DoD:** FR1–FR4, FR6 covered; grants carry + are revoked by
+`opportunity_id`; the ADR-014 invite-accept-after-rename edge is closed
+(or its residual explicitly documented if the invitation follow-on is
+deferred).
+**Tests required:** Unit for each branch, incl. a rename-then-accept case.
 
 ---
 
