@@ -208,24 +208,33 @@ function setupMocks(): MockSetup {
     },
   }));
 
+  // T-004: `MembershipRepo` is now a `ScopedRepo` subclass — the org
+  // predicate is bound at construction (`scopedRepo(orgId, db)`), so
+  // the mock's methods take one fewer argument than pre-T-004
+  // (`findByOrgUser(orgId, userId)` → `findMember(userId)`,
+  // `findOwnerForOrg(orgId)` → `findOwner()`). `findByUser` /
+  // `lockForUserCreate` moved to the `TenantBootstrapRepo` mock below
+  // — they run before a tenant context (and hence a bound org) exists.
   const membershipFindByOrgUser = vi.fn();
-  const membershipFindByUser = vi.fn().mockResolvedValue(null);
   const membershipCreate = vi.fn().mockResolvedValue(OWNER_MEMBERSHIP);
   vi.doMock("../../../infrastructure/db/membershipRepo", () => ({
     MembershipRepo: class {
-      findByOrgUser = membershipFindByOrgUser;
-      findByUser = membershipFindByUser;
-      findOwnerForOrg = vi.fn().mockResolvedValue(null);
+      findMember = membershipFindByOrgUser;
+      findOwner = vi.fn().mockResolvedValue(null);
+      list = vi.fn().mockResolvedValue([]);
       create = membershipCreate;
-      lockForUserCreate = vi.fn().mockResolvedValue(undefined);
       withTx = () => this;
     },
   }));
 
-  const grantListByUser = vi.fn().mockResolvedValue([]);
+  // T-004: the org-side roster read is `list()` (no explicit orgId);
+  // the self-read of a user's own grants moved to
+  // `TenantBootstrapRepo.listGrantsForUser` (below) since it must work
+  // for external users, who have no `localOrgId` / scoped handle.
   vi.doMock("../../../infrastructure/db/externalGrantRepo", () => ({
     ExternalGrantRepo: class {
-      listByUser = grantListByUser;
+      create = vi.fn();
+      list = vi.fn().mockResolvedValue([]);
       withTx = () => this;
     },
   }));
@@ -238,7 +247,7 @@ function setupMocks(): MockSetup {
     InvitationRepo: class {
       create = invitationCreate;
       findById = invitationFindById;
-      listByOrgAndState = invitationListByOrgAndState;
+      listByState = invitationListByOrgAndState;
       transitionState = invitationTransitionState;
       withTx = () => this;
     },
@@ -248,11 +257,34 @@ function setupMocks(): MockSetup {
     id: "audit_id",
     occurredAt: new Date(),
   });
+  // T-004: the org-scoped audit READ moved off `AuditRepo.listByOrg`
+  // (removed — the writer stays unscoped, see `auditRepo.ts`) onto
+  // `ScopedAuditReadRepo.list()`, the class `scopedRepo()` exports as
+  // `auditReads`.
   const auditListByOrg = vi.fn().mockResolvedValue([]);
   vi.doMock("../../../infrastructure/db/auditRepo", () => ({
     AuditRepo: class {
       write = auditWrite;
-      listByOrg = auditListByOrg;
+      withTx = () => this;
+    },
+    ScopedAuditReadRepo: class {
+      list = auditListByOrg;
+      withTx = () => this;
+    },
+  }));
+
+  // T-004: bootstrap reads that run BEFORE a tenant context exists —
+  // `resolveActor`'s membership fallback, `/me`'s self-read of the
+  // caller's own grants, and (unused by this test file, but stubbed
+  // for completeness) the webhook's invitation lookup.
+  const membershipFindByUser = vi.fn().mockResolvedValue(null);
+  const grantListByUser = vi.fn().mockResolvedValue([]);
+  vi.doMock("../../../infrastructure/db/bootstrapRepo", () => ({
+    TenantBootstrapRepo: class {
+      findMembershipForUser = membershipFindByUser;
+      lockForUserCreate = vi.fn().mockResolvedValue(undefined);
+      findInvitationByWorkosId = vi.fn();
+      listGrantsForUser = grantListByUser;
       withTx = () => this;
     },
   }));
@@ -339,6 +371,7 @@ describe("protectedRoutes", () => {
     vi.doUnmock("../../../infrastructure/db/externalGrantRepo");
     vi.doUnmock("../../../infrastructure/db/invitationRepo");
     vi.doUnmock("../../../infrastructure/db/auditRepo");
+    vi.doUnmock("../../../infrastructure/db/bootstrapRepo");
     vi.doUnmock("../../audit");
   });
 

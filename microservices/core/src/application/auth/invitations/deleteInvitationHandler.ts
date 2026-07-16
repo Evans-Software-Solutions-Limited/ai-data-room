@@ -16,6 +16,7 @@ import {
   InvitationError,
   revokeInvitation,
 } from "../../../application/invitations";
+import type { ScopedRepos } from "../../../infrastructure/db/scoped";
 import { protectedDeps } from "../_shared/deps";
 import { authorizeOrgAccess, isAuthFailure } from "../_shared/orgAccess";
 import { buildAuditContext } from "../_shared/auditContext";
@@ -24,13 +25,14 @@ import type { ProtectedAuthContext } from "../guards/authContextTypes";
 export const deleteInvitationHandler = new Elysia().delete(
   "/orgs/:orgId/invitations/:id",
   async (ctx) => {
-    const { params, headers, actor } = ctx as typeof ctx & {
+    const { params, headers, actor, scoped } = ctx as typeof ctx & {
       actor: ProtectedAuthContext["actor"];
+      scoped: ScopedRepos;
     };
 
     const auth = await authorizeOrgAccess(
       { actor, paramOrgId: params.orgId },
-      { membershipRepo: protectedDeps.membershipRepo },
+      { membership: scoped.membership },
     );
     if (isAuthFailure(auth)) {
       return auth;
@@ -49,7 +51,7 @@ export const deleteInvitationHandler = new Elysia().delete(
         },
         {
           workos: protectedDeps.workos,
-          invitationRepo: protectedDeps.invitationRepo,
+          invitations: scoped.invitations,
           auditRepo: protectedDeps.auditRepo,
         },
       );

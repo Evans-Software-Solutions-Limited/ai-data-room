@@ -1,11 +1,19 @@
 // Drizzle-backed repository for the `invitations` aggregate.
 //
-// Slice 1 / T-007. Conventions per `userRepo.ts`. Used by the invitation
-// flow (T-009 createInvitation / listInvitations / revokeInvitation /
-// acceptInvitation).
+// Slice 1 / T-007. Conventions per `userRepo.ts`. Tenant-isolation
+// (slice 10) / T-004 backfilled this onto `ScopedRepo` (FR7): every
+// read is scoped to the org this instance is bound to, every write
+// stamps it. `findByWorkosInvitationId` moved verbatim to
+// `bootstrapRepo.ts` (`TenantBootstrapRepo`) — the WorkOS webhook
+// accept path discovers the invitation (and therefore its org) BEFORE
+// any tenant context exists, so it can't be scoped by an org that
+// isn't known yet. See design.md "Identity & the bootstrap path".
+//
+// Used by the invitation flow (T-009 createInvitation /
+// listInvitations / revokeInvitation / acceptInvitation).
 
 import { and, eq } from "drizzle-orm";
-import type { DbOrTx, Tx } from "@ai-data-room/db";
+import type { Tx } from "@ai-data-room/db";
 import { schema } from "@ai-data-room/db";
 import type {
   Invitation,
@@ -14,6 +22,7 @@ import type {
   InvitationState,
 } from "@ai-data-room/api-utils/schemas/auth-orgs";
 
+import { ScopedRepo } from "./scopedRepoBase";
 import { emitCount } from "../observability/metrics";
 import { firstOrNull, firstOrThrow } from "./_helpers";
 
@@ -21,7 +30,6 @@ const { invitations } = schema;
 
 export interface CreateInvitationInput {
   workosInvitationId: string;
-  orgId: string;
   email: string;
   kind: InvitationKind;
   role: InvitationRole | null;
@@ -30,61 +38,52 @@ export interface CreateInvitationInput {
   expiresAt: Date;
 }
 
-export class InvitationRepo {
-  private readonly db: DbOrTx;
-  constructor(db: DbOrTx) {
-    this.db = db;
-  }
-
+export class InvitationRepo extends ScopedRepo {
   withTx(tx: Tx): InvitationRepo {
-    return new InvitationRepo(tx);
+    return new InvitationRepo(tx, this.orgId);
   }
 
   /**
-   * Inserts a fresh invitation row. The `(kind, role, opportunitySlug)`
-   * invariant from design.md is enforced by the zod schema (T-004) at
-   * the application boundary; this repo trusts that and just persists.
+   * Inserts a fresh invitation row into the bound org. The `(kind,
+   * role, opportunitySlug)` invariant from design.md is enforced by
+   * the zod schema (T-004) at the application boundary; this repo
+   * trusts that and just persists.
    */
   async create(input: CreateInvitationInput): Promise<Invitation> {
-    const [row] = await this.db.insert(invitations).values(input).returning();
+    const [row] = await this.db
+      .insert(invitations)
+      .values(this.stampOrgId(input))
+      .returning();
     return row as Invitation;
   }
 
+  /**
+   * Looks up an invitation by id within the bound org. A foreign-org
+   * id resolves to `null` — the scoped predicate can't distinguish
+   * "doesn't exist" from "exists in another org", which is exactly
+   * the isolation guarantee this slice provides (see
+   * `application/invitations.ts`'s `revokeInvitation` for the
+   * consequence this has for its cross-org branch).
+   */
   async findById(id: string): Promise<Invitation | null> {
     const rows = await this.db
       .select()
       .from(invitations)
-      .where(eq(invitations.id, id));
-    return firstOrNull(rows as Invitation[]);
-  }
-
-  /**
-   * The webhook handler (T-016) receives the WorkOS invitation ID and
-   * needs to look up our local row to update its state.
-   */
-  async findByWorkosInvitationId(
-    workosInvitationId: string,
-  ): Promise<Invitation | null> {
-    const rows = await this.db
-      .select()
-      .from(invitations)
-      .where(eq(invitations.workosInvitationId, workosInvitationId));
+      .where(this.scoped(invitations.orgId, eq(invitations.id, id)));
     return firstOrNull(rows as Invitation[]);
   }
 
   /**
    * `GET /orgs/:orgId/invitations?state=pending` lists outstanding
    * invites for the org admin UI. The `(org_id, state)` btree index
-   * (T-003 migration) makes this O(log n).
+   * (T-003 migration) makes this O(log n). Org is implicit (was
+   * `listByOrgAndState(orgId, state)` pre-T-004).
    */
-  async listByOrgAndState(
-    orgId: string,
-    state: InvitationState,
-  ): Promise<Invitation[]> {
+  async listByState(state: InvitationState): Promise<Invitation[]> {
     const rows = await this.db
       .select()
       .from(invitations)
-      .where(and(eq(invitations.orgId, orgId), eq(invitations.state, state)));
+      .where(this.scoped(invitations.orgId, eq(invitations.state, state)));
     return rows as Invitation[];
   }
 
@@ -92,7 +91,9 @@ export class InvitationRepo {
    * State transitions (`pending → accepted | revoked | expired`) are
    * the only mutations on this aggregate. `acceptedAt` is captured
    * inside this method when the new state is `accepted` so callers
-   * don't have to remember the join.
+   * don't have to remember the join. Scoped to the bound org — a
+   * foreign-org id matches zero rows and `firstOrThrow` throws, same
+   * as a genuinely missing id.
    */
   async setState(id: string, state: InvitationState): Promise<Invitation> {
     const now = new Date();
@@ -103,15 +104,16 @@ export class InvitationRepo {
         acceptedAt: state === "accepted" ? now : null,
         updatedAt: now,
       })
-      .where(eq(invitations.id, id))
+      .where(this.scoped(invitations.orgId, eq(invitations.id, id)))
       .returning();
     return firstOrThrow(rows as Invitation[], "Invitation", id);
   }
 
   /**
    * Atomic compare-and-set: transitions `state` only if the row is
-   * currently in `expectedState`. Returns the updated row on success,
-   * `null` if another concurrent caller already moved the state.
+   * currently in `expectedState` AND within the bound org. Returns
+   * the updated row on success, `null` if another concurrent caller
+   * already moved the state (or the id belongs to a foreign org).
    *
    * The application layer uses this to close the TOCTOU race between
    * the read-state check and the write — without the WHERE clause,
@@ -133,7 +135,12 @@ export class InvitationRepo {
         acceptedAt: newState === "accepted" ? now : null,
         updatedAt: now,
       })
-      .where(and(eq(invitations.id, id), eq(invitations.state, expectedState)))
+      .where(
+        this.scoped(
+          invitations.orgId,
+          and(eq(invitations.id, id), eq(invitations.state, expectedState)),
+        ),
+      )
       .returning();
     const result = firstOrNull(rows as Invitation[]);
 

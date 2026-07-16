@@ -15,12 +15,22 @@ import type {
   WorkOSClient,
 } from "../../infrastructure/workos/client";
 import type { AuditRepo } from "../../infrastructure/db/auditRepo";
-import type { ExternalGrantRepo } from "../../infrastructure/db/externalGrantRepo";
+import type { TenantBootstrapRepo } from "../../infrastructure/db/bootstrapRepo";
 import type { InvitationRepo } from "../../infrastructure/db/invitationRepo";
-import type { MembershipRepo } from "../../infrastructure/db/membershipRepo";
 import type { OrgRepo } from "../../infrastructure/db/orgRepo";
+import { scopedRepo } from "../../infrastructure/db/scoped";
+import type { ScopedRepos } from "../../infrastructure/db/scoped";
 import type { UserRepo } from "../../infrastructure/db/userRepo";
 import type { Db } from "@ai-data-room/db";
+
+// T-004: `acceptInvitation` builds its own scoped repo bundle
+// internally via `scopedRepo(invitation.orgId, tx)` once the
+// bootstrap-discovered invitation reveals its org — mock the factory
+// so the membership/grant/invitation calls it makes inside the tx are
+// still assertable without hitting real Drizzle.
+vi.mock("../../infrastructure/db/scoped", () => ({
+  scopedRepo: vi.fn(),
+}));
 import type {
   ExternalAccessGrant,
   Invitation,
@@ -135,20 +145,23 @@ interface MockDeps {
   userWithTx: ReturnType<typeof vi.fn>;
   orgRepo: OrgRepo;
   orgFindById: ReturnType<typeof vi.fn>;
-  invitationRepo: InvitationRepo;
+  /** Scoped invitation repo (`ctx.scoped.invitations`, T-004) — used
+   *  directly by `createInvitation` / `listInvitations` /
+   *  `revokeInvitation`, and also returned as `scoped.invitations`
+   *  from the mocked `scopedRepo()` factory for `acceptInvitation`'s
+   *  internal tx-scoped bundle (see `vi.mock` above). */
+  invitations: InvitationRepo;
   invitationCreate: ReturnType<typeof vi.fn>;
   invitationFindById: ReturnType<typeof vi.fn>;
+  /** Bootstrap read (`deps.bootstrap.findInvitationByWorkosId`) —
+   *  kept under this name for minimal test-assertion churn. */
   invitationFindByWorkosInvitationId: ReturnType<typeof vi.fn>;
-  invitationListByOrgAndState: ReturnType<typeof vi.fn>;
+  invitationListByState: ReturnType<typeof vi.fn>;
   invitationSetState: ReturnType<typeof vi.fn>;
   invitationTransitionState: ReturnType<typeof vi.fn>;
-  invitationWithTx: ReturnType<typeof vi.fn>;
-  membershipRepo: MembershipRepo;
+  bootstrap: TenantBootstrapRepo;
   membershipCreate: ReturnType<typeof vi.fn>;
-  membershipWithTx: ReturnType<typeof vi.fn>;
-  externalGrantRepo: ExternalGrantRepo;
   externalGrantCreate: ReturnType<typeof vi.fn>;
-  externalGrantWithTx: ReturnType<typeof vi.fn>;
   auditRepo: AuditRepo;
   auditWrite: ReturnType<typeof vi.fn>;
 }
@@ -174,37 +187,45 @@ function makeDeps(): MockDeps {
 
   const invitationCreate = vi.fn();
   const invitationFindById = vi.fn();
-  const invitationFindByWorkosInvitationId = vi.fn();
-  const invitationListByOrgAndState = vi.fn();
+  const invitationListByState = vi.fn();
   const invitationSetState = vi.fn();
   const invitationTransitionState = vi.fn();
-  const invitationWithTx = vi.fn();
-  const invitationRepo = {
+  const invitations = {
     create: invitationCreate,
     findById: invitationFindById,
-    findByWorkosInvitationId: invitationFindByWorkosInvitationId,
-    listByOrgAndState: invitationListByOrgAndState,
+    listByState: invitationListByState,
     setState: invitationSetState,
     transitionState: invitationTransitionState,
-    withTx: invitationWithTx,
+    withTx: vi.fn(),
   } as unknown as InvitationRepo;
-  invitationWithTx.mockReturnValue(invitationRepo);
 
   const membershipCreate = vi.fn();
-  const membershipWithTx = vi.fn();
-  const membershipRepo = {
-    create: membershipCreate,
-    withTx: membershipWithTx,
-  } as unknown as MembershipRepo;
-  membershipWithTx.mockReturnValue(membershipRepo);
-
   const externalGrantCreate = vi.fn();
-  const externalGrantWithTx = vi.fn();
-  const externalGrantRepo = {
-    create: externalGrantCreate,
-    withTx: externalGrantWithTx,
-  } as unknown as ExternalGrantRepo;
-  externalGrantWithTx.mockReturnValue(externalGrantRepo);
+
+  // T-004: `acceptInvitation` no longer takes `membershipRepo` /
+  // `externalGrantRepo` / `invitationRepo` deps directly — it binds
+  // `scopedRepo(invitation.orgId, tx)` itself once the bootstrap read
+  // resolves the invitation's org. Mock the factory's return value so
+  // the membership/grant/invitation-transition calls it makes inside
+  // the tx are still assertable. Reuses the SAME `invitations` mock
+  // object as the non-accept paths, so `invitationTransitionState`
+  // assertions work regardless of which caller exercised it.
+  vi.mocked(scopedRepo).mockReturnValue({
+    membership: {
+      create: membershipCreate,
+    } as unknown as ScopedRepos["membership"],
+    externalGrants: {
+      create: externalGrantCreate,
+    } as unknown as ScopedRepos["externalGrants"],
+    invitations,
+    auditReads: {} as unknown as ScopedRepos["auditReads"],
+    withTx: vi.fn(),
+  });
+
+  const invitationFindByWorkosInvitationId = vi.fn();
+  const bootstrap = {
+    findInvitationByWorkosId: invitationFindByWorkosInvitationId,
+  } as unknown as TenantBootstrapRepo;
 
   const auditWrite = vi
     .fn()
@@ -230,20 +251,16 @@ function makeDeps(): MockDeps {
     userWithTx,
     orgRepo,
     orgFindById,
-    invitationRepo,
+    invitations,
     invitationCreate,
     invitationFindById,
     invitationFindByWorkosInvitationId,
-    invitationListByOrgAndState,
+    invitationListByState,
     invitationSetState,
     invitationTransitionState,
-    invitationWithTx,
-    membershipRepo,
+    bootstrap,
     membershipCreate,
-    membershipWithTx,
-    externalGrantRepo,
     externalGrantCreate,
-    externalGrantWithTx,
     auditRepo: { write: auditWrite } as unknown as AuditRepo,
     auditWrite,
   };
@@ -386,7 +403,6 @@ describe("createInvitation", () => {
       expect(deps.invitationCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           workosInvitationId: WORKOS_INVITATION_ID,
-          orgId: ORG_ID,
           email: "invitee@example.com",
           kind: "internal",
           role: "viewer",
@@ -518,29 +534,23 @@ describe("listInvitations", () => {
 
   it("returns the rows from the repo, defaulting to state=pending", async () => {
     const rows = [makeInvitation()];
-    deps.invitationListByOrgAndState.mockResolvedValue(rows);
+    deps.invitationListByState.mockResolvedValue(rows);
 
-    const result = await listInvitations({ orgId: ORG_ID }, deps);
+    const result = await listInvitations({}, deps);
 
-    expect(deps.invitationListByOrgAndState).toHaveBeenCalledWith(
-      ORG_ID,
-      "pending",
-    );
+    expect(deps.invitationListByState).toHaveBeenCalledWith("pending");
     expect(result).toBe(rows);
   });
 
   it("forwards an explicit state filter", async () => {
-    deps.invitationListByOrgAndState.mockResolvedValue([]);
-    await listInvitations({ orgId: ORG_ID, state: "accepted" }, deps);
-    expect(deps.invitationListByOrgAndState).toHaveBeenCalledWith(
-      ORG_ID,
-      "accepted",
-    );
+    deps.invitationListByState.mockResolvedValue([]);
+    await listInvitations({ state: "accepted" }, deps);
+    expect(deps.invitationListByState).toHaveBeenCalledWith("accepted");
   });
 
   it("does not emit an audit event for read operations", async () => {
-    deps.invitationListByOrgAndState.mockResolvedValue([]);
-    await listInvitations({ orgId: ORG_ID }, deps);
+    deps.invitationListByState.mockResolvedValue([]);
+    await listInvitations({}, deps);
     expect(deps.auditWrite).not.toHaveBeenCalled();
   });
 });
@@ -654,16 +664,31 @@ describe("revokeInvitation", () => {
       expect(deps.revokeInvitation).not.toHaveBeenCalled();
     });
 
-    it("rejects revoke when the invitation belongs to a different org (cross-org guard)", async () => {
+    it("rejects revoke when the invitation belongs to a different org (cross-org guard, T-004)", async () => {
       // Defends against tenancy bypass: the handler validates the
       // actor's role in `input.orgId`, but `invitationId` is a
       // globally-unique PK. A tenant-A admin passing a tenant-B
       // invitation id must not be able to revoke it. Bugbot caught
       // this on PR #15 — high-severity finding.
-      const otherOrgId = "99999999-9999-4999-8999-999999999999";
-      deps.invitationFindById.mockResolvedValue(
-        makeInvitation({ orgId: otherOrgId }),
-      );
+      //
+      // T-004 moved the enforcement itself into the SQL predicate:
+      // `deps.invitations` is the caller's SCOPED repo
+      // (`ctx.scoped.invitations`, bound to `input.orgId`), so a real
+      // `findById` for a foreign-org id returns `null` — it doesn't
+      // even return the row for an application-layer `orgId` compare
+      // (that branch is gone; see `revokeInvitation`'s comment). This
+      // unit test simulates that scoped-repo behaviour by mocking
+      // `findById` to return `null`, and pins that the outcome is
+      // identical to a genuinely-missing invitation: same
+      // `invitation_not_found` error, no WorkOS revoke, no state
+      // flip. The `actualOrgId` audit-metadata field the old
+      // application-layer branch recorded is gone too — the scoped
+      // query can't distinguish "doesn't exist" from "exists in
+      // another org", which is the isolation guarantee, not a
+      // regression. Cross-org SQL exclusion itself is proven at the
+      // repo/integration level (`scoped.test.ts`,
+      // `tenantScoping.test.ts`), not here.
+      deps.invitationFindById.mockResolvedValue(null);
 
       await expect(
         revokeInvitation(
@@ -683,9 +708,6 @@ describe("revokeInvitation", () => {
       expect(deps.revokeInvitation).not.toHaveBeenCalled();
       expect(deps.invitationTransitionState).not.toHaveBeenCalled();
 
-      // Audit the attempt with the actor's requested org as the
-      // top-level orgId, plus the actual owning org in metadata so
-      // an operator can spot the cross-org probe.
       expect(deps.auditWrite).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: "invite_revoked",
@@ -694,7 +716,6 @@ describe("revokeInvitation", () => {
           orgId: ORG_ID,
           metadata: expect.objectContaining({
             reason: "invitation_not_found",
-            actualOrgId: otherOrgId,
           }),
         }),
       );
@@ -821,8 +842,11 @@ describe("acceptInvitation", () => {
 
       expect(deps.dbTransaction).toHaveBeenCalledTimes(1);
       expect(deps.userWithTx).toHaveBeenCalledWith(TX_SENTINEL);
-      expect(deps.membershipWithTx).toHaveBeenCalledWith(TX_SENTINEL);
-      expect(deps.invitationWithTx).toHaveBeenCalledWith(TX_SENTINEL);
+      // T-004: the membership / grant / invitation-transition calls
+      // no longer go through injected `.withTx(tx)` repos — they come
+      // from `scopedRepo(invitation.orgId, tx)`, bound inside the
+      // transaction once the invitation reveals its org.
+      expect(scopedRepo).toHaveBeenCalledWith(ORG_ID, TX_SENTINEL);
       expect(deps.userCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           workosUserId: ACCEPTING_WORKOS_USER_ID,
@@ -831,7 +855,6 @@ describe("acceptInvitation", () => {
         }),
       );
       expect(deps.membershipCreate).toHaveBeenCalledWith({
-        orgId: ORG_ID,
         userId: ACCEPTING_USER_ID,
         role: "viewer",
       });
@@ -902,7 +925,6 @@ describe("acceptInvitation", () => {
       // so we pin the shape and assert the value via a tolerance
       // window on a separate line.
       expect(deps.externalGrantCreate).toHaveBeenCalledWith({
-        orgId: ORG_ID,
         userId: ACCEPTING_USER_ID,
         opportunitySlug: "vendor-a",
         grantedBy: ACTOR_ID,

@@ -11,28 +11,29 @@
 import Elysia, { t } from "elysia";
 
 import { listInvitations } from "../../../application/invitations";
-import { protectedDeps } from "../_shared/deps";
+import type { ScopedRepos } from "../../../infrastructure/db/scoped";
 import { authorizeOrgAccess, isAuthFailure } from "../_shared/orgAccess";
 import type { ProtectedAuthContext } from "../guards/authContextTypes";
 
 export const getInvitationsHandler = new Elysia().get(
   "/orgs/:orgId/invitations",
   async (ctx) => {
-    const { params, query, actor } = ctx as typeof ctx & {
+    const { params, query, actor, scoped } = ctx as typeof ctx & {
       actor: ProtectedAuthContext["actor"];
+      scoped: ScopedRepos;
     };
 
     const auth = await authorizeOrgAccess(
       { actor, paramOrgId: params.orgId },
-      { membershipRepo: protectedDeps.membershipRepo },
+      { membership: scoped.membership },
     );
     if (isAuthFailure(auth)) {
       return auth;
     }
 
     return listInvitations(
-      { orgId: params.orgId, state: query.state ?? "pending" },
-      { invitationRepo: protectedDeps.invitationRepo },
+      { state: query.state ?? "pending" },
+      { invitations: scoped.invitations },
     );
   },
   {

@@ -67,8 +67,10 @@ interface MockDeps {
   userRepo: UserRepo;
   findById: ReturnType<typeof vi.fn>;
   setLifecycleState: ReturnType<typeof vi.fn>;
-  membershipRepo: MembershipRepo;
-  findOwnerForOrg: ReturnType<typeof vi.fn>;
+  /** Scoped membership repo (`ctx.scoped.membership`, T-004) — org is
+   *  implicit, so `findOwner()` takes no argument. */
+  membership: MembershipRepo;
+  findOwner: ReturnType<typeof vi.fn>;
   auditRepo: AuditRepo;
   auditWrite: ReturnType<typeof vi.fn>;
 }
@@ -78,7 +80,7 @@ function makeDeps(): MockDeps {
   const revokeSession = vi.fn().mockResolvedValue(undefined);
   const findById = vi.fn();
   const setLifecycleState = vi.fn();
-  const findOwnerForOrg = vi.fn().mockResolvedValue(null);
+  const findOwner = vi.fn().mockResolvedValue(null);
   const auditWrite = vi
     .fn()
     .mockResolvedValue({ id: "audit_id", occurredAt: NOW });
@@ -90,8 +92,8 @@ function makeDeps(): MockDeps {
     userRepo: { findById, setLifecycleState } as unknown as UserRepo,
     findById,
     setLifecycleState,
-    membershipRepo: { findOwnerForOrg } as unknown as MembershipRepo,
-    findOwnerForOrg,
+    membership: { findOwner } as unknown as MembershipRepo,
+    findOwner,
     auditRepo: { write: auditWrite } as unknown as AuditRepo,
     auditWrite,
   };
@@ -256,7 +258,7 @@ describe("suspendUser", () => {
         createdAt: NOW,
         updatedAt: NOW,
       };
-      deps.findOwnerForOrg.mockResolvedValue(ownerMembership);
+      deps.findOwner.mockResolvedValue(ownerMembership);
 
       await expect(
         suspendUser({ ...VALID_INPUT, targetId: OWNER_ID }, deps),
@@ -277,7 +279,7 @@ describe("suspendUser", () => {
 
     it("permits suspension when target is not the owner (admin or internal)", async () => {
       deps.findById.mockResolvedValue(makeUser());
-      deps.findOwnerForOrg.mockResolvedValue({
+      deps.findOwner.mockResolvedValue({
         id: "55555555-5555-4555-8555-555555555555",
         orgId: ORG_ID,
         userId: OWNER_ID, // Different from target

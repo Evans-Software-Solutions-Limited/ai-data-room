@@ -69,7 +69,7 @@ export const postOrgsHandler = new Elysia().post(
           db: protectedDeps.db,
           workos: protectedDeps.workos,
           orgRepo: protectedDeps.orgRepo,
-          membershipRepo: protectedDeps.membershipRepo,
+          bootstrap: protectedDeps.bootstrap,
           auditRepo: protectedDeps.auditRepo,
           events: protectedDeps.events,
         },

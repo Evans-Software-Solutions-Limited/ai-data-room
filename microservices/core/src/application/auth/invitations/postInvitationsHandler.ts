@@ -21,6 +21,7 @@ import {
   createInvitation,
   InvitationError,
 } from "../../../application/invitations";
+import type { ScopedRepos } from "../../../infrastructure/db/scoped";
 import { protectedDeps } from "../_shared/deps";
 import { authorizeOrgAccess, isAuthFailure } from "../_shared/orgAccess";
 import { buildAuditContext } from "../_shared/auditContext";
@@ -44,13 +45,14 @@ export const postInvitationsHandler = new Elysia().post(
     // Standalone Elysia plugins don't see the parent bundle's
     // `.resolve(resolveActor)` at type level — narrow inside the
     // body. Same pattern as FDP's `getUserHandler`.
-    const { params, body, headers, actor, set } = ctx as typeof ctx & {
+    const { params, body, headers, actor, scoped, set } = ctx as typeof ctx & {
       actor: ProtectedAuthContext["actor"];
+      scoped: ScopedRepos;
     };
 
     const auth = await authorizeOrgAccess(
       { actor, paramOrgId: params.orgId },
-      { membershipRepo: protectedDeps.membershipRepo },
+      { membership: scoped.membership },
     );
     if (isAuthFailure(auth)) {
       return auth;
@@ -83,7 +85,7 @@ export const postInvitationsHandler = new Elysia().post(
           workos: protectedDeps.workos,
           userRepo: protectedDeps.userRepo,
           orgRepo: protectedDeps.orgRepo,
-          invitationRepo: protectedDeps.invitationRepo,
+          invitations: scoped.invitations,
           auditRepo: protectedDeps.auditRepo,
         },
       );

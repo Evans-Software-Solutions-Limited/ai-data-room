@@ -30,9 +30,7 @@ import { acceptInvitation } from "../../application/invitations";
 import { handlePasswordResetCompleted } from "../../application/password-reset";
 import { handleUserDeleted } from "../../application/deletion";
 import { AuditRepo } from "../../infrastructure/db/auditRepo";
-import { ExternalGrantRepo } from "../../infrastructure/db/externalGrantRepo";
-import { InvitationRepo } from "../../infrastructure/db/invitationRepo";
-import { MembershipRepo } from "../../infrastructure/db/membershipRepo";
+import { TenantBootstrapRepo } from "../../infrastructure/db/bootstrapRepo";
 import { UserRepo } from "../../infrastructure/db/userRepo";
 import { WebhookDeliveryRepo } from "../../infrastructure/db/webhookDeliveryRepo";
 import { createWorkOSClient } from "../../infrastructure/workos/client";
@@ -54,9 +52,12 @@ export async function handler(
 
   const userRepo = new UserRepo(db);
   const auditRepo = new AuditRepo(db);
-  const membershipRepo = new MembershipRepo(db);
-  const externalGrantRepo = new ExternalGrantRepo(db);
-  const invitationRepo = new InvitationRepo(db);
+  // T-004: `acceptInvitation` no longer needs pre-built membership /
+  // externalGrant / invitation repos here — it discovers the
+  // invitation (and its `orgId`) via `bootstrap`, then builds its own
+  // `scopedRepo(invitation.orgId, tx)` bundle internally once the org
+  // is known.
+  const bootstrap = new TenantBootstrapRepo(db);
   const webhookRepo = new WebhookDeliveryRepo(db);
 
   try {
@@ -73,9 +74,7 @@ export async function handler(
           acceptInvitation(input, {
             db,
             userRepo,
-            membershipRepo,
-            externalGrantRepo,
-            invitationRepo,
+            bootstrap,
             auditRepo,
           }),
       },

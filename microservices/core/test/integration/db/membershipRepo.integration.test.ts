@@ -1,9 +1,18 @@
 // Integration tests for `MembershipRepo`. Each test seeds an
 // org + the necessary user(s) inline; no shared seed helper yet
 // because the seed shape varies meaningfully per test.
+//
+// Tenant-isolation (slice 10) / T-004: `MembershipRepo` is now a
+// `ScopedRepo` subclass — the org is bound at construction, so each
+// test constructs its own repo instance AFTER seeding the org it
+// needs (there's no longer one shared `memberships` instance for the
+// whole file). `findByUser` / `lockForUserCreate` moved to
+// `bootstrapRepo.test.ts` (they run before a tenant context exists,
+// so they were never org-scoped to begin with).
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { drizzle } from "drizzle-orm/postgres-js";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 import {
   applyMigrations,
@@ -19,14 +28,13 @@ import { UserRepo } from "../../../src/infrastructure/db/userRepo";
 import { seedOrgAndUser } from "./fixtures";
 
 describe("MembershipRepo (integration)", () => {
-  let memberships: MembershipRepo;
+  let db: PostgresJsDatabase<typeof schema>;
   let users: UserRepo;
   let orgs: OrgRepo;
 
   beforeAll(async () => {
     await applyMigrations();
-    const db = drizzle(getTestPool(), { schema });
-    memberships = new MembershipRepo(db);
+    db = drizzle(getTestPool(), { schema });
     users = new UserRepo(db);
     orgs = new OrgRepo(db);
   });
@@ -39,94 +47,53 @@ describe("MembershipRepo (integration)", () => {
     await destroyTestPool();
   });
 
-  it("create() inserts the (org, user, role) tuple", async () => {
+  it("create() inserts the (org, user, role) tuple, stamping the bound org", async () => {
     const { org, user } = await seedOrgAndUser({ orgs, users }, "create");
-    const m = await memberships.create({
-      orgId: org.id,
-      userId: user.id,
-      role: "editor",
-    });
+    const memberships = new MembershipRepo(db, org.id);
+    const m = await memberships.create({ userId: user.id, role: "editor" });
     expect(m.orgId).toBe(org.id);
     expect(m.userId).toBe(user.id);
     expect(m.role).toBe("editor");
   });
 
-  it("findByOrgUser() returns the membership when present and null otherwise", async () => {
-    const { org, user } = await seedOrgAndUser(
-      { orgs, users },
-      "findbyorguser",
-    );
-    await memberships.create({
-      orgId: org.id,
-      userId: user.id,
-      role: "viewer",
-    });
+  it("findMember() returns the membership when present and null otherwise", async () => {
+    const { org, user } = await seedOrgAndUser({ orgs, users }, "findmember");
+    const memberships = new MembershipRepo(db, org.id);
+    await memberships.create({ userId: user.id, role: "viewer" });
 
-    const found = await memberships.findByOrgUser(org.id, user.id);
+    const found = await memberships.findMember(user.id);
     expect(found?.role).toBe("viewer");
 
-    const missingUser = await memberships.findByOrgUser(
-      org.id,
+    const missingUser = await memberships.findMember(
       "00000000-0000-4000-8000-000000000000",
     );
     expect(missingUser).toBeNull();
   });
 
-  it("findByUser() returns the user's single membership, or null (org-provisioning FR5)", async () => {
-    const { org, user } = await seedOrgAndUser({ orgs, users }, "findbyuser");
-    await memberships.create({ orgId: org.id, userId: user.id, role: "owner" });
-
-    const found = await memberships.findByUser(user.id);
-    expect(found?.orgId).toBe(org.id);
-    expect(found?.role).toBe("owner");
-
-    const none = await memberships.findByUser(
-      "00000000-0000-4000-8000-000000000000",
-    );
-    expect(none).toBeNull();
-  });
-
-  it("lockForUserCreate() runs the per-user advisory lock (FR5 race guard SQL is valid)", async () => {
-    const { user } = await seedOrgAndUser({ orgs, users }, "lockuser");
-    // Smoke test: proves the hashtext/pg_advisory_xact_lock SQL parses
-    // and executes against real Postgres. (Serialization itself is a
-    // Postgres advisory-lock guarantee, exercised under the createOrg
-    // transaction.)
-    await expect(
-      memberships.lockForUserCreate(user.id),
-    ).resolves.toBeUndefined();
-  });
-
-  it("listByOrg() returns every membership for the org", async () => {
+  it("list() returns every membership for the bound org", async () => {
     const { org, user: user1 } = await seedOrgAndUser({ orgs, users }, "lista");
     const user2 = await users.create({
       workosUserId: "user_workos_listb",
       email: "listb@example.com",
     });
-    await memberships.create({
-      orgId: org.id,
-      userId: user1.id,
-      role: "owner",
-    });
-    await memberships.create({
-      orgId: org.id,
-      userId: user2.id,
-      role: "editor",
-    });
+    const memberships = new MembershipRepo(db, org.id);
+    await memberships.create({ userId: user1.id, role: "owner" });
+    await memberships.create({ userId: user2.id, role: "editor" });
 
-    const all = await memberships.listByOrg(org.id);
+    const all = await memberships.list();
     expect(all).toHaveLength(2);
     expect(new Set(all.map((m) => m.role))).toEqual(
       new Set(["owner", "editor"]),
     );
   });
 
-  it("findOwnerForOrg() returns the single owner row, or null when none exists", async () => {
+  it("findOwner() returns the single owner row, or null when none exists", async () => {
     const { org, user } = await seedOrgAndUser({ orgs, users }, "findowner");
-    expect(await memberships.findOwnerForOrg(org.id)).toBeNull();
+    const memberships = new MembershipRepo(db, org.id);
+    expect(await memberships.findOwner()).toBeNull();
 
-    await memberships.create({ orgId: org.id, userId: user.id, role: "owner" });
-    const owner = await memberships.findOwnerForOrg(org.id);
+    await memberships.create({ userId: user.id, role: "owner" });
+    const owner = await memberships.findOwner();
     expect(owner?.userId).toBe(user.id);
     expect(owner?.role).toBe("owner");
   });
@@ -140,17 +107,10 @@ describe("MembershipRepo (integration)", () => {
       workosUserId: "user_workos_challenger",
       email: "challenger@example.com",
     });
-    await memberships.create({
-      orgId: org.id,
-      userId: firstOwner.id,
-      role: "owner",
-    });
+    const memberships = new MembershipRepo(db, org.id);
+    await memberships.create({ userId: firstOwner.id, role: "owner" });
     await expect(
-      memberships.create({
-        orgId: org.id,
-        userId: challenger.id,
-        role: "owner",
-      }),
+      memberships.create({ userId: challenger.id, role: "owner" }),
     ).rejects.toThrow(/org_memberships_single_owner_key/);
   });
 });

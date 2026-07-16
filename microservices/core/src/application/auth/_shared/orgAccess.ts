@@ -39,7 +39,10 @@ export interface AuthorizeOrgAccessInput {
 }
 
 export interface AuthorizeOrgAccessDeps {
-  membershipRepo: MembershipRepo;
+  /** The caller's scoped membership repo (`ctx.scoped.membership`) —
+   *  already bound to `actor.localOrgId`, so the lookup below no
+   *  longer takes an explicit org (T-004). */
+  membership: MembershipRepo;
 }
 
 /** Default allowlist for org-scoped management actions — owner + editor
@@ -60,10 +63,7 @@ export async function authorizeOrgAccess(
     });
   }
 
-  const membership = await deps.membershipRepo.findByOrgUser(
-    input.actor.localOrgId,
-    input.actor.localUserId,
-  );
+  const membership = await deps.membership.findMember(input.actor.localUserId);
   if (!membership) {
     // The actor passed `requireOrg` (so `localOrgId` is set) but has
     // no membership row in the org. Possible causes:

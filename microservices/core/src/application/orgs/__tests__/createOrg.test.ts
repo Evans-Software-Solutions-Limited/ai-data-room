@@ -14,12 +14,24 @@ import type {
   OrgMembership,
 } from "@ai-data-room/api-utils/schemas/auth-orgs";
 import type { AuditRepo } from "../../../infrastructure/db/auditRepo";
-import type { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
+import type { TenantBootstrapRepo } from "../../../infrastructure/db/bootstrapRepo";
 import type { OrgRepo } from "../../../infrastructure/db/orgRepo";
+import { scopedRepo } from "../../../infrastructure/db/scoped";
+import type { ScopedRepos } from "../../../infrastructure/db/scoped";
 import type { OrgEventPublisher } from "../../../infrastructure/events/orgEventPublisher";
 import type { WorkOSClient } from "../../../infrastructure/workos/client";
 
 import { createOrg, CreateOrgError } from "../createOrg";
+
+// T-004: `createOrg` now binds the owner-membership write via
+// `scopedRepo(org.id, tx)` INSIDE the transaction (the org doesn't
+// exist — and therefore the scope can't be bound — until the insert
+// just above it), rather than through an injected `membershipRepo`
+// dep. Mock the factory itself so the test can still assert on the
+// `create()` call shape without hitting real Drizzle/Postgres.
+vi.mock("../../../infrastructure/db/scoped", () => ({
+  scopedRepo: vi.fn(),
+}));
 
 const NOW = new Date("2026-06-01T10:00:00Z");
 const ACTOR_ID = "11111111-1111-4111-8111-111111111111";
@@ -64,17 +76,31 @@ function makeMocks(): Mocks {
   const createOrganization = vi.fn().mockResolvedValue({ id: WORKOS_ORG_ID });
   const deleteOrganization = vi.fn().mockResolvedValue(undefined);
 
+  // Bootstrap: the pre-tx FR5 guard + the in-tx advisory-lock/race-recheck.
+  // `withTx` returns the SAME bootstrap object (same `findByUser` fn) so a
+  // test can drive both the pre-tx and in-tx calls through one mock, same
+  // as the pre-T-004 shape.
   const findByUser = vi.fn().mockResolvedValue(null);
-  const membershipCreate = vi.fn().mockResolvedValue(MEMBERSHIP);
   const lockForUserCreate = vi.fn().mockResolvedValue(undefined);
-  const membershipWithTx = vi.fn();
-  const membershipRepo = {
-    findByUser,
-    create: membershipCreate,
+  const bootstrapWithTx = vi.fn();
+  const bootstrap = {
+    findMembershipForUser: findByUser,
     lockForUserCreate,
-    withTx: membershipWithTx,
-  } as unknown as MembershipRepo;
-  membershipWithTx.mockReturnValue(membershipRepo);
+    withTx: bootstrapWithTx,
+  } as unknown as TenantBootstrapRepo;
+  bootstrapWithTx.mockReturnValue(bootstrap);
+
+  // Owner-membership write: `scopedRepo(org.id, tx).membership.create(...)`.
+  const membershipCreate = vi.fn().mockResolvedValue(MEMBERSHIP);
+  vi.mocked(scopedRepo).mockReturnValue({
+    membership: {
+      create: membershipCreate,
+    } as unknown as ScopedRepos["membership"],
+    invitations: {} as unknown as ScopedRepos["invitations"],
+    externalGrants: {} as unknown as ScopedRepos["externalGrants"],
+    auditReads: {} as unknown as ScopedRepos["auditReads"],
+    withTx: vi.fn(),
+  });
 
   const findBySlug = vi.fn().mockResolvedValue(null);
   const orgCreate = vi.fn().mockResolvedValue(ORG);
@@ -106,7 +132,7 @@ function makeMocks(): Mocks {
         "createOrganization" | "deleteOrganization"
       >,
       orgRepo,
-      membershipRepo,
+      bootstrap,
       auditRepo,
       events,
     },
@@ -164,11 +190,13 @@ describe("createOrg", () => {
       name: "Acme Ltd",
       slug: "acme-ltd",
     });
+    // T-004: org isn't stamped explicitly — it's bound by
+    // `scopedRepo(org.id, tx)`, asserted separately below.
     expect(m.membershipCreate).toHaveBeenCalledWith({
-      orgId: ORG_ID,
       userId: ACTOR_ID,
       role: "owner",
     });
+    expect(scopedRepo).toHaveBeenCalledWith(ORG_ID, TX);
     expect(m.deleteOrganization).not.toHaveBeenCalled();
     expect(m.emitOrgCreated).toHaveBeenCalledWith({
       orgId: ORG_ID,

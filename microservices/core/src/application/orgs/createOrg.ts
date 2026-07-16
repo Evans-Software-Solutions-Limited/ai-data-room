@@ -36,8 +36,9 @@ import type {
 import { serializeError } from "@ai-data-room/api-utils/logging";
 
 import type { AuditRepo } from "../../infrastructure/db/auditRepo";
-import type { MembershipRepo } from "../../infrastructure/db/membershipRepo";
+import type { TenantBootstrapRepo } from "../../infrastructure/db/bootstrapRepo";
 import type { OrgRepo } from "../../infrastructure/db/orgRepo";
+import { scopedRepo } from "../../infrastructure/db/scoped";
 import type { OrgEventPublisher } from "../../infrastructure/events/orgEventPublisher";
 import type { WorkOSClient } from "../../infrastructure/workos/client";
 import { logger } from "../../infrastructure/logging/logger";
@@ -75,7 +76,12 @@ export interface CreateOrgDeps {
   db: Db;
   workos: Pick<WorkOSClient, "createOrganization" | "deleteOrganization">;
   orgRepo: OrgRepo;
-  membershipRepo: MembershipRepo;
+  /** T-004: the pre-tx FR5 guard and the in-tx advisory-lock +
+   *  race-recheck sequence run BEFORE the org exists, so they use the
+   *  unscoped bootstrap reads rather than a `scopedRepo` handle. Once
+   *  the org row is minted inside the transaction below, the owner
+   *  membership write binds `scopedRepo(org.id, tx)` itself. */
+  bootstrap: TenantBootstrapRepo;
   auditRepo: AuditRepo;
   events: OrgEventPublisher;
 }
@@ -162,7 +168,7 @@ export async function createOrg(
 
   // 1. FR5 — single-membership guard (correctness + race backstop on
   // top of the handler's fast `actor.localOrgId` check).
-  const existing = await deps.membershipRepo.findByUser(actorUserId);
+  const existing = await deps.bootstrap.findMembershipForUser(actorUserId);
   if (existing) {
     // Count + audit via the shared helper like every other failure path.
     // (Post the handler fast-path fix, this pre-tx guard is the rare
@@ -203,16 +209,16 @@ export async function createOrg(
     try {
       result = await deps.db.transaction(async (tx) => {
         const orgTx = deps.orgRepo.withTx(tx);
-        const membershipTx = deps.membershipRepo.withTx(tx);
+        const bootstrapTx = deps.bootstrap.withTx(tx);
 
-        // FR5 race backstop. The pre-tx `findByUser` above is the fast
-        // path; this serialises two `POST /orgs` from the same user
-        // that race past it (no `UNIQUE(user_id)` exists — see
-        // `membershipRepo.lockForUserCreate`). The lock makes the second
-        // caller wait, then the re-check sees the first's membership and
-        // aborts as `already_member` (409, not a 500).
-        await membershipTx.lockForUserCreate(actorUserId);
-        const racing = await membershipTx.findByUser(actorUserId);
+        // FR5 race backstop. The pre-tx `findMembershipForUser` above
+        // is the fast path; this serialises two `POST /orgs` from the
+        // same user that race past it (no `UNIQUE(user_id)` exists —
+        // see `bootstrapRepo.lockForUserCreate`). The lock makes the
+        // second caller wait, then the re-check sees the first's
+        // membership and aborts as `already_member` (409, not a 500).
+        await bootstrapTx.lockForUserCreate(actorUserId);
+        const racing = await bootstrapTx.findMembershipForUser(actorUserId);
         if (racing) {
           throw new CreateOrgError("already_member", { orgId: racing.orgId });
         }
@@ -223,8 +229,10 @@ export async function createOrg(
           name: input.name,
           slug,
         });
-        const membership = await membershipTx.create({
-          orgId: org.id,
+        // T-004: the org doesn't exist until the line above, so the
+        // scope binds only now — `scopedRepo(org.id, tx)` re-enters
+        // the factory with the freshly-minted org id, same tx.
+        const membership = await scopedRepo(org.id, tx).membership.create({
           userId: actorUserId,
           role: "owner",
         });

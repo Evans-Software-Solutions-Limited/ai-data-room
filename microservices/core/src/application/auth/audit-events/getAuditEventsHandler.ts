@@ -18,20 +18,21 @@
 
 import Elysia, { status, t } from "elysia";
 
-import { protectedDeps } from "../_shared/deps";
+import type { ScopedRepos } from "../../../infrastructure/db/scoped";
 import { authorizeOrgAccess, isAuthFailure } from "../_shared/orgAccess";
 import type { ProtectedAuthContext } from "../guards/authContextTypes";
 
 export const getAuditEventsHandler = new Elysia().get(
   "/orgs/:orgId/audit-events",
   async (ctx) => {
-    const { params, query, actor } = ctx as typeof ctx & {
+    const { params, query, actor, scoped } = ctx as typeof ctx & {
       actor: ProtectedAuthContext["actor"];
+      scoped: ScopedRepos;
     };
 
     const auth = await authorizeOrgAccess(
       { actor, paramOrgId: params.orgId },
-      { membershipRepo: protectedDeps.membershipRepo },
+      { membership: scoped.membership },
     );
     if (isAuthFailure(auth)) {
       return auth;
@@ -66,7 +67,7 @@ export const getAuditEventsHandler = new Elysia().get(
       before = { occurredAt, id: query.beforeId };
     }
 
-    return protectedDeps.auditRepo.listByOrg(params.orgId, {
+    return scoped.auditReads.list({
       limit: query.limit,
       before,
     });

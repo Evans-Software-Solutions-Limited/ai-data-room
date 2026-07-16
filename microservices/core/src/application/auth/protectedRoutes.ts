@@ -38,7 +38,9 @@ import Elysia from "elysia";
 import { getAuditEventsHandler } from "./audit-events/getAuditEventsHandler";
 import { requireAuth } from "./guards/requireAuth";
 import { requireOrg } from "./guards/requireOrg";
+import { createScopedReposGuard } from "./guards/resolveScopedRepos";
 import { resolveTenantContext } from "./guards/resolveTenantContext";
+import { protectedDeps } from "./_shared/deps";
 import { resolveActorPlugin } from "./_shared/resolveActorPlugin";
 import { deleteInvitationHandler } from "./invitations/deleteInvitationHandler";
 import { getInvitationsHandler } from "./invitations/getInvitationsHandler";
@@ -60,6 +62,10 @@ const orgScopedRoutes = new Elysia()
   // a request-scoped `TenantContext` that later-slice handlers pass to
   // `scopedRepo`. Runs after the gate so the org is guaranteed present.
   .resolve(resolveTenantContext)
+  // T-004 (FR3): build the request's tenant-scoped repo bundle right after
+  // the tenant context is established, so every handler below reads
+  // `ctx.scoped.<repo>` instead of constructing its own unscoped repo.
+  .resolve(createScopedReposGuard(protectedDeps.db))
   .use(postInvitationsHandler)
   .use(getInvitationsHandler)
   .use(deleteInvitationHandler)
