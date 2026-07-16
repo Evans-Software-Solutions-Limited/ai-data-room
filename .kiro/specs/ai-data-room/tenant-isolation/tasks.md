@@ -1,6 +1,8 @@
 # Tasks — ai-data-room / tenant-isolation
 
-**Status:** in progress — T-001 shipped (PR #42); T-002–T-008 remaining
+**Status:** complete — T-001–T-008 shipped; ADR-011 `accepted`. One tracked
+follow-up (T-009, FR8 audit emission). Sign-off:
+[docs/slices/tenant-isolation.md](../../../docs/slices/tenant-isolation.md).
 **Design:** [./design.md](./design.md)
 **Last updated:** 2026-07-16
 
@@ -106,7 +108,7 @@ assert zero foreign-org rows. ADR-011 moves to `accepted` on green.
 
 ## T-007 — Observability: guard violation metric + alert
 
-Status: `[ ]`
+Status: `[x]` (merged PR #50 — `tenancy.guard.violations` metric + structured log in `infrastructure/observability/tenancyGuard.ts`, emitted from `ScopedRepo.stampOrgId`; `alarm-tenancy-guard-violations` (`> 0 over 5min`) in `infra/observability.ts`)
 **Scope:** `tenancy.guard.violations` metric + structured log on a
 defence-in-depth catch; alarm `> 0 over 5min`.
 **Files (likely):** `infrastructure/observability/metrics.ts`, `infra/*`.
@@ -117,10 +119,38 @@ defence-in-depth catch; alarm `> 0 over 5min`.
 
 ## T-008 — Slice sign-off + ADR-011 acceptance
 
-Status: `[ ]`
+Status: `[x]` (this PR — [docs/slices/tenant-isolation.md](../../../docs/slices/tenant-isolation.md) traceability matrix; ADR-011 already flipped to `accepted` in T-006/#49; `room-and-folders` document tasks confirmed unblocked)
 **Scope:** Traceability matrix (FR/NFR/AC → impl → test), flip ADR-011 to
 `accepted`, tag. Confirm `room-and-folders` document tasks are now unblocked.
 **Files (likely):** `docs/slices/tenant-isolation.md`,
 `adr/011-multi-tenant-isolation.md`.
 **DoD:** Matrix complete; ADR accepted; sign-off doc merged.
 **Tests required:** None (docs); CI green across the slice.
+**Note:** `release-please` owns the version tag; Brad tags the slice release
+when cutting it (not pushed from this task).
+
+---
+
+## T-009 — FR8: audit event on a caught tenancy violation (follow-up)
+
+Status: `[ ]`
+**Scope:** Complete FR8. T-007 shipped the runtime operator signal (metric +
+log + `> 0` alarm) at the `ScopedRepo.stampOrgId` catch, but the FR8
+**audit event** (via the `auth-and-orgs` audit writer, tagged as a potential
+isolation violation, carrying actor/request context) is deferred: `stampOrgId`
+is infrastructure and must not import the application-layer audit writer.
+Emit it at the application/handler error boundary that catches
+`ScopedRepoError` (with actor context), plus the webhook Lambda's existing
+catch. Add `tenancy_violation` to `AuditEventTypeSchema` when the emission
+lands (not before — avoid a dead enum value).
+**Files (likely):** `application/audit.ts` (enum), an Elysia `.onError`
+boundary + `handlers/webhooks/*`, `packages/api-utils/.../auth-orgs.ts`.
+**DoD:** A forced `ScopedRepoError` on a request/webhook path writes a
+`tenancy_violation` audit row via `safeAudit` with the actor + attempted org.
+**Tests required:** Unit — the boundary emits the audit event on a caught
+`ScopedRepoError`; no dead enum value ships ahead of the emission.
+**Why deferred:** the FR8 trigger is a should-never-happen programming bug
+already covered operationally by the T-007 alarm; the clean emission point is
+cross-cutting (request + webhook boundaries) and out of T-007's metric/log
+scope. Surfaced by the T-007 pre-PR review; tracked here so sign-off (T-008)
+records FR8 as partial-with-owner rather than silently unmet.
