@@ -83,7 +83,7 @@ restore, hard-delete (support-only), archive-opportunity.
 
 ## T-005 — Infrastructure: S3 client wrapper
 
-Status: `[ ]`
+Status: `[x]` (PR #55)
 **Scope:** Thin wrapper over `@aws-sdk/client-s3` exposing only what
 we use: `createMultipartUpload`, `presignPartUrls(uploadId, parts)`,
 `completeMultipartUpload`, `abortMultipartUpload`,
