@@ -211,5 +211,5 @@ All resolved at sign-off (Bradley, 2026-07-16) — leanings confirmed:
 
 ## Sign-off
 
-- [ ] Bradley reviewed
-- [ ] Design phase unblocked
+- [x] Bradley reviewed (2026-07-16 — amendment: +`07_Information_Security`; matches the Status header + design sign-off)
+- [x] Design phase unblocked

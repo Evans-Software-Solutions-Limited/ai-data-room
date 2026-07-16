@@ -1,8 +1,8 @@
 # Tasks — ai-data-room / room-and-folders
 
-**Status:** draft
+**Status:** ready — design signed off + tasks phase unblocked (2026-07-16)
 **Design:** [./design.md](./design.md)
-**Last updated:** 2026-04-21
+**Last updated:** 2026-07-16
 
 Assumes the `auth-and-orgs` slice is already merged (T-022 tagged).
 Executes inside the same monorepo (`ai-data-room`), in the same
