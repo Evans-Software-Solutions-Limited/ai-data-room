@@ -81,7 +81,7 @@ is org-scoped.
 
 ## T-005 — CI tripwire: ban raw access to tenant-scoped tables
 
-Status: `[ ]`
+Status: `[x]` (merged PR #48 — `security/__tests__/tenancy-guard.test.ts`, registry-driven, self-tested + real-tree revert-checked)
 **Scope:** A test mirroring `security/__tests__/nfr-matrix.test.ts` that fails
 if any tenant-scoped table name is accessed via raw `db`/Drizzle outside the
 factory + its owned repo files.
