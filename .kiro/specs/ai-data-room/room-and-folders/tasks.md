@@ -53,7 +53,7 @@ fetch.
 
 ## T-003 — Migrations: four tables
 
-Status: `[ ]`
+Status: `[x]` (PR #53)
 **Scope:** Drizzle migrations for `opportunities`, `documents`,
 `document_versions`, `document_deletions`. Include CHECK constraints
 (XOR between canonical + opportunity), partial indexes, unique

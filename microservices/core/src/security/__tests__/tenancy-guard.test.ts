@@ -55,6 +55,11 @@ const ALLOWLIST = new Set(
     "infrastructure/db/invitationRepo.ts",
     "infrastructure/db/externalGrantRepo.ts",
     "infrastructure/db/auditRepo.ts",
+    // room-and-folders (slice 2) / T-004 scoped repos
+    "infrastructure/db/opportunityRepo.ts",
+    "infrastructure/db/documentRepo.ts",
+    "infrastructure/db/documentVersionRepo.ts",
+    "infrastructure/db/documentDeletionRepo.ts",
     "infrastructure/db/bootstrapRepo.ts", // the bootstrap carve-out
     "infrastructure/db/tenancy.ts", // the registry (names, not access)
   ].map((p) => p.split("/").join(path.sep)),
