@@ -392,4 +392,88 @@ describe("room-and-folders schema — per-table happy path", () => {
       );
     expect(orphans).toHaveLength(0);
   });
+
+  it("rejects a second ACTIVE document with the same (org, canonical folder, name); allows a draft dup", async () => {
+    const { orgId, userId } = await seedOrgAndUser();
+    const base = {
+      orgId,
+      folderKind: "canonical" as const,
+      canonicalFolder: "02_Financials",
+      displayName: "dup.pdf",
+      createdBy: userId,
+    };
+    await db.insert(schema.documents).values({ ...base, state: "active" });
+    // The partial unique is `WHERE state = 'active'`, so a draft with the
+    // same name coexists (upload initiate creates drafts).
+    await expect(
+      db.insert(schema.documents).values({ ...base, state: "draft" }),
+    ).resolves.toBeDefined();
+    // A second ACTIVE with the same name in the same folder is rejected —
+    // the FR13 "one active doc per name" backstop.
+    await expect(
+      db.insert(schema.documents).values({ ...base, state: "active" }),
+    ).rejects.toThrow();
+  });
+
+  it("allows the same active document name in a different canonical folder", async () => {
+    const { orgId, userId } = await seedOrgAndUser();
+    await db.insert(schema.documents).values({
+      orgId,
+      folderKind: "canonical",
+      canonicalFolder: "02_Financials",
+      displayName: "x.pdf",
+      state: "active",
+      createdBy: userId,
+    });
+    await expect(
+      db.insert(schema.documents).values({
+        orgId,
+        folderKind: "canonical",
+        canonicalFolder: "03_Commercial",
+        displayName: "x.pdf",
+        state: "active",
+        createdBy: userId,
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it("rejects a second ACTIVE document with the same (org, opportunity, name)", async () => {
+    const { orgId, userId } = await seedOrgAndUser();
+    const [opp] = await db
+      .insert(schema.opportunities)
+      .values({ orgId, slug: "Vendor_A", name: "Vendor A", createdBy: userId })
+      .returning();
+    const base = {
+      orgId,
+      folderKind: "opportunity" as const,
+      opportunityId: opp!.id,
+      displayName: "nda.pdf",
+      createdBy: userId,
+    };
+    await db.insert(schema.documents).values({ ...base, state: "active" });
+    // draft dup allowed (partial index is WHERE state='active')
+    await expect(
+      db.insert(schema.documents).values({ ...base, state: "draft" }),
+    ).resolves.toBeDefined();
+    await expect(
+      db.insert(schema.documents).values({ ...base, state: "active" }),
+    ).rejects.toThrow();
+  });
+
+  it("allows the same active (folder, name) in a different org", async () => {
+    const a = await seedOrgAndUser("a");
+    const b = await seedOrgAndUser("b");
+    const doc = (orgId: string, createdBy: string) => ({
+      orgId,
+      folderKind: "canonical" as const,
+      canonicalFolder: "02_Financials",
+      displayName: "shared.pdf",
+      state: "active" as const,
+      createdBy,
+    });
+    await db.insert(schema.documents).values(doc(a.orgId, a.userId));
+    await expect(
+      db.insert(schema.documents).values(doc(b.orgId, b.userId)),
+    ).resolves.toBeDefined();
+  });
 });

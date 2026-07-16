@@ -143,6 +143,7 @@ describe("AuditEventTypeSchema (FR24 exhaustiveness)", () => {
     "opportunity_created",
     "opportunity_renamed",
     "opportunity_archived",
+    "file_uploaded",
   ] as const;
 
   const ALL_EVENT_TYPES = [
@@ -151,11 +152,11 @@ describe("AuditEventTypeSchema (FR24 exhaustiveness)", () => {
     ...ROOM_EVENT_TYPES,
   ] as const;
 
-  it("declares exactly 26 event types (21 FR24 + 2 org-provisioning + 3 room)", () => {
-    expect(AuditEventTypeSchema.options).toHaveLength(26);
+  it("declares exactly 27 event types (21 FR24 + 2 org-provisioning + 4 room)", () => {
+    expect(AuditEventTypeSchema.options).toHaveLength(27);
     expect(FR24_EVENT_TYPES).toHaveLength(21);
     expect(ORG_PROVISIONING_EVENT_TYPES).toHaveLength(2);
-    expect(ROOM_EVENT_TYPES).toHaveLength(3);
+    expect(ROOM_EVENT_TYPES).toHaveLength(4);
   });
 
   it("covers every known event type", () => {

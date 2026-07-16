@@ -186,6 +186,24 @@ export const documents = pgTable(
       t.opportunityId,
       t.state,
     ),
+    // FR13/FR15 backstop: at most one ACTIVE document per (folder, name).
+    // The application (`findActiveByName` + upload) upholds "re-upload =
+    // new version", but that's check-then-act with no DB guard, so two
+    // concurrent first-uploads of the same filename could otherwise both
+    // create+activate a document. Two partial uniques (one per folder
+    // kind) rather than one composite, because a composite over the
+    // nullable `canonical_folder`/`opportunity_id` wouldn't enforce
+    // uniqueness (NULLs are distinct in a Postgres unique index). Each
+    // index's predicate pins the folder kind so its folder column is
+    // non-null (guaranteed by the XOR check).
+    activeCanonicalNameIdx: uniqueIndex("documents_active_canonical_name_key")
+      .on(t.orgId, t.canonicalFolder, t.displayName)
+      .where(sql`state = 'active' AND folder_kind = 'canonical'`),
+    activeOpportunityNameIdx: uniqueIndex(
+      "documents_active_opportunity_name_key",
+    )
+      .on(t.orgId, t.opportunityId, t.displayName)
+      .where(sql`state = 'active' AND folder_kind = 'opportunity'`),
     // Exactly one of (canonical_folder, opportunity_id) is non-null, and
     // it agrees with folder_kind. The DB backstop for the domain
     // `DocumentSchema.superRefine`.

@@ -37,6 +37,11 @@ const { documentVersions } = schema;
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 
 export interface CreateDocumentVersionInput {
+  /** Optional explicit id. T-007's upload flow mints the version id at
+   *  initiate (it's the last segment of the S3 key), then persists the
+   *  row with that same id at complete. Omit to let the DB default a
+   *  fresh `gen_random_uuid()`. */
+  id?: string;
   documentId: string;
   versionNumber: number;
   originalFilename: string;
@@ -98,6 +103,7 @@ export class DocumentVersionRepo extends ScopedRepo {
       );
     }
     const values = this.stampOrgId({
+      ...(input.id ? { id: input.id } : {}),
       documentId: input.documentId,
       versionNumber: input.versionNumber,
       originalFilename: input.originalFilename,
