@@ -136,14 +136,17 @@ describe("AuditEventTypeSchema (FR24 exhaustiveness)", () => {
     "membership_created",
   ] as const;
 
-  // room-and-folders (slice 2 / T-006) — Opportunity subroom lifecycle
-  // (FR19). File/document + room-provisioning audit types are appended by
-  // their own tasks (T-007–T-010) when their emitters land.
+  // room-and-folders (slice 2 / T-006–T-008) — Opportunity subroom
+  // lifecycle (FR19), document upload (T-007), and folder listing /
+  // download (T-008). Room-provisioning audit types are appended by their
+  // own tasks (T-009–T-010) when their emitters land.
   const ROOM_EVENT_TYPES = [
     "opportunity_created",
     "opportunity_renamed",
     "opportunity_archived",
     "file_uploaded",
+    "folder_listed",
+    "file_downloaded",
   ] as const;
 
   const ALL_EVENT_TYPES = [
@@ -152,11 +155,11 @@ describe("AuditEventTypeSchema (FR24 exhaustiveness)", () => {
     ...ROOM_EVENT_TYPES,
   ] as const;
 
-  it("declares exactly 27 event types (21 FR24 + 2 org-provisioning + 4 room)", () => {
-    expect(AuditEventTypeSchema.options).toHaveLength(27);
+  it("declares exactly 29 event types (21 FR24 + 2 org-provisioning + 6 room)", () => {
+    expect(AuditEventTypeSchema.options).toHaveLength(29);
     expect(FR24_EVENT_TYPES).toHaveLength(21);
     expect(ORG_PROVISIONING_EVENT_TYPES).toHaveLength(2);
-    expect(ROOM_EVENT_TYPES).toHaveLength(4);
+    expect(ROOM_EVENT_TYPES).toHaveLength(6);
   });
 
   it("covers every known event type", () => {

@@ -97,6 +97,9 @@ export const AuditEventTypeSchema = z.enum([
   "opportunity_archived",
   // room-and-folders (slice 2) — T-007 (document upload, FR19)
   "file_uploaded",
+  // room-and-folders (slice 2) — T-008
+  "folder_listed",
+  "file_downloaded",
 ]);
 
 /**

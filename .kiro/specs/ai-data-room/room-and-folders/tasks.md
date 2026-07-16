@@ -117,7 +117,7 @@ archive (grants revoked + retention timer started).
 
 ## T-007 — Application: upload initiate + complete
 
-Status: `[ ]`
+Status: `[x]` (PR #58)
 **Scope:** `initiateUpload` — validates target, mime, size; creates
 `documents.state='draft'` + `document_versions.version_number` row;
 starts S3 multipart; returns `upload_id` + pre-signed part URLs.

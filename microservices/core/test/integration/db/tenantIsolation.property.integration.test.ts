@@ -285,10 +285,28 @@ describe("Cross-tenant isolation property (T-006, NFR1 / AC-US4)", () => {
           const canonDocs =
             await scopedA.documents.listByCanonicalFolder(folder);
           seenOrgIds.push(...canonDocs.map((d) => d.orgId));
+          // T-008 listing reads (join documents ⋈ current version) — the
+          // JOIN scopes both tables; both the doc and its version must be A's.
+          const canonWithVer =
+            await scopedA.documents.listByCanonicalFolderWithVersion(folder);
+          seenOrgIds.push(...canonWithVer.map((r) => r.document.orgId));
+          seenOrgIds.push(
+            ...canonWithVer.flatMap((r) =>
+              r.currentVersion ? [r.currentVersion.orgId] : [],
+            ),
+          );
         }
         for (const oppId of a.opportunityIds) {
           const oppDocs = await scopedA.documents.listByOpportunity(oppId);
           seenOrgIds.push(...oppDocs.map((d) => d.orgId));
+          const oppWithVer =
+            await scopedA.documents.listByOpportunityWithVersion(oppId);
+          seenOrgIds.push(...oppWithVer.map((r) => r.document.orgId));
+          seenOrgIds.push(
+            ...oppWithVer.flatMap((r) =>
+              r.currentVersion ? [r.currentVersion.orgId] : [],
+            ),
+          );
         }
         for (const docId of a.documentIds) {
           const versions = await scopedA.documentVersions.listByDocument(docId);
@@ -318,6 +336,9 @@ describe("Cross-tenant isolation property (T-006, NFR1 / AC-US4)", () => {
           // listByOpportunity for B's subroom under A returns nothing.
           expect(
             await scopedA.documents.listByOpportunity(bOppId),
+          ).toHaveLength(0);
+          expect(
+            await scopedA.documents.listByOpportunityWithVersion(bOppId),
           ).toHaveLength(0);
         }
         for (const bDocId of b.documentIds) {
