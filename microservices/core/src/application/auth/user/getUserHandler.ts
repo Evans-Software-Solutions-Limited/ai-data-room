@@ -30,6 +30,7 @@
 
 import Elysia, { status, t } from "elysia";
 
+import { scopedRepo } from "../../../infrastructure/db/scoped";
 import { protectedDeps } from "../_shared/deps";
 import type { ProtectedAuthContext } from "../guards/authContextTypes";
 
@@ -83,22 +84,30 @@ export const getUserHandler = new Elysia().get(
     let role: "owner" | "editor" | "viewer" | "external" | null = null;
     let orgName: string | null = null;
     if (actor.localOrgId) {
+      // `/me` lives on `meRoutes`, which deliberately does NOT mount
+      // `resolveTenantContext` / the scoped-repos guard (org is
+      // optional here) — so build the scoped access inline rather
+      // than reading `ctx.scoped` (T-004). Org lookup stays
+      // org-agnostic via `orgRepo.findById`.
+      const scoped = scopedRepo(actor.localOrgId, protectedDeps.db);
       const [org, membership] = await Promise.all([
         protectedDeps.orgRepo.findById(actor.localOrgId),
-        protectedDeps.membershipRepo.findByOrgUser(
-          actor.localOrgId,
-          actor.localUserId,
-        ),
+        scoped.membership.findMember(actor.localUserId),
       ]);
       orgName = org?.name ?? null;
       role = membership?.role ?? null;
     }
 
     // External users don't have a membership row; their role is
-    // signalled by the presence of grants under this user. Slice 3
-    // will tighten this once it lands the access-check flow; for now
-    // "has any active grant" is a good-enough proxy for `external`.
-    const grants = await protectedDeps.externalGrantRepo.listByUser(
+    // signalled by the presence of grants under this user. This is a
+    // self-read (the caller's own grants across every org), not an
+    // org-scoped query, so it goes through `bootstrap` rather than a
+    // `scopedRepo` handle — an external user has zero memberships and
+    // therefore no `localOrgId` to scope by in the first place
+    // (design.md "External actors (no membership)"). Slice 3 will
+    // tighten this once it lands the access-check flow; for now "has
+    // any active grant" is a good-enough proxy for `external`.
+    const grants = await protectedDeps.bootstrap.listGrantsForUser(
       actor.localUserId,
     );
     const activeGrants = grants.filter((g) => g.status === "active");

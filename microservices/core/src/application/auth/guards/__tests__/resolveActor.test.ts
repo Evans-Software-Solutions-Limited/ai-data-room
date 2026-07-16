@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "../../../../infrastructure/logging/logger";
 import { resolveActor } from "../resolveActor";
-import type { MembershipRepo } from "../../../../infrastructure/db/membershipRepo";
+import type { TenantBootstrapRepo } from "../../../../infrastructure/db/bootstrapRepo";
 import type { OrgRepo } from "../../../../infrastructure/db/orgRepo";
 import type { UserRepo } from "../../../../infrastructure/db/userRepo";
 
@@ -56,7 +56,7 @@ const LOCAL_ORG = {
 interface Repos {
   userRepo: UserRepo;
   orgRepo: OrgRepo;
-  membershipRepo: MembershipRepo;
+  bootstrap: TenantBootstrapRepo;
   findByWorkosUserId: ReturnType<typeof vi.fn>;
   userCreate: ReturnType<typeof vi.fn>;
   findByWorkosOrgId: ReturnType<typeof vi.fn>;
@@ -77,14 +77,14 @@ function makeRepos(): Repos {
   // Defaults to "no membership" so the session-org path is exercised
   // unchanged; the org-provisioning fallback tests override it.
   const membershipFindByUser = vi.fn().mockResolvedValue(null);
-  const membershipRepo = {
-    findByUser: membershipFindByUser,
-  } as unknown as MembershipRepo;
+  const bootstrap = {
+    findMembershipForUser: membershipFindByUser,
+  } as unknown as TenantBootstrapRepo;
 
   return {
     userRepo,
     orgRepo,
-    membershipRepo,
+    bootstrap,
     findByWorkosUserId,
     userCreate,
     findByWorkosOrgId,

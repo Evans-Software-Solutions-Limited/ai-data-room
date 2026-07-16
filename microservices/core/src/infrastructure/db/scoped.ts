@@ -20,10 +20,22 @@
 //                        CI tripwire (T-005) bans raw access to scoped tables
 //                        outside this file + the repo files it owns.
 //
-// The factory currently exposes only `withTx` — T-004 backfills the slice-1
-// tenant-scoped repos (`org_memberships`, `invitations`,
-// `external_access_grants`, `audit_events` reads) onto `ScopedRepo` and
-// returns their org-bound instances from here; later slices add their own.
+// `ScopedRepo` + its supporting primitives (`OrgId`, `ScopedRepoError`,
+// `assertOrgId`, `TenantContext`, `tenantContext`) live in
+// `scopedRepoBase.ts`, not here, and are re-exported below unchanged — see
+// that file's header for why: this factory has to import the four concrete
+// repo classes to construct them, and those repo classes have to import
+// `ScopedRepo` to extend it, so keeping both directions in one file is a
+// circular import that crashes at runtime (`class X extends ScopedRepo`
+// evaluates before this module's own top-level statements do). Every
+// existing import of `from ".../infrastructure/db/scoped"` is unaffected —
+// this module still re-exports the full public surface.
+//
+// T-004 backfilled the slice-1 tenant-scoped repos (`org_memberships`,
+// `invitations`, `external_access_grants`, `audit_events` reads) onto
+// `ScopedRepo`; the factory below returns their org-bound instances as
+// `membership` / `invitations` / `externalGrants` / `auditReads`. Later
+// slices add their own members to the same bundle.
 //
 // NOTE: unlike the illustrative snippet in design.md (`db = defaultDb`), `db`
 // is a required argument. Callers already inject the Lambda-cached Drizzle
@@ -31,140 +43,32 @@
 // default would force reading `Resource.*` at import time, which breaks the
 // unit-test module-mock pattern. Same shape as every existing repo ctor.
 
-import { and, eq, type AnyColumn, type SQL } from "drizzle-orm";
 import type { DbOrTx, Tx } from "@ai-data-room/db";
 
-/**
- * A LOCAL organisation UUID (our `organizations.id`), never the WorkOS text
- * id. Kept as a plain `string` alias — the codebase types `localOrgId` as
- * `string` throughout and this slice deliberately does not introduce a
- * branded type (that would ripple through every actor/repo signature for no
- * isolation win; the guarantee comes from the factory, not the nominal type).
- */
-export type OrgId = string;
+// T-004: importing the concrete repo files here is infra-importing-infra,
+// which is fine — `scoped.ts` already documents (see `tenancy.ts` / FR6)
+// that it and the repo files it owns are the CI tripwire's carve-out from
+// "no raw access to a tenant-scoped table outside the factory".
+import { ScopedAuditReadRepo } from "./auditRepo";
+import { ExternalGrantRepo } from "./externalGrantRepo";
+import { InvitationRepo } from "./invitationRepo";
+import { MembershipRepo } from "./membershipRepo";
+import { assertOrgId, ScopedRepoError, type OrgId } from "./scopedRepoBase";
 
-/**
- * Raised whenever a tenant scope is constructed or used incorrectly: an
- * empty `orgId`, a missing `db` handle, or a write whose explicit `org_id`
- * contradicts the repo's bound org. It always signals a programming error
- * (never user input), so callers should let it surface as a 500 rather than
- * translate it — a swallowed scope error is exactly the class of bug this
- * slice exists to make impossible.
- */
-export class ScopedRepoError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ScopedRepoError";
-  }
-}
-
-/** Throw unless `orgId` is a non-empty string. Exported so the factory,
- *  the base ctor, and `tenantContext()` share one definition of "valid". */
-export function assertOrgId(orgId: OrgId): void {
-  if (typeof orgId !== "string" || orgId.length === 0) {
-    throw new ScopedRepoError("a tenant scope requires a non-empty orgId");
-  }
-}
-
-/**
- * Request-scoped tenant context (FR1). A small immutable value carrying the
- * caller's local org UUID; it is what a handler passes to `scopedRepo` for
- * the lifetime of a request. Constructed only via `tenantContext()` (which
- * rejects an empty org) or `systemScope` (T-003) — never defaulted, so there
- * is no "ambient all-orgs" state a query could accidentally run under.
- */
-export interface TenantContext {
-  readonly localOrgId: OrgId;
-}
-
-/** Smart constructor for a `TenantContext`; rejects an empty org up front. */
-export function tenantContext(localOrgId: OrgId): TenantContext {
-  assertOrgId(localOrgId);
-  return { localOrgId };
-}
-
-/**
- * Base class for every repository over a TENANT_SCOPED table. Concrete repos
- * extend it, call `scoped()` in every read's `WHERE`, `stampOrgId()` on every
- * write, and implement the one-line `withTx`. The `org_id` is baked in at
- * construction and is read-only thereafter — there is deliberately no setter.
- */
-export abstract class ScopedRepo {
-  protected readonly db: DbOrTx;
-  protected readonly orgId: OrgId;
-
-  constructor(db: DbOrTx, orgId: OrgId) {
-    assertOrgId(orgId);
-    if (!db) {
-      throw new ScopedRepoError("a tenant-scoped repo requires a db handle");
-    }
-    this.db = db;
-    this.orgId = orgId;
-  }
-
-  /**
-   * The org this repo is permanently bound to. Exposed read-only so callers
-   * (and the property test) can assert the binding without reaching into
-   * protected state; there is no corresponding setter by design.
-   */
-  get scopeOrgId(): OrgId {
-    return this.orgId;
-  }
-
-  /**
-   * The mandatory read predicate: `org_id = <bound org>`, optionally AND-ed
-   * with a repo-specific `extra` clause. Every read method MUST route its
-   * `WHERE` through this — that is the injection point ADR-011 relies on and
-   * the property test (T-006) proves. Pass the concrete table's `org_id`
-   * column (repos own their schema import; the base stays table-agnostic).
-   */
-  protected scoped(orgColumn: AnyColumn, extra?: SQL): SQL {
-    const tenant = eq(orgColumn, this.orgId);
-    return extra ? (and(tenant, extra) as SQL) : tenant;
-  }
-
-  /**
-   * Verify + stamp `org_id` on a write payload. A caller may omit `orgId`
-   * entirely (the common case — the scope supplies it, so scoped write inputs
-   * usually don't even carry the column) or pass the repo's own org
-   * (harmless), but an explicit foreign `org_id` is refused loudly: stamping
-   * over it silently would let a caller believe they wrote to org B while the
-   * row landed in org A. Returns the payload with `org_id` set to the bound
-   * org.
-   *
-   * `T` is intentionally unconstrained — a scoped input type frequently omits
-   * `orgId` altogether, and an all-optional constraint would then reject it
-   * (TS2559). We read any incidental `orgId` through a narrow cast instead.
-   */
-  protected stampOrgId<T>(values: T): T & { orgId: OrgId } {
-    const explicit = (values as { orgId?: OrgId | null }).orgId;
-    if (explicit != null && explicit !== this.orgId) {
-      throw new ScopedRepoError(
-        `refusing write: explicit org_id "${explicit}" does not match ` +
-          `scoped org "${this.orgId}"`,
-      );
-    }
-    return { ...values, orgId: this.orgId };
-  }
-
-  /**
-   * Return a same-org instance bound to a transaction handle, so a
-   * multi-write sequence inside `db.transaction(...)` stays atomic AND stays
-   * scoped (NFR3). Concrete repos implement this as
-   * `return new ThisRepo(tx, this.orgId)` — one line, and the scope is
-   * preserved by construction.
-   */
-  abstract withTx(tx: Tx): ScopedRepo;
-}
+export * from "./scopedRepoBase";
 
 /**
  * The bundle of tenant-scoped repositories returned by `scopedRepo`. T-004
- * populates it with the slice-1 repos and each later slice adds its own; the
- * only member today is `withTx`, which rebinds the WHOLE bundle onto a
- * transaction while preserving the org — the bundle-level counterpart of
- * each repo's `withTx` (NFR3).
+ * populates it with the slice-1 repos; each later slice adds its own member
+ * to the same bundle. `withTx` rebinds the WHOLE bundle onto a transaction
+ * while preserving the org — the bundle-level counterpart of each repo's
+ * own `withTx` (NFR3).
  */
 export interface ScopedRepos {
+  readonly membership: MembershipRepo;
+  readonly invitations: InvitationRepo;
+  readonly externalGrants: ExternalGrantRepo;
+  readonly auditReads: ScopedAuditReadRepo;
   withTx(tx: Tx): ScopedRepos;
 }
 
@@ -182,10 +86,13 @@ export function scopedRepo(orgId: OrgId, db: DbOrTx): ScopedRepos {
     throw new ScopedRepoError("scopedRepo requires a db handle");
   }
   return {
+    membership: new MembershipRepo(db, orgId),
+    invitations: new InvitationRepo(db, orgId),
+    externalGrants: new ExternalGrantRepo(db, orgId),
+    auditReads: new ScopedAuditReadRepo(db, orgId),
     // Rebinding onto a tx re-enters the factory with the same org, so the
     // whole bundle stays scoped inside a `db.transaction(...)` callback.
     withTx: (tx) => scopedRepo(orgId, tx),
-    // T-004: `membership`, `invitations`, `externalGrants`, `auditReads`, …
   };
 }
 

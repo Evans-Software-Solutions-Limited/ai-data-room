@@ -1,7 +1,13 @@
 // Integration tests for `InvitationRepo`.
+//
+// Tenant-isolation (slice 10) / T-004: `InvitationRepo` is now a
+// `ScopedRepo` subclass — each test constructs its own instance bound
+// to the org it seeds. `findByWorkosInvitationId` moved to
+// `bootstrapRepo.test.ts` (it runs before a tenant context exists).
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { drizzle } from "drizzle-orm/postgres-js";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 import {
   applyMigrations,
@@ -19,14 +25,13 @@ import { seedOrgAndUser } from "./fixtures";
 const FUTURE = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
 describe("InvitationRepo (integration)", () => {
-  let invitations: InvitationRepo;
+  let db: PostgresJsDatabase<typeof schema>;
   let users: UserRepo;
   let orgs: OrgRepo;
 
   beforeAll(async () => {
     await applyMigrations();
-    const db = drizzle(getTestPool(), { schema });
-    invitations = new InvitationRepo(db);
+    db = drizzle(getTestPool(), { schema });
     users = new UserRepo(db);
     orgs = new OrgRepo(db);
   });
@@ -45,11 +50,11 @@ describe("InvitationRepo (integration)", () => {
     return { org, inviter: user };
   }
 
-  it("create() inserts an internal invitation with role + null opportunitySlug", async () => {
+  it("create() inserts an internal invitation with role + null opportunitySlug, stamping the bound org", async () => {
     const { org, inviter } = await seedOrgAndInviter("internal");
+    const invitations = new InvitationRepo(db, org.id);
     const inv = await invitations.create({
       workosInvitationId: "inv_workos_internal",
-      orgId: org.id,
       email: "callee@example.com",
       kind: "internal",
       role: "viewer",
@@ -57,6 +62,7 @@ describe("InvitationRepo (integration)", () => {
       invitedBy: inviter.id,
       expiresAt: FUTURE,
     });
+    expect(inv.orgId).toBe(org.id);
     expect(inv.kind).toBe("internal");
     expect(inv.role).toBe("viewer");
     expect(inv.opportunitySlug).toBeNull();
@@ -65,9 +71,9 @@ describe("InvitationRepo (integration)", () => {
 
   it("create() inserts an external invitation with opportunitySlug + null role", async () => {
     const { org, inviter } = await seedOrgAndInviter("external");
+    const invitations = new InvitationRepo(db, org.id);
     const inv = await invitations.create({
       workosInvitationId: "inv_workos_external",
-      orgId: org.id,
       email: "vendor@example.com",
       kind: "external",
       role: null,
@@ -80,11 +86,11 @@ describe("InvitationRepo (integration)", () => {
     expect(inv.role).toBeNull();
   });
 
-  it("findById() returns the row when present and null otherwise", async () => {
+  it("findById() returns the row when present and null otherwise (and excludes a foreign org)", async () => {
     const { org, inviter } = await seedOrgAndInviter("findbyid");
+    const invitations = new InvitationRepo(db, org.id);
     const inserted = await invitations.create({
       workosInvitationId: "inv_workos_findbyid",
-      orgId: org.id,
       email: "findbyid@example.com",
       kind: "internal",
       role: "editor",
@@ -97,33 +103,19 @@ describe("InvitationRepo (integration)", () => {
     expect(
       await invitations.findById("00000000-0000-4000-8000-000000000000"),
     ).toBeNull();
+
+    // T-004: the same id, looked up through a DIFFERENT org's scoped
+    // repo, must not resolve — this is the isolation guarantee itself.
+    const { org: otherOrg } = await seedOrgAndInviter("findbyid_other");
+    const otherScoped = new InvitationRepo(db, otherOrg.id);
+    expect(await otherScoped.findById(inserted.id)).toBeNull();
   });
 
-  it("findByWorkosInvitationId() supports the webhook lookup path", async () => {
-    const { org, inviter } = await seedOrgAndInviter("findbyworkos");
-    await invitations.create({
-      workosInvitationId: "inv_workos_findwk",
-      orgId: org.id,
-      email: "findwk@example.com",
-      kind: "internal",
-      role: "viewer",
-      opportunitySlug: null,
-      invitedBy: inviter.id,
-      expiresAt: FUTURE,
-    });
-    const found =
-      await invitations.findByWorkosInvitationId("inv_workos_findwk");
-    expect(found?.email).toBe("findwk@example.com");
-    expect(
-      await invitations.findByWorkosInvitationId("inv_workos_does_not_exist"),
-    ).toBeNull();
-  });
-
-  it("listByOrgAndState() filters to pending only when asked", async () => {
+  it("listByState() filters to pending only when asked", async () => {
     const { org, inviter } = await seedOrgAndInviter("listbystate");
+    const invitations = new InvitationRepo(db, org.id);
     const pending = await invitations.create({
       workosInvitationId: "inv_workos_pending",
-      orgId: org.id,
       email: "pending@example.com",
       kind: "internal",
       role: "viewer",
@@ -133,7 +125,6 @@ describe("InvitationRepo (integration)", () => {
     });
     const accepted = await invitations.create({
       workosInvitationId: "inv_workos_accepted",
-      orgId: org.id,
       email: "accepted@example.com",
       kind: "internal",
       role: "viewer",
@@ -143,7 +134,7 @@ describe("InvitationRepo (integration)", () => {
     });
     await invitations.setState(accepted.id, "accepted");
 
-    const list = await invitations.listByOrgAndState(org.id, "pending");
+    const list = await invitations.listByState("pending");
     expect(list).toHaveLength(1);
     expect(list[0]?.id).toBe(pending.id);
   });
@@ -152,6 +143,8 @@ describe("InvitationRepo (integration)", () => {
     // Pre-fix this resolved with `undefined as Invitation`, leaving
     // downstream callers to NPE on a property access. The throw
     // surfaces the bug at the right layer.
+    const { org } = await seedOrgAndInviter("setstate_missing");
+    const invitations = new InvitationRepo(db, org.id);
     await expect(
       invitations.setState("00000000-0000-4000-8000-000000000000", "accepted"),
     ).rejects.toThrow(/Invitation .* not found/);
@@ -159,9 +152,9 @@ describe("InvitationRepo (integration)", () => {
 
   it("setState() flips pending→accepted and stamps acceptedAt", async () => {
     const { org, inviter } = await seedOrgAndInviter("setstate");
+    const invitations = new InvitationRepo(db, org.id);
     const inv = await invitations.create({
       workosInvitationId: "inv_workos_setstate",
-      orgId: org.id,
       email: "setstate@example.com",
       kind: "internal",
       role: "viewer",
@@ -185,9 +178,9 @@ describe("InvitationRepo (integration)", () => {
   describe("transitionState() — atomic compare-and-set against TOCTOU races", () => {
     it("transitions pending→accepted when the row is still pending and stamps acceptedAt", async () => {
       const { org, inviter } = await seedOrgAndInviter("transition_happy");
+      const invitations = new InvitationRepo(db, org.id);
       const inv = await invitations.create({
         workosInvitationId: "inv_workos_transition_happy",
-        orgId: org.id,
         email: "transition-happy@example.com",
         kind: "internal",
         role: "viewer",
@@ -213,9 +206,9 @@ describe("InvitationRepo (integration)", () => {
       // and returns null. The application layer reads this as
       // "race lost" and rolls back its in-tx multi-write.
       const { org, inviter } = await seedOrgAndInviter("transition_race");
+      const invitations = new InvitationRepo(db, org.id);
       const inv = await invitations.create({
         workosInvitationId: "inv_workos_transition_race",
-        orgId: org.id,
         email: "transition-race@example.com",
         kind: "internal",
         role: "viewer",
@@ -241,12 +234,43 @@ describe("InvitationRepo (integration)", () => {
     });
 
     it("returns null for a missing id (no implicit insert)", async () => {
+      const { org } = await seedOrgAndInviter("transition_missing");
+      const invitations = new InvitationRepo(db, org.id);
       const result = await invitations.transitionState(
         "00000000-0000-4000-8000-000000000000",
         "pending",
         "accepted",
       );
       expect(result).toBeNull();
+    });
+
+    it("returns null for an id that belongs to a different org (T-004 isolation)", async () => {
+      const { org, inviter } = await seedOrgAndInviter("transition_crossorg");
+      const invitations = new InvitationRepo(db, org.id);
+      const inv = await invitations.create({
+        workosInvitationId: "inv_workos_transition_crossorg",
+        email: "transition-crossorg@example.com",
+        kind: "internal",
+        role: "viewer",
+        opportunitySlug: null,
+        invitedBy: inviter.id,
+        expiresAt: FUTURE,
+      });
+
+      const { org: otherOrg } = await seedOrgAndInviter(
+        "transition_crossorg_other",
+      );
+      const otherScoped = new InvitationRepo(db, otherOrg.id);
+      const result = await otherScoped.transitionState(
+        inv.id,
+        "pending",
+        "accepted",
+      );
+      expect(result).toBeNull();
+
+      // The row is untouched — still pending under its real org.
+      const refetched = await invitations.findById(inv.id);
+      expect(refetched?.state).toBe("pending");
     });
   });
 });

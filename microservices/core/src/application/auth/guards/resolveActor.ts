@@ -38,7 +38,7 @@
 // Wrapping in a transaction would just add round trips for no
 // safety win.
 
-import type { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
+import type { TenantBootstrapRepo } from "../../../infrastructure/db/bootstrapRepo";
 import type { OrgRepo } from "../../../infrastructure/db/orgRepo";
 import type { UserRepo } from "../../../infrastructure/db/userRepo";
 import type { User } from "@ai-data-room/api-utils/schemas/auth-orgs";
@@ -50,7 +50,7 @@ import type { ActorContext, AuthContext } from "./authContextTypes";
 export interface ResolveActorDeps {
   userRepo: UserRepo;
   orgRepo: OrgRepo;
-  membershipRepo: MembershipRepo;
+  bootstrap: TenantBootstrapRepo;
 }
 
 export async function resolveActor(
@@ -86,7 +86,7 @@ export async function resolveActor(
   // `POST /orgs` after their session was minted. Single-membership
   // invariant → `findByUser` returns at most one row = their org.
   if (localOrgId === null) {
-    const membership = await deps.membershipRepo.findByUser(localUser.id);
+    const membership = await deps.bootstrap.findMembershipForUser(localUser.id);
     if (membership) {
       localOrgId = membership.orgId;
     }

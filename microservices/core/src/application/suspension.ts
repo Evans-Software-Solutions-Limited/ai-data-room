@@ -58,7 +58,10 @@ export interface SuspensionInput {
 export interface SuspensionDeps {
   workos: WorkOSClient;
   userRepo: UserRepo;
-  membershipRepo: MembershipRepo;
+  /** The caller's scoped membership repo (`ctx.scoped.membership`) —
+   *  already bound to `orgId` (T-004), so `findOwner()` no longer
+   *  takes it explicitly. */
+  membership: MembershipRepo;
   auditRepo: AuditRepo;
 }
 
@@ -97,7 +100,7 @@ export async function suspendUser(
   // The single-owner partial unique (T-005) guarantees at most one
   // owner per org. If the target IS that one, they're by
   // definition the sole owner — the FR23 invariant fires.
-  const owner = await deps.membershipRepo.findOwnerForOrg(input.orgId);
+  const owner = await deps.membership.findOwner();
   if (owner && owner.userId === input.targetId) {
     await emitFailure(input, deps, "user_suspended", "sole_owner_protection");
     throw new SuspensionError("sole_owner_protection");

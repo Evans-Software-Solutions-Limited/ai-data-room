@@ -22,6 +22,6 @@ export const resolveActorPlugin = async ({
     {
       userRepo: protectedDeps.userRepo,
       orgRepo: protectedDeps.orgRepo,
-      membershipRepo: protectedDeps.membershipRepo,
+      bootstrap: protectedDeps.bootstrap,
     },
   )) as unknown as Record<string, unknown>;

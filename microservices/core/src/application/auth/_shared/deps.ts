@@ -19,9 +19,7 @@ import { Resource } from "sst";
 import { getDb } from "@ai-data-room/db";
 
 import { AuditRepo } from "../../../infrastructure/db/auditRepo";
-import { ExternalGrantRepo } from "../../../infrastructure/db/externalGrantRepo";
-import { InvitationRepo } from "../../../infrastructure/db/invitationRepo";
-import { MembershipRepo } from "../../../infrastructure/db/membershipRepo";
+import { TenantBootstrapRepo } from "../../../infrastructure/db/bootstrapRepo";
 import { OrgRepo } from "../../../infrastructure/db/orgRepo";
 import { UserRepo } from "../../../infrastructure/db/userRepo";
 import { createEventBridgeOrgEventPublisher } from "../../../infrastructure/events/eventBridgeOrgEventPublisher";
@@ -35,9 +33,14 @@ export const protectedDeps = {
   workos,
   userRepo: new UserRepo(db),
   orgRepo: new OrgRepo(db),
-  membershipRepo: new MembershipRepo(db),
-  invitationRepo: new InvitationRepo(db),
-  externalGrantRepo: new ExternalGrantRepo(db),
+  // Tenant-isolation (slice 10) / T-004: the org-scoped repos
+  // (membership / invitations / externalGrants / auditReads) are no
+  // longer module-scope singletons here — they're built per-request,
+  // pre-bound to the caller's org, by `createScopedReposGuard` (see
+  // `protectedRoutes.ts`) via `scopedRepo(orgId, db)`. `bootstrap`
+  // covers the reads that legitimately run BEFORE a tenant context
+  // exists (see `bootstrapRepo.ts`'s header).
+  bootstrap: new TenantBootstrapRepo(db),
   auditRepo: new AuditRepo(db),
   // org-provisioning (slice 17 / T-005) — EventBridge transport for
   // `org.created`. `busName` is the EventBus declared in `infra/events.ts`

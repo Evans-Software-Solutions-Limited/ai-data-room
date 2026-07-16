@@ -1,7 +1,13 @@
 // Integration tests for `ExternalGrantRepo`.
+//
+// Tenant-isolation (slice 10) / T-004: `ExternalGrantRepo` is now a
+// `ScopedRepo` subclass — each test constructs its own instance bound
+// to the org it seeds. `listByUser` moved to `bootstrapRepo.test.ts`
+// (an external user's self-read has to work with no org context).
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { drizzle } from "drizzle-orm/postgres-js";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 import {
   applyMigrations,
@@ -17,14 +23,13 @@ import { UserRepo } from "../../../src/infrastructure/db/userRepo";
 import { seedOrgAndUser } from "./fixtures";
 
 describe("ExternalGrantRepo (integration)", () => {
-  let grants: ExternalGrantRepo;
+  let db: PostgresJsDatabase<typeof schema>;
   let users: UserRepo;
   let orgs: OrgRepo;
 
   beforeAll(async () => {
     await applyMigrations();
-    const db = drizzle(getTestPool(), { schema });
-    grants = new ExternalGrantRepo(db);
+    db = drizzle(getTestPool(), { schema });
     users = new UserRepo(db);
     orgs = new OrgRepo(db);
   });
@@ -44,15 +49,16 @@ describe("ExternalGrantRepo (integration)", () => {
   const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
   const ninetyDaysFromNow = () => new Date(Date.now() + NINETY_DAYS_MS);
 
-  it("create() inserts a grant with status=active by default", async () => {
+  it("create() inserts a grant with status=active by default, stamping the bound org", async () => {
     const { org, user } = await seedOrgAndUser({ orgs, users }, "create");
+    const grants = new ExternalGrantRepo(db, org.id);
     const grant = await grants.create({
-      orgId: org.id,
       userId: user.id,
       opportunitySlug: "vendor-a",
       grantedBy: user.id,
       expiresAt: ninetyDaysFromNow(),
     });
+    expect(grant.orgId).toBe(org.id);
     expect(grant.opportunitySlug).toBe("vendor-a");
     expect(grant.status).toBe("active");
     // FR8b: the row carries the caller-supplied expiry within ~5s.
@@ -62,30 +68,7 @@ describe("ExternalGrantRepo (integration)", () => {
     expect(driftMs).toBeLessThan(5_000);
   });
 
-  it("listByUser() returns every grant for that user", async () => {
-    const { org, user } = await seedOrgAndUser({ orgs, users }, "listuser");
-    await grants.create({
-      orgId: org.id,
-      userId: user.id,
-      opportunitySlug: "vendor-a",
-      grantedBy: user.id,
-      expiresAt: ninetyDaysFromNow(),
-    });
-    await grants.create({
-      orgId: org.id,
-      userId: user.id,
-      opportunitySlug: "vendor-b",
-      grantedBy: user.id,
-      expiresAt: ninetyDaysFromNow(),
-    });
-    const list = await grants.listByUser(user.id);
-    expect(list).toHaveLength(2);
-    expect(new Set(list.map((g) => g.opportunitySlug))).toEqual(
-      new Set(["vendor-a", "vendor-b"]),
-    );
-  });
-
-  it("listByOrg() returns every grant under the org regardless of grantee", async () => {
+  it("list() returns every grant under the bound org regardless of grantee, and excludes other orgs", async () => {
     const { org, user: granter } = await seedOrgAndUser(
       { orgs, users },
       "listorg",
@@ -98,21 +81,34 @@ describe("ExternalGrantRepo (integration)", () => {
       workosUserId: "user_workos_extB",
       email: "extB@example.com",
     });
+    const grants = new ExternalGrantRepo(db, org.id);
     await grants.create({
-      orgId: org.id,
       userId: externalA.id,
       opportunitySlug: "vendor-a",
       grantedBy: granter.id,
       expiresAt: ninetyDaysFromNow(),
     });
     await grants.create({
-      orgId: org.id,
       userId: externalB.id,
       opportunitySlug: "vendor-b",
       grantedBy: granter.id,
       expiresAt: ninetyDaysFromNow(),
     });
-    const list = await grants.listByOrg(org.id);
+
+    // A second org's grants must never show up in the first org's list.
+    const { org: otherOrg, user: otherGranter } = await seedOrgAndUser(
+      { orgs, users },
+      "listorg_other",
+    );
+    const otherGrants = new ExternalGrantRepo(db, otherOrg.id);
+    await otherGrants.create({
+      userId: otherGranter.id,
+      opportunitySlug: "vendor-c",
+      grantedBy: otherGranter.id,
+      expiresAt: ninetyDaysFromNow(),
+    });
+
+    const list = await grants.list();
     expect(list).toHaveLength(2);
     expect(new Set(list.map((g) => g.userId))).toEqual(
       new Set([externalA.id, externalB.id]),

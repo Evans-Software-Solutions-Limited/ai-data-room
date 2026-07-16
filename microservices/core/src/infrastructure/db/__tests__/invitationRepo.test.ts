@@ -24,6 +24,8 @@ function makeDbReturning(rows: unknown[]): DbOrTx {
   } as unknown as DbOrTx;
 }
 
+const ORG_ID = "99999999-9999-4999-8999-999999999999";
+
 describe("InvitationRepo.transitionState — metric fan-out", () => {
   beforeEach(() => {
     vi.spyOn(metrics, "addMetric").mockReturnValue(metrics);
@@ -38,7 +40,7 @@ describe("InvitationRepo.transitionState — metric fan-out", () => {
       id: "11111111-1111-4111-8111-111111111111",
       state: "expired",
     };
-    const repo = new InvitationRepo(makeDbReturning([row]));
+    const repo = new InvitationRepo(makeDbReturning([row]), ORG_ID);
 
     await repo.transitionState(row.id, "pending", "expired");
 
@@ -51,7 +53,7 @@ describe("InvitationRepo.transitionState — metric fan-out", () => {
 
   it("does NOT emit auth.invite.expired for accepted / revoked transitions", async () => {
     const row = { id: "abc", state: "accepted" };
-    const repo = new InvitationRepo(makeDbReturning([row]));
+    const repo = new InvitationRepo(makeDbReturning([row]), ORG_ID);
 
     await repo.transitionState(row.id, "pending", "accepted");
 
@@ -66,7 +68,7 @@ describe("InvitationRepo.transitionState — metric fan-out", () => {
     // Defends the `result &&` guard — a null result must skip the
     // metric, otherwise we'd over-count "expired" transitions on
     // every concurrent attempt.
-    const repo = new InvitationRepo(makeDbReturning([]));
+    const repo = new InvitationRepo(makeDbReturning([]), ORG_ID);
 
     await repo.transitionState("missing-id", "pending", "expired");
 

@@ -18,10 +18,10 @@ import type {
   WorkOSClient,
 } from "../infrastructure/workos/client";
 import type { AuditRepo } from "../infrastructure/db/auditRepo";
-import type { ExternalGrantRepo } from "../infrastructure/db/externalGrantRepo";
+import type { TenantBootstrapRepo } from "../infrastructure/db/bootstrapRepo";
 import type { InvitationRepo } from "../infrastructure/db/invitationRepo";
-import type { MembershipRepo } from "../infrastructure/db/membershipRepo";
 import type { OrgRepo } from "../infrastructure/db/orgRepo";
+import { scopedRepo } from "../infrastructure/db/scoped";
 import type { UserRepo } from "../infrastructure/db/userRepo";
 import type { Db } from "@ai-data-room/db";
 import type {
@@ -117,7 +117,10 @@ export interface CreateInvitationDeps {
   workos: WorkOSClient;
   userRepo: UserRepo;
   orgRepo: OrgRepo;
-  invitationRepo: InvitationRepo;
+  /** The caller's scoped invitation repo (`ctx.scoped.invitations`) —
+   *  already bound to `orgId` (T-004), so `.create()` no longer takes
+   *  it explicitly. */
+  invitations: InvitationRepo;
   auditRepo: AuditRepo;
 }
 
@@ -174,9 +177,8 @@ export async function createInvitation(
     expiresInDays: 7,
   });
 
-  const invitation = await deps.invitationRepo.create({
+  const invitation = await deps.invitations.create({
     workosInvitationId: workosInvite.id,
-    orgId: input.orgId,
     email: input.email,
     kind: input.kind,
     role: input.kind === "internal" ? input.role : null,
@@ -212,28 +214,28 @@ export async function createInvitation(
 // ---------------------------------------------------------------------------
 
 export interface ListInvitationsInput {
-  orgId: string;
   /** Defaults to `pending` — the admin UI's primary case. Pass other
    * states explicitly when surfacing audit history. */
   state?: Invitation["state"];
 }
 
 export interface ListInvitationsDeps {
-  invitationRepo: InvitationRepo;
+  /** The caller's scoped invitation repo (`ctx.scoped.invitations`) —
+   *  org is implicit in the scope, so this no longer takes an
+   *  explicit `orgId` (T-004; was `{ orgId, state }` /
+   *  `listByOrgAndState`). */
+  invitations: InvitationRepo;
 }
 
 /**
  * Read-only — no audit emission. The list endpoint returns 0+ rows
- * for the requested org and state.
+ * for the requested state, scoped to the caller's org.
  */
 export async function listInvitations(
   input: ListInvitationsInput,
   deps: ListInvitationsDeps,
 ): Promise<Invitation[]> {
-  return deps.invitationRepo.listByOrgAndState(
-    input.orgId,
-    input.state ?? "pending",
-  );
+  return deps.invitations.listByState(input.state ?? "pending");
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +252,9 @@ export interface RevokeInvitationInput {
 
 export interface RevokeInvitationDeps {
   workos: WorkOSClient;
-  invitationRepo: InvitationRepo;
+  /** The caller's scoped invitation repo (`ctx.scoped.invitations`) —
+   *  see the T-004 note on `findById` below. */
+  invitations: InvitationRepo;
   auditRepo: AuditRepo;
 }
 
@@ -263,17 +267,22 @@ export async function revokeInvitation(
     throw new InvitationError("actor_role_insufficient");
   }
 
-  const invitation = await deps.invitationRepo.findById(input.invitationId);
-  // Cross-org guard: the handler validates the actor's role in
-  // `input.orgId`, but `invitationId` is a globally-unique PK. A
-  // tenant-A editor passing a tenant-B invitation id would otherwise
-  // bypass tenancy. We treat cross-org access the same as not-found
-  // so the response shape doesn't reveal that the invitation exists
-  // in some other org. The failure-audit metadata records the actual
-  // owning org so an operator investigating the audit trail can
-  // distinguish a real lookup miss from an attempted cross-org
-  // probe.
-  if (!invitation || invitation.orgId !== input.orgId) {
+  // T-004: `deps.invitations` is already bound to `input.orgId` (the
+  // scoped repo the handler built from `ctx.scoped`), so `findById`
+  // itself excludes any row belonging to a foreign org — a tenant-A
+  // editor passing a tenant-B invitation id resolves to `null` here,
+  // identically to a genuinely nonexistent id. This SUBSUMES the
+  // pre-T-004 `invitation.orgId !== input.orgId` cross-org branch:
+  // that branch is now unreachable (the scoped query can't even
+  // return a foreign-org row to compare against), so it's removed
+  // rather than left as dead code. One accepted, minor regression:
+  // the failure-audit's `actualOrgId` metadata (previously recorded
+  // for forensics on a cross-org probe) is no longer available here,
+  // because the scoped read doesn't distinguish "doesn't exist" from
+  // "exists in another org" — which is exactly the isolation
+  // guarantee this slice exists to provide.
+  const invitation = await deps.invitations.findById(input.invitationId);
+  if (!invitation) {
     await safeAudit(deps, {
       eventType: "invite_revoked",
       outcome: "failure",
@@ -281,10 +290,7 @@ export async function revokeInvitation(
       orgId: input.orgId,
       sourceIp: input.audit.sourceIp,
       userAgent: input.audit.userAgent,
-      metadata: {
-        reason: "invitation_not_found",
-        ...(invitation ? { actualOrgId: invitation.orgId } : {}),
-      },
+      metadata: { reason: "invitation_not_found" },
     });
     throw new InvitationError("invitation_not_found");
   }
@@ -308,7 +314,7 @@ export async function revokeInvitation(
   // done and irreversible — that's an unavoidable consequence of
   // the external-then-local ordering — but the local audit trail
   // stays accurate.
-  const updated = await deps.invitationRepo.transitionState(
+  const updated = await deps.invitations.transitionState(
     invitation.id,
     "pending",
     "revoked",
@@ -357,9 +363,12 @@ export interface AcceptInvitationInput {
 export interface AcceptInvitationDeps {
   db: Db;
   userRepo: UserRepo;
-  membershipRepo: MembershipRepo;
-  externalGrantRepo: ExternalGrantRepo;
-  invitationRepo: InvitationRepo;
+  /** Webhook-driven bootstrap read — discovers the invitation (and
+   *  hence its `orgId`) BEFORE any tenant context exists (T-004). Once
+   *  `invitation.orgId` is known, the function binds
+   *  `scopedRepo(invitation.orgId, tx)` itself for every write inside
+   *  the transaction below. */
+  bootstrap: TenantBootstrapRepo;
   auditRepo: AuditRepo;
 }
 
@@ -378,7 +387,7 @@ export async function acceptInvitation(
   input: AcceptInvitationInput,
   deps: AcceptInvitationDeps,
 ): Promise<AcceptInvitationResult> {
-  const invitation = await deps.invitationRepo.findByWorkosInvitationId(
+  const invitation = await deps.bootstrap.findInvitationByWorkosId(
     input.workosInvitationId,
   );
   if (!invitation) {
@@ -430,9 +439,13 @@ export async function acceptInvitation(
   try {
     result = await deps.db.transaction(async (tx) => {
       const userTx = deps.userRepo.withTx(tx);
-      const membershipTx = deps.membershipRepo.withTx(tx);
-      const externalGrantTx = deps.externalGrantRepo.withTx(tx);
-      const invitationTx = deps.invitationRepo.withTx(tx);
+      // T-004: `invitation.orgId` is only known NOW (we just read the
+      // row via the unscoped `bootstrap` lookup above) — the scope is
+      // bound here, inside the tx, rather than passed in from the
+      // caller. This is the same bootstrap reasoning as `createOrg`:
+      // you can't demand the org up front when discovering it is the
+      // whole point of the read that came before it.
+      const scoped = scopedRepo(invitation.orgId, tx);
 
       // Find-or-create on the user mirror. Webhook redelivery for a
       // user we've already mirrored (e.g. a re-invited user) hits the
@@ -460,8 +473,7 @@ export async function acceptInvitation(
         if (invitation.role === null) {
           throw new InvitationError("invitation_invariant_violation");
         }
-        membership = await membershipTx.create({
-          orgId: invitation.orgId,
+        membership = await scoped.membership.create({
           userId: user.id,
           role: invitation.role,
         });
@@ -469,8 +481,7 @@ export async function acceptInvitation(
         if (invitation.opportunitySlug === null) {
           throw new InvitationError("invitation_invariant_violation");
         }
-        grant = await externalGrantTx.create({
-          orgId: invitation.orgId,
+        grant = await scoped.externalGrants.create({
           userId: user.id,
           opportunitySlug: invitation.opportunitySlug,
           grantedBy: invitation.invitedBy,
@@ -485,7 +496,7 @@ export async function acceptInvitation(
       // can't end up with a duplicate `external_access_grants` row
       // (which has no unique index that would otherwise catch it) or
       // a clobbered `revoked` state.
-      const updatedInvitation = await invitationTx.transitionState(
+      const updatedInvitation = await scoped.invitations.transitionState(
         invitation.id,
         "pending",
         "accepted",

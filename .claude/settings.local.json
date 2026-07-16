@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun install *)",
+      "Bash(bun run *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(timeout 120 bun sst diff --stage bradleysimms-evans)",
+      "Bash(bun sst *)",
+      "Read(//Users/bradleysimms-evans/.aws/**)",
+      "Bash(env)",
+      "Bash(AWS_PROFILE=ess-dev bun sst diff --stage bradleysimms-evans)",
+      "mcp__66d2cab8-ba14-43a8-ab4f-f10f9dcf8295__slack_send_message",
+      "Bash(git checkout *)",
+      "Bash(git pull *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "Bash(docker compose *)",
+      "Read(//Users/bradleysimms-evans/Documents/projects/funds-distribution-platform/microservices/**)",
+      "Bash(bunx prettier *)",
+      "Bash(grep -r \"from.*zod\\\\|import.*zod\" /Users/bradleysimms-evans/Documents/projects/funds-distribution-platform --include=\"*.ts\" ! -path \"*/node_modules/*\")",
+      "Bash(xargs ls *)",
+      "Bash(gh pr create --title 'feat\\(auth-and-orgs\\): T-004 — domain types + zod schemas' --body ' *)",
+      "Bash(gh pr *)",
+      "Bash(DATABASE_URL=\"postgres://placeholder\" bun run db:check)",
+      "Bash(DATABASE_URL=postgres://placeholder bun run db:check)"
+    ]
+  }
+}
