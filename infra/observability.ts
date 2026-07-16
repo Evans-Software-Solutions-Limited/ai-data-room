@@ -270,3 +270,63 @@ new aws.cloudwatch.MetricAlarm("alarm-org-create-compensation-failed", {
   threshold: 0,
   comparisonOperator: "GreaterThanThreshold",
 });
+
+// ── tenant-isolation (slice 10 / T-007) ────────────────────────────────
+// 9. tenancy.guard.violations > 0 over 5min → PAGE. The application-layer
+// factory (ADR-011 Option B) makes cross-tenant queries impossible by
+// construction; `ScopedRepo.stampOrgId` is the one place the guard actively
+// CATCHES a cross-tenant attempt — a write carrying a foreign `org_id` — and
+// emits this count before refusing it. Steady state is 0; any spike is a P1
+// (a real isolation bug the guard blocked pre-persist, or an attacker probing
+// the write path). Emitted from BOTH Lambdas: the core API (`service:
+// "core-api"`) for request-path writes and the webhook Lambda (`service:
+// "workos-webhook"`) for `acceptInvitation`'s scoped writes — so the alarm
+// aggregates across both. Same `FILL(…, 0)` rationale as the audit-write-
+// failure alarm above: Powertools only emits when a violation occurs, so a
+// quiet Lambda leaves no data points, and CloudWatch metric math propagates
+// missing data (`5 + nodata = nodata`) which `treatMissingData:
+// "notBreaching"` would then silently swallow — coerce each operand to 0
+// before summing so a single-Lambda spike still trips the alarm.
+new aws.cloudwatch.MetricAlarm("alarm-tenancy-guard-violations", {
+  name: `${ALARM_PREFIX}-tenancy-guard-violations`,
+  ...sharedDefaults(
+    "Cross-tenant access attempt caught by the tenant guard — P1 isolation signal",
+  ),
+  evaluationPeriods: 1,
+  threshold: 0,
+  comparisonOperator: "GreaterThanThreshold",
+  metricQueries: [
+    {
+      id: "core",
+      metricStat: {
+        metric: {
+          metricName: "tenancy.guard.violations",
+          namespace: METRICS_NAMESPACE,
+          dimensions: { service: "core-api" },
+        },
+        period: 300,
+        stat: "Sum",
+      },
+      returnData: false,
+    },
+    {
+      id: "webhook",
+      metricStat: {
+        metric: {
+          metricName: "tenancy.guard.violations",
+          namespace: METRICS_NAMESPACE,
+          dimensions: { service: "workos-webhook" },
+        },
+        period: 300,
+        stat: "Sum",
+      },
+      returnData: false,
+    },
+    {
+      id: "total",
+      expression: "FILL(core, 0) + FILL(webhook, 0)",
+      label: "tenancy.guard.violations (all services)",
+      returnData: true,
+    },
+  ],
+});

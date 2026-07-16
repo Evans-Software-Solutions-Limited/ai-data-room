@@ -94,7 +94,7 @@ it passes.
 
 ## T-006 — Property test: no cross-tenant leak
 
-Status: `[ ]`
+Status: `[x]` (merged PR #49 — `tenantIsolation.property.integration.test.ts` (fast-check, real Postgres); ADR-011 flipped to `accepted`)
 **Scope:** `fast-check` property test over a real test Postgres: two orgs,
 random row distributions, every repo method invoked under one org's scope,
 assert zero foreign-org rows. ADR-011 moves to `accepted` on green.

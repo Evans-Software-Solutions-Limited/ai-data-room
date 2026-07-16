@@ -33,6 +33,8 @@
 import { and, eq, type AnyColumn, type SQL } from "drizzle-orm";
 import type { DbOrTx, Tx } from "@ai-data-room/db";
 
+import { recordTenancyGuardViolation } from "../observability/tenancyGuard";
+
 /**
  * A LOCAL organisation UUID (our `organizations.id`), never the WorkOS text
  * id. Kept as a plain `string` alias — the codebase types `localOrgId` as
@@ -138,6 +140,18 @@ export abstract class ScopedRepo {
   protected stampOrgId<T>(values: T): T & { orgId: OrgId } {
     const explicit = (values as { orgId?: OrgId | null }).orgId;
     if (explicit != null && explicit !== this.orgId) {
+      // Defence-in-depth catch (T-007): a write reached us carrying a foreign
+      // org_id. Record the P1 signal (metric + structured log → the
+      // `tenancy.guard.violations` alarm) BEFORE throwing, so the operator
+      // sees it even if something upstream swallows the error.
+      recordTenancyGuardViolation({
+        boundOrgId: this.orgId,
+        attemptedOrgId: explicit,
+        // `this` is the concrete subclass (MembershipRepo, InvitationRepo, …),
+        // so `constructor.name` names which table's write was refused.
+        repo: this.constructor.name,
+        operation: "write",
+      });
       throw new ScopedRepoError(
         `refusing write: explicit org_id "${explicit}" does not match ` +
           `scoped org "${this.orgId}"`,
