@@ -220,6 +220,57 @@ describe("Cross-tenant isolation property (T-006, NFR1 / AC-US4)", () => {
       });
     }
 
+    // T-010 retention states, one of each per org, so the sweep's
+    // filtered-list scoped reads (listSoftDeletedBefore /
+    // listExpiredDraftsBefore / listArchivedBefore / listAllByOpportunity)
+    // are exercised against REAL rows under each org — a broken scope on
+    // any of them would surface B's row in A's results (revert-resistant).
+    const softDeletedDoc = await scoped.documents.create({
+      folderKind: "canonical",
+      canonicalFolder: CANONICAL_FOLDERS[0]!,
+      displayName: `sd_${uniq()}.pdf`,
+      createdBy: base.id,
+    });
+    const sdVersion = await scoped.documentVersions.create({
+      documentId: softDeletedDoc.id,
+      versionNumber: 1,
+      originalFilename: "sd.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 1,
+      sha256: "cd".repeat(32),
+      s3Key: `orgs/${org.id}/documents/${softDeletedDoc.id}/v1`,
+      uploadedBy: base.id,
+    });
+    await scoped.documents.markActive(softDeletedDoc.id, sdVersion.id);
+    await scoped.documents.softDelete(softDeletedDoc.id, new Date());
+    documentIds.push(softDeletedDoc.id);
+    versionIds.push(sdVersion.id);
+
+    // A bare draft (create() leaves state='draft', no version).
+    const draftDoc = await scoped.documents.create({
+      folderKind: "canonical",
+      canonicalFolder: CANONICAL_FOLDERS[0]!,
+      displayName: `draft_${uniq()}.pdf`,
+      createdBy: base.id,
+    });
+    documentIds.push(draftDoc.id);
+
+    // An archived subroom with one document.
+    const archivedOpp = await scoped.opportunities.create({
+      slug: `Arch_${uniq()}`,
+      name: "Archived",
+      createdBy: base.id,
+    });
+    const archivedOppDoc = await scoped.documents.create({
+      folderKind: "opportunity",
+      opportunityId: archivedOpp.id,
+      displayName: `ad_${uniq()}.pdf`,
+      createdBy: base.id,
+    });
+    await scoped.opportunities.archive(archivedOpp.id, new Date());
+    opportunityIds.push(archivedOpp.id);
+    documentIds.push(archivedOppDoc.id);
+
     return {
       orgId: org.id,
       memberUserIds,
@@ -315,6 +366,31 @@ describe("Cross-tenant isolation property (T-006, NFR1 / AC-US4)", () => {
           seenOrgIds.push(...dels.map((x) => x.orgId));
         }
 
+        // T-010 retention-sweep filtered-list reads. A max-date cutoff
+        // matches every eligible row, so each returns all of A's
+        // soft-deleted / draft / archived rows; the invariant below then
+        // proves not one of them is B's.
+        const MAX_DATE = new Date("3000-01-01T00:00:00Z");
+        seenOrgIds.push(
+          ...(await scopedA.documents.listSoftDeletedBefore(MAX_DATE)).map(
+            (d) => d.orgId,
+          ),
+        );
+        seenOrgIds.push(
+          ...(await scopedA.documents.listExpiredDraftsBefore(MAX_DATE)).map(
+            (d) => d.orgId,
+          ),
+        );
+        seenOrgIds.push(
+          ...(await scopedA.opportunities.listArchivedBefore(MAX_DATE)).map(
+            (o) => o.orgId,
+          ),
+        );
+        for (const oppId of a.opportunityIds) {
+          const allDocs = await scopedA.documents.listAllByOpportunity(oppId);
+          seenOrgIds.push(...allDocs.map((d) => d.orgId));
+        }
+
         // THE invariant: nothing org-B, nothing null-org, everything org-A.
         expect(seenOrgIds).not.toContain(b.orgId);
         expect(seenOrgIds).not.toContain(null);
@@ -339,6 +415,10 @@ describe("Cross-tenant isolation property (T-006, NFR1 / AC-US4)", () => {
           ).toHaveLength(0);
           expect(
             await scopedA.documents.listByOpportunityWithVersion(bOppId),
+          ).toHaveLength(0);
+          // T-010: all-states subroom read for B's opp must miss under A.
+          expect(
+            await scopedA.documents.listAllByOpportunity(bOppId),
           ).toHaveLength(0);
         }
         for (const bDocId of b.documentIds) {

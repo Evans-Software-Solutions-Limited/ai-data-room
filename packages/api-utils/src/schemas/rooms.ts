@@ -232,7 +232,11 @@ export const DocumentDeletionSchema = z.object({
   id: z.string().uuid(),
   documentId: z.string().uuid(),
   orgId: z.string().uuid(),
-  softDeletedBy: z.string().uuid(),
+  // Nullable: a system-initiated hard-delete (the T-010 retention sweep) has
+  // no user actor, and the original soft-deleter isn't persisted — so a
+  // swept row's initiator is null. Support-initiated hard-deletes (T-009)
+  // still carry the operator's id.
+  softDeletedBy: z.string().uuid().nullable(),
   hardDeletedAt: z.coerce.date(),
 });
 

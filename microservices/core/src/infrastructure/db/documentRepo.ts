@@ -11,7 +11,7 @@
 // placement is the XOR the DB CHECK + the domain `DocumentSchema`
 // enforce; this repo trusts a validated input and persists it.
 
-import { and, asc, eq, exists, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, exists, lt, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "@ai-data-room/db";
 import { schema } from "@ai-data-room/db";
 import type {
@@ -421,5 +421,96 @@ export class DocumentRepo extends ScopedRepo {
       .where(this.scoped(documents.orgId, eq(documents.id, id)))
       .returning();
     return firstOrNull(rows as Document[]);
+  }
+
+  /**
+   * Soft-deleted documents whose 30-day retention window has elapsed
+   * (`soft_deleted_at < cutoff`), for the T-010 retention sweep. Scoped to
+   * the bound org — the sweep runs one `systemScope(orgId, …)` per org.
+   * Ordered by id for a deterministic sweep.
+   */
+  async listSoftDeletedBefore(cutoff: Date): Promise<Document[]> {
+    const rows = await this.db
+      .select()
+      .from(documents)
+      .where(
+        this.scoped(
+          documents.orgId,
+          and(
+            eq(documents.state, "soft_deleted"),
+            lt(documents.softDeletedAt, cutoff),
+          ),
+        ),
+      )
+      .orderBy(asc(documents.id));
+    return rows as Document[];
+  }
+
+  /**
+   * Draft documents (abandoned/incomplete uploads) older than `cutoff`
+   * (`created_at < cutoff`), for the T-010 janitor leg (folds in T-012).
+   * A draft has no completed version and no `current_version_id`, so
+   * purging it is a plain scoped delete (no forensic row). Scoped; ordered
+   * by id.
+   */
+  async listExpiredDraftsBefore(cutoff: Date): Promise<Document[]> {
+    const rows = await this.db
+      .select()
+      .from(documents)
+      .where(
+        this.scoped(
+          documents.orgId,
+          and(eq(documents.state, "draft"), lt(documents.createdAt, cutoff)),
+        ),
+      )
+      .orderBy(asc(documents.id));
+    return rows as Document[];
+  }
+
+  /**
+   * Purge an abandoned DRAFT document (T-010 / T-012 janitor). A
+   * compare-and-set on `state='draft'`: if the draft was COMPLETED
+   * (`markActive`) between the janitor's eligibility read and here — S3
+   * multipart uploads live 7 days, well past the 24h draft cutoff, so a
+   * stale draft is still completable — this matches zero rows and the
+   * now-active document is preserved. A naked delete-by-id would instead
+   * destroy the live document with no `document_deletions` forensic row
+   * and no S3 tag (the completed object would orphan), so the janitor
+   * MUST re-assert the draft state here. Returns the deleted row or `null`.
+   */
+  async purgeDraft(id: string): Promise<Document | null> {
+    const rows = await this.db
+      .delete(documents)
+      .where(
+        this.scoped(
+          documents.orgId,
+          and(eq(documents.id, id), eq(documents.state, "draft")),
+        ),
+      )
+      .returning();
+    return firstOrNull(rows as Document[]);
+  }
+
+  /**
+   * EVERY document in an Opportunity subroom regardless of state (active,
+   * draft, soft-deleted), for the T-010 sweep's archived-opportunity
+   * cleanup: all of a 90-day-expired subroom's documents must be
+   * hard-deleted before the opportunity row itself (the
+   * `documents.opportunity_id` FK is ON DELETE NO ACTION). Unlike
+   * `listByOpportunity` (active-only, for listings) this hides nothing.
+   * Scoped; ordered by id.
+   */
+  async listAllByOpportunity(opportunityId: string): Promise<Document[]> {
+    const rows = await this.db
+      .select()
+      .from(documents)
+      .where(
+        this.scoped(
+          documents.orgId,
+          eq(documents.opportunityId, opportunityId),
+        ),
+      )
+      .orderBy(asc(documents.id));
+    return rows as Document[];
   }
 }

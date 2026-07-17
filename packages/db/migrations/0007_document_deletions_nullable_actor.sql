@@ -1,0 +1,1 @@
+ALTER TABLE "document_deletions" ALTER COLUMN "soft_deleted_by" DROP NOT NULL;
