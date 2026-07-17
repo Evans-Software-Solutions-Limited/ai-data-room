@@ -36,6 +36,11 @@ const LOCAL_ORG_ID = "22222222-2222-4222-8222-222222222222";
 const TARGET_USER_ID = "33333333-3333-4333-8333-333333333333";
 const INVITATION_ID = "44444444-4444-4444-8444-444444444444";
 
+// room-and-folders (slice 2) / T-011
+const OPPORTUNITY_ID = "a1111111-1111-4111-8111-111111111111";
+const DOCUMENT_ID = "a2222222-2222-4222-8222-222222222222";
+const VERSION_ID = "a3333333-3333-4333-8333-333333333333";
+
 const SESSION_USER = {
   object: "user" as const,
   id: "user_workos_xyz",
@@ -83,6 +88,49 @@ const OWNER_MEMBERSHIP = {
   updatedAt: new Date("2026-01-01T00:00:00Z"),
 };
 
+// room-and-folders (slice 2) / T-011 fixtures
+const OPPORTUNITY = {
+  id: OPPORTUNITY_ID,
+  orgId: LOCAL_ORG_ID,
+  slug: "vendor-a",
+  name: "Vendor A",
+  status: "active" as const,
+  archivedAt: null,
+  createdBy: LOCAL_USER_ID,
+  createdAt: new Date("2026-01-01T00:00:00Z"),
+  updatedAt: new Date("2026-01-01T00:00:00Z"),
+};
+
+const DOCUMENT_VERSION = {
+  id: VERSION_ID,
+  documentId: DOCUMENT_ID,
+  orgId: LOCAL_ORG_ID,
+  versionNumber: 1,
+  originalFilename: "contract.pdf",
+  mimeType: "application/pdf" as const,
+  sizeBytes: 1024,
+  sha256: "a".repeat(64),
+  s3Key: `orgs/${LOCAL_ORG_ID}/documents/${DOCUMENT_ID}/${VERSION_ID}`,
+  s3VersionId: null,
+  uploadedBy: LOCAL_USER_ID,
+  uploadedAt: new Date("2026-01-01T00:00:00Z"),
+};
+
+const DOCUMENT = {
+  id: DOCUMENT_ID,
+  orgId: LOCAL_ORG_ID,
+  folderKind: "canonical" as const,
+  canonicalFolder: "02_Financials" as const,
+  opportunityId: null,
+  displayName: "contract.pdf",
+  currentVersionId: VERSION_ID,
+  state: "active" as const,
+  softDeletedAt: null,
+  createdBy: LOCAL_USER_ID,
+  createdAt: new Date("2026-01-01T00:00:00Z"),
+  updatedAt: new Date("2026-01-01T00:00:00Z"),
+};
+
 interface MockSetup {
   authenticate: ReturnType<typeof vi.fn>;
   // userRepo
@@ -115,6 +163,43 @@ interface MockSetup {
   workosRevokeSession: ReturnType<typeof vi.fn>;
   workosCreateOrganization: ReturnType<typeof vi.fn>;
   workosDeleteOrganization: ReturnType<typeof vi.fn>;
+  // room-and-folders (slice 2) / T-011 — opportunityRepo
+  opportunityCreate: ReturnType<typeof vi.fn>;
+  opportunityFindById: ReturnType<typeof vi.fn>;
+  opportunityFindBySlug: ReturnType<typeof vi.fn>;
+  opportunityListActive: ReturnType<typeof vi.fn>;
+  opportunityRename: ReturnType<typeof vi.fn>;
+  opportunityArchive: ReturnType<typeof vi.fn>;
+  // documentRepo
+  documentCreate: ReturnType<typeof vi.fn>;
+  documentFindById: ReturnType<typeof vi.fn>;
+  documentFindActiveByName: ReturnType<typeof vi.fn>;
+  documentGetWithCurrentVersion: ReturnType<typeof vi.fn>;
+  documentListByCanonicalFolderWithVersion: ReturnType<typeof vi.fn>;
+  documentListByOpportunityWithVersion: ReturnType<typeof vi.fn>;
+  documentMarkActive: ReturnType<typeof vi.fn>;
+  documentSetCurrentVersion: ReturnType<typeof vi.fn>;
+  documentSoftDelete: ReturnType<typeof vi.fn>;
+  documentRestore: ReturnType<typeof vi.fn>;
+  documentPurgeDraft: ReturnType<typeof vi.fn>;
+  // documentVersionRepo
+  versionCreate: ReturnType<typeof vi.fn>;
+  versionFindById: ReturnType<typeof vi.fn>;
+  versionListByDocument: ReturnType<typeof vi.fn>;
+  versionLatestVersionNumber: ReturnType<typeof vi.fn>;
+  // externalGrantRepo (room extensions)
+  grantRetargetOpportunitySlug: ReturnType<typeof vi.fn>;
+  grantRevokeActiveForOpportunity: ReturnType<typeof vi.fn>;
+  // S3 document store (mocked at the `createS3DocumentStore` factory)
+  storeCreateMultipartUpload: ReturnType<typeof vi.fn>;
+  storePresignPartUrls: ReturnType<typeof vi.fn>;
+  storeCompleteMultipartUpload: ReturnType<typeof vi.fn>;
+  storeAbortMultipartUpload: ReturnType<typeof vi.fn>;
+  storePresignDownloadUrl: ReturnType<typeof vi.fn>;
+  storeHeadObject: ReturnType<typeof vi.fn>;
+  storeDeleteObject: ReturnType<typeof vi.fn>;
+  storeTagObject: ReturnType<typeof vi.fn>;
+  storeComputeSha256: ReturnType<typeof vi.fn>;
 }
 
 function setupMocks(): MockSetup {
@@ -231,10 +316,18 @@ function setupMocks(): MockSetup {
   // the self-read of a user's own grants moved to
   // `TenantBootstrapRepo.listGrantsForUser` (below) since it must work
   // for external users, who have no `localOrgId` / scoped handle.
+  //
+  // room-and-folders (slice 2) / T-011: `retargetOpportunitySlug` /
+  // `revokeActiveForOpportunity` back `renameOpportunity` /
+  // `archiveOpportunity` (ADR-014).
+  const grantRetargetOpportunitySlug = vi.fn().mockResolvedValue(undefined);
+  const grantRevokeActiveForOpportunity = vi.fn().mockResolvedValue(0);
   vi.doMock("../../../infrastructure/db/externalGrantRepo", () => ({
     ExternalGrantRepo: class {
       create = vi.fn();
       list = vi.fn().mockResolvedValue([]);
+      retargetOpportunitySlug = grantRetargetOpportunitySlug;
+      revokeActiveForOpportunity = grantRevokeActiveForOpportunity;
       withTx = () => this;
     },
   }));
@@ -275,30 +368,120 @@ function setupMocks(): MockSetup {
 
   // room-and-folders (slice 2) / T-004 scoped repos. Imported by the
   // real `scoped.ts` factory (which this suite exercises via
-  // `resolveScopedRepos`); mocked as empty classes so their real
-  // modules' top-level `const { table } = schema` never runs against
-  // this file's schema-less `@ai-data-room/db` mock. No route under
-  // test touches them.
+  // `resolveScopedRepos`); mocked so their real modules' top-level
+  // `const { table } = schema` never runs against this file's
+  // schema-less `@ai-data-room/db` mock. T-011 extends these from
+  // empty classes to cover every method the room handlers' app
+  // functions call. `scopeOrgId` mirrors the real `ScopedRepo` base's
+  // getter — fixed to `LOCAL_ORG_ID` since every room test runs as
+  // that org's actor.
+  const opportunityCreate = vi.fn();
+  const opportunityFindById = vi.fn();
+  const opportunityFindBySlug = vi.fn().mockResolvedValue(null);
+  const opportunityListActive = vi.fn().mockResolvedValue([]);
+  const opportunityRename = vi.fn();
+  const opportunityArchive = vi.fn();
   vi.doMock("../../../infrastructure/db/opportunityRepo", () => ({
     OpportunityRepo: class {
+      scopeOrgId = LOCAL_ORG_ID;
+      create = opportunityCreate;
+      findById = opportunityFindById;
+      findBySlug = opportunityFindBySlug;
+      listActive = opportunityListActive;
+      rename = opportunityRename;
+      archive = opportunityArchive;
       withTx = () => this;
     },
   }));
+
+  const documentCreate = vi.fn();
+  const documentFindById = vi.fn();
+  const documentFindActiveByName = vi.fn().mockResolvedValue(null);
+  const documentGetWithCurrentVersion = vi.fn();
+  const documentListByCanonicalFolderWithVersion = vi
+    .fn()
+    .mockResolvedValue([]);
+  const documentListByOpportunityWithVersion = vi.fn().mockResolvedValue([]);
+  const documentMarkActive = vi.fn();
+  const documentSetCurrentVersion = vi.fn();
+  const documentSoftDelete = vi.fn();
+  const documentRestore = vi.fn();
+  const documentPurgeDraft = vi.fn().mockResolvedValue(null);
   vi.doMock("../../../infrastructure/db/documentRepo", () => ({
     DocumentRepo: class {
+      scopeOrgId = LOCAL_ORG_ID;
+      create = documentCreate;
+      findById = documentFindById;
+      findActiveByName = documentFindActiveByName;
+      getWithCurrentVersion = documentGetWithCurrentVersion;
+      listByCanonicalFolderWithVersion =
+        documentListByCanonicalFolderWithVersion;
+      listByOpportunityWithVersion = documentListByOpportunityWithVersion;
+      markActive = documentMarkActive;
+      setCurrentVersion = documentSetCurrentVersion;
+      softDelete = documentSoftDelete;
+      restore = documentRestore;
+      purgeDraft = documentPurgeDraft;
       withTx = () => this;
     },
   }));
+
+  const versionCreate = vi.fn();
+  const versionFindById = vi.fn();
+  const versionListByDocument = vi.fn().mockResolvedValue([]);
+  const versionLatestVersionNumber = vi.fn().mockResolvedValue(0);
   vi.doMock("../../../infrastructure/db/documentVersionRepo", () => ({
     DocumentVersionRepo: class {
+      scopeOrgId = LOCAL_ORG_ID;
+      create = versionCreate;
+      findById = versionFindById;
+      listByDocument = versionListByDocument;
+      latestVersionNumber = versionLatestVersionNumber;
       withTx = () => this;
     },
     rowToVersion: vi.fn(),
   }));
   vi.doMock("../../../infrastructure/db/documentDeletionRepo", () => ({
     DocumentDeletionRepo: class {
+      scopeOrgId = LOCAL_ORG_ID;
       withTx = () => this;
     },
+  }));
+
+  // The S3 document store — mocked at the `createS3DocumentStore`
+  // factory (per the T-011 brief: "less brittle" than mocking the raw
+  // `@aws-sdk/client-s3` SDK). `roomDeps.ts` still constructs a real
+  // `S3Client`, but nothing in this suite ever calls `.send()` on it —
+  // every room handler goes through this stubbed store instead.
+  const storeCreateMultipartUpload = vi.fn().mockResolvedValue("s3-upload-id");
+  const storePresignPartUrls = vi
+    .fn()
+    .mockResolvedValue([{ partNumber: 1, url: "https://s3.example/part1" }]);
+  const storeCompleteMultipartUpload = vi
+    .fn()
+    .mockResolvedValue({ versionId: "s3-version-1" });
+  const storeAbortMultipartUpload = vi.fn().mockResolvedValue(undefined);
+  const storePresignDownloadUrl = vi
+    .fn()
+    .mockResolvedValue("https://s3.example/download");
+  const storeHeadObject = vi
+    .fn()
+    .mockResolvedValue({ sizeBytes: 1024, contentType: "application/pdf" });
+  const storeDeleteObject = vi.fn().mockResolvedValue(undefined);
+  const storeTagObject = vi.fn().mockResolvedValue(undefined);
+  const storeComputeSha256 = vi.fn().mockResolvedValue("a".repeat(64));
+  vi.doMock("../../../infrastructure/s3/client", () => ({
+    createS3DocumentStore: () => ({
+      createMultipartUpload: storeCreateMultipartUpload,
+      presignPartUrls: storePresignPartUrls,
+      completeMultipartUpload: storeCompleteMultipartUpload,
+      abortMultipartUpload: storeAbortMultipartUpload,
+      presignDownloadUrl: storePresignDownloadUrl,
+      headObject: storeHeadObject,
+      deleteObject: storeDeleteObject,
+      tagObject: storeTagObject,
+      computeSha256: storeComputeSha256,
+    }),
   }));
 
   // T-004: bootstrap reads that run BEFORE a tenant context exists —
@@ -349,6 +532,38 @@ function setupMocks(): MockSetup {
     workosRevokeSession,
     workosCreateOrganization,
     workosDeleteOrganization,
+    opportunityCreate,
+    opportunityFindById,
+    opportunityFindBySlug,
+    opportunityListActive,
+    opportunityRename,
+    opportunityArchive,
+    documentCreate,
+    documentFindById,
+    documentFindActiveByName,
+    documentGetWithCurrentVersion,
+    documentListByCanonicalFolderWithVersion,
+    documentListByOpportunityWithVersion,
+    documentMarkActive,
+    documentSetCurrentVersion,
+    documentSoftDelete,
+    documentRestore,
+    documentPurgeDraft,
+    versionCreate,
+    versionFindById,
+    versionListByDocument,
+    versionLatestVersionNumber,
+    grantRetargetOpportunitySlug,
+    grantRevokeActiveForOpportunity,
+    storeCreateMultipartUpload,
+    storePresignPartUrls,
+    storeCompleteMultipartUpload,
+    storeAbortMultipartUpload,
+    storePresignDownloadUrl,
+    storeHeadObject,
+    storeDeleteObject,
+    storeTagObject,
+    storeComputeSha256,
   };
 }
 
@@ -401,6 +616,11 @@ describe("protectedRoutes", () => {
     vi.doUnmock("../../../infrastructure/db/auditRepo");
     vi.doUnmock("../../../infrastructure/db/bootstrapRepo");
     vi.doUnmock("../../audit");
+    vi.doUnmock("../../../infrastructure/db/opportunityRepo");
+    vi.doUnmock("../../../infrastructure/db/documentRepo");
+    vi.doUnmock("../../../infrastructure/db/documentVersionRepo");
+    vi.doUnmock("../../../infrastructure/db/documentDeletionRepo");
+    vi.doUnmock("../../../infrastructure/s3/client");
   });
 
   describe("GET /me", () => {
@@ -938,6 +1158,532 @@ describe("protectedRoutes", () => {
       // 8 > the create-org limit of 5 — if the limiter leaked onto /me
       // these would start returning 429. They must not.
       expect(statuses.every((s) => s === 200)).toBe(true);
+    });
+  });
+
+  describe("room-and-folders routes (T-011)", () => {
+    function arrangeAuthorisedActor() {
+      mocks.userFindByWorkosUserId.mockResolvedValue(LOCAL_USER);
+      mocks.orgFindByWorkosOrgId.mockResolvedValue(LOCAL_ORG);
+      mocks.orgFindById.mockResolvedValue(LOCAL_ORG);
+      mocks.userFindById.mockResolvedValue(LOCAL_USER);
+      mocks.membershipFindByOrgUser.mockResolvedValue(OWNER_MEMBERSHIP);
+    }
+
+    it("403 cross_org_access on GET /rooms when paramOrgId mismatches the actor's localOrgId", async () => {
+      arrangeAuthorisedActor();
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/99999999-9999-4999-8999-999999999999/rooms`, {
+          sessionCookie: "sealed-blob",
+        }),
+      );
+
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({
+        ok: false,
+        reason: "cross_org_access",
+      });
+    });
+
+    it("403 insufficient_role: a viewer cannot POST /opportunities (mutation)", async () => {
+      // Pins the read-vs-mutation allowlist: room reads allow viewers
+      // (ROOM_READ_ROLES) but mutations are owner/editor only. Guards
+      // against future allowlist drift on the mutation routes.
+      arrangeAuthorisedActor();
+      mocks.membershipFindByOrgUser.mockResolvedValue({
+        ...OWNER_MEMBERSHIP,
+        role: "viewer" as const,
+      });
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/opportunities`, {
+          method: "POST",
+          sessionCookie: "sealed-blob",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ slug: "acme-corp" }),
+        }),
+      );
+
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({
+        ok: false,
+        reason: "insufficient_role",
+      });
+      // The mutation never reached the application layer.
+      expect(mocks.opportunityCreate).not.toHaveBeenCalled();
+    });
+
+    it("viewer CAN GET /rooms (read routes allow viewers)", async () => {
+      arrangeAuthorisedActor();
+      mocks.membershipFindByOrgUser.mockResolvedValue({
+        ...OWNER_MEMBERSHIP,
+        role: "viewer" as const,
+      });
+      mocks.opportunityListActive.mockResolvedValue([]);
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/rooms`, {
+          sessionCookie: "sealed-blob",
+        }),
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("GET /rooms — 200 with folders + opportunities (FR7)", async () => {
+      arrangeAuthorisedActor();
+      mocks.opportunityListActive.mockResolvedValue([OPPORTUNITY]);
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/rooms`, {
+          sessionCookie: "sealed-blob",
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        folders: string[];
+        opportunities: Array<{ id: string }>;
+      };
+      expect(body.folders).toHaveLength(7);
+      expect(body.opportunities).toHaveLength(1);
+      expect(body.opportunities[0]).toMatchObject({ id: OPPORTUNITY_ID });
+    });
+
+    it("GET /rooms/folders/:canonical — 200 with the folder's documents", async () => {
+      arrangeAuthorisedActor();
+      mocks.documentListByCanonicalFolderWithVersion.mockResolvedValue([
+        { document: DOCUMENT, currentVersion: DOCUMENT_VERSION },
+      ]);
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/rooms/folders/02_Financials`, {
+          sessionCookie: "sealed-blob",
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        documents: Array<{ id: string }>;
+      };
+      expect(body.documents).toHaveLength(1);
+      expect(body.documents[0]).toMatchObject({ id: DOCUMENT_ID });
+      expect(mocks.auditWrite).toHaveBeenCalled();
+    });
+
+    it("400 invalid_canonical_folder for an unknown :canonical segment", async () => {
+      arrangeAuthorisedActor();
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/rooms/folders/not_a_real_folder`, {
+          sessionCookie: "sealed-blob",
+        }),
+      );
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        ok: false,
+        reason: "invalid_canonical_folder",
+      });
+    });
+
+    it("POST /opportunities — 201 on the happy path (FR4)", async () => {
+      arrangeAuthorisedActor();
+      mocks.opportunityCreate.mockResolvedValue(OPPORTUNITY);
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/opportunities`, {
+          method: "POST",
+          sessionCookie: "sealed-blob",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ slug: "vendor-a", name: "Vendor A" }),
+        }),
+      );
+
+      expect(res.status).toBe(201);
+      expect(await res.json()).toMatchObject({ id: OPPORTUNITY_ID });
+    });
+
+    it("GET /opportunities — 200 with the active list (FR7)", async () => {
+      arrangeAuthorisedActor();
+      mocks.opportunityListActive.mockResolvedValue([OPPORTUNITY]);
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/opportunities`, {
+          sessionCookie: "sealed-blob",
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(Array.isArray(body)).toBe(true);
+      expect(body).toHaveLength(1);
+    });
+
+    it("GET /opportunities/:id/documents — 200 with the subroom's documents", async () => {
+      arrangeAuthorisedActor();
+      mocks.opportunityFindById.mockResolvedValue(OPPORTUNITY);
+      mocks.documentListByOpportunityWithVersion.mockResolvedValue([
+        {
+          document: {
+            ...DOCUMENT,
+            folderKind: "opportunity" as const,
+            canonicalFolder: null,
+            opportunityId: OPPORTUNITY_ID,
+          },
+          currentVersion: DOCUMENT_VERSION,
+        },
+      ]);
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(
+          `/orgs/${LOCAL_ORG_ID}/opportunities/${OPPORTUNITY_ID}/documents`,
+          { sessionCookie: "sealed-blob" },
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        documents: Array<{ id: string }>;
+      };
+      expect(body.documents).toHaveLength(1);
+    });
+
+    it("404 folder_not_found on GET /opportunities/:id/documents for an unknown/archived subroom", async () => {
+      arrangeAuthorisedActor();
+      mocks.opportunityFindById.mockResolvedValue(null);
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(
+          `/orgs/${LOCAL_ORG_ID}/opportunities/${OPPORTUNITY_ID}/documents`,
+          { sessionCookie: "sealed-blob" },
+        ),
+      );
+
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({
+        ok: false,
+        reason: "folder_not_found",
+      });
+    });
+
+    it("PATCH /opportunities/:id — 200 on rename (FR5)", async () => {
+      arrangeAuthorisedActor();
+      // `renameOpportunity` reads the pre-rename row (inside its tx) to
+      // detect a slug change before calling `.rename(...)`.
+      mocks.opportunityFindById.mockResolvedValue(OPPORTUNITY);
+      mocks.opportunityRename.mockResolvedValue({
+        ...OPPORTUNITY,
+        slug: "vendor-a-renamed",
+      });
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/opportunities/${OPPORTUNITY_ID}`, {
+          method: "PATCH",
+          sessionCookie: "sealed-blob",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ slug: "vendor-a-renamed" }),
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ slug: "vendor-a-renamed" });
+    });
+
+    it("POST /opportunities/:id/archive — 200 on archive (FR6)", async () => {
+      arrangeAuthorisedActor();
+      // `archiveOpportunity` pre-checks the current row before the tx.
+      mocks.opportunityFindById.mockResolvedValue(OPPORTUNITY);
+      mocks.opportunityArchive.mockResolvedValue({
+        ...OPPORTUNITY,
+        status: "archived",
+        archivedAt: new Date(),
+      });
+      mocks.grantRevokeActiveForOpportunity.mockResolvedValue(2);
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(
+          `/orgs/${LOCAL_ORG_ID}/opportunities/${OPPORTUNITY_ID}/archive`,
+          { method: "POST", sessionCookie: "sealed-blob" },
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { grantsRevoked: number };
+      expect(body.grantsRevoked).toBe(2);
+    });
+
+    it("GET /documents/:id — 200 with a presigned download URL (FR14)", async () => {
+      arrangeAuthorisedActor();
+      mocks.documentGetWithCurrentVersion.mockResolvedValue({
+        document: DOCUMENT,
+        currentVersion: DOCUMENT_VERSION,
+      });
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/documents/${DOCUMENT_ID}`, {
+          sessionCookie: "sealed-blob",
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        document: { id: string };
+        downloadUrl: string;
+      };
+      expect(body.document).toMatchObject({ id: DOCUMENT_ID });
+      expect(body.downloadUrl).toBe("https://s3.example/download");
+    });
+
+    it("404 not_found on GET /documents/:id for an unknown document", async () => {
+      arrangeAuthorisedActor();
+      mocks.documentGetWithCurrentVersion.mockResolvedValue(null);
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/documents/${DOCUMENT_ID}`, {
+          sessionCookie: "sealed-blob",
+        }),
+      );
+
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({
+        ok: false,
+        reason: "not_found",
+      });
+    });
+
+    it("GET /documents/:id/versions — 200 with the version history (FR15)", async () => {
+      arrangeAuthorisedActor();
+      mocks.documentFindById.mockResolvedValue(DOCUMENT);
+      mocks.versionListByDocument.mockResolvedValue([DOCUMENT_VERSION]);
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/documents/${DOCUMENT_ID}/versions`, {
+          sessionCookie: "sealed-blob",
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Array<{ id: string }>;
+      expect(body).toHaveLength(1);
+      expect(body[0]).toMatchObject({ id: VERSION_ID });
+    });
+
+    it("DELETE /documents/:id — 200 {ok:true} on soft-delete (FR17)", async () => {
+      arrangeAuthorisedActor();
+      mocks.documentFindById.mockResolvedValue(DOCUMENT);
+      mocks.documentSoftDelete.mockResolvedValue({
+        ...DOCUMENT,
+        state: "soft_deleted",
+      });
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/documents/${DOCUMENT_ID}`, {
+          method: "DELETE",
+          sessionCookie: "sealed-blob",
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ok: true });
+    });
+
+    it("409 invalid_state on DELETE /documents/:id for an already-deleted document", async () => {
+      arrangeAuthorisedActor();
+      mocks.documentFindById.mockResolvedValue({
+        ...DOCUMENT,
+        state: "soft_deleted",
+      });
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/documents/${DOCUMENT_ID}`, {
+          method: "DELETE",
+          sessionCookie: "sealed-blob",
+        }),
+      );
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({
+        ok: false,
+        reason: "invalid_state",
+      });
+    });
+
+    it("POST /documents/:id/restore — 200 within the retention window (FR17)", async () => {
+      arrangeAuthorisedActor();
+      mocks.documentFindById.mockResolvedValue({
+        ...DOCUMENT,
+        state: "soft_deleted",
+        softDeletedAt: new Date(),
+      });
+      mocks.documentRestore.mockResolvedValue({ ...DOCUMENT, state: "active" });
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/documents/${DOCUMENT_ID}/restore`, {
+          method: "POST",
+          sessionCookie: "sealed-blob",
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ok: true });
+    });
+
+    it("POST /uploads/initiate — 201 on the happy path (FR8-FR11)", async () => {
+      arrangeAuthorisedActor();
+      mocks.documentCreate.mockResolvedValue({ ...DOCUMENT, state: "draft" });
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/uploads/initiate`, {
+          method: "POST",
+          sessionCookie: "sealed-blob",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            target: { kind: "canonical", folder: "02_Financials" },
+            filename: "contract.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 2048,
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as {
+        documentId: string;
+        parts: unknown[];
+      };
+      expect(body.documentId).toBe(DOCUMENT_ID);
+      expect(body.parts).toHaveLength(1);
+      expect(mocks.storeCreateMultipartUpload).toHaveBeenCalled();
+    });
+
+    it("POST /uploads/initiate — 201 targeting an Opportunity subroom", async () => {
+      arrangeAuthorisedActor();
+      mocks.opportunityFindById.mockResolvedValue(OPPORTUNITY);
+      mocks.documentCreate.mockResolvedValue({
+        ...DOCUMENT,
+        folderKind: "opportunity" as const,
+        canonicalFolder: null,
+        opportunityId: OPPORTUNITY_ID,
+        state: "draft" as const,
+      });
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/uploads/initiate`, {
+          method: "POST",
+          sessionCookie: "sealed-blob",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            target: { kind: "opportunity", opportunityId: OPPORTUNITY_ID },
+            filename: "nda.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 2048,
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { documentId: string };
+      expect(body.documentId).toBe(DOCUMENT_ID);
+    });
+
+    it("400 invalid_canonical_folder on POST /uploads/initiate for an unknown folder", async () => {
+      arrangeAuthorisedActor();
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/uploads/initiate`, {
+          method: "POST",
+          sessionCookie: "sealed-blob",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            target: { kind: "canonical", folder: "not_a_real_folder" },
+            filename: "contract.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 2048,
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        ok: false,
+        reason: "invalid_canonical_folder",
+      });
+    });
+
+    it("POST /uploads/:uploadId/complete — 200 on the happy path", async () => {
+      arrangeAuthorisedActor();
+      mocks.documentFindById.mockResolvedValue({ ...DOCUMENT, state: "draft" });
+      mocks.documentMarkActive.mockResolvedValue({
+        ...DOCUMENT,
+        state: "active",
+      });
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/uploads/s3-upload-id/complete`, {
+          method: "POST",
+          sessionCookie: "sealed-blob",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            documentId: DOCUMENT_ID,
+            versionId: VERSION_ID,
+            parts: [{ partNumber: 1, eTag: "etag-1" }],
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({
+        documentId: DOCUMENT_ID,
+        versionId: VERSION_ID,
+      });
+    });
+
+    it("DELETE /uploads/:uploadId — 200 {ok:true} on abort", async () => {
+      arrangeAuthorisedActor();
+      mocks.documentFindById.mockResolvedValue({ ...DOCUMENT, state: "draft" });
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/uploads/s3-upload-id`, {
+          method: "DELETE",
+          sessionCookie: "sealed-blob",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            documentId: DOCUMENT_ID,
+            versionId: VERSION_ID,
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ok: true });
+      expect(mocks.storeAbortMultipartUpload).toHaveBeenCalled();
+      expect(mocks.documentPurgeDraft).toHaveBeenCalledWith(DOCUMENT_ID);
     });
   });
 });

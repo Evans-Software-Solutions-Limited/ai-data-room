@@ -168,7 +168,7 @@ audit events.
 
 ## T-010 — Scheduled job: retention sweep
 
-Status: `[ ]`
+Status: `[x]` (PR #62 — application sweep + frozen-clock integration test; EventBridge cron + lambda handler deferred to the T-001/deploy batch)
 **Scope:** EventBridge cron (every 6 hours) invokes a lambda that:
 (a) hard-deletes documents whose `soft_deleted_at > 30d ago`;
 (b) hard-deletes opportunities whose `archived_at > 90d ago` and
@@ -202,7 +202,7 @@ stack.
 
 ## T-012 — Handler: abort stale upload (janitor)
 
-Status: `[ ]`
+Status: `[x]` (folded into T-010's retention sweep, PR #62 — the draft-purge leg hard-deletes `state='draft'` docs >24h via `DocumentRepo.purgeDraft`; S3 multipart auto-abort at 7d covers the object side since the upload_id isn't persisted. The user-facing `DELETE /uploads/:uploadId` abort route landed in T-011.)
 **Scope:** Hook into the retention sweep (T-010) to call S3
 `abortMultipartUpload` for any upload_id whose `documents.state='draft'`
 and `created_at > 24h ago`, then hard-delete the DB row.

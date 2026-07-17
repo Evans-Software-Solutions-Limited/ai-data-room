@@ -339,3 +339,51 @@ export async function completeUpload(
     versionNumber,
   };
 }
+
+// ---------------------------------------------------------------------------
+// abortUpload
+// ---------------------------------------------------------------------------
+
+export interface AbortUploadInput {
+  /** The initiate ticket the client echoes back (same shape complete uses),
+   *  so the S3 key can be re-derived server-side. */
+  uploadId: string;
+  documentId: string;
+  versionId: string;
+  actorUserId: string;
+}
+
+export interface AbortUploadDeps {
+  documents: DocumentRepo;
+  store: S3DocumentStore;
+}
+
+/**
+ * Abort a client-cancelled multipart upload (FR — `DELETE /uploads/:id`).
+ * Aborts the S3 multipart (frees the parts before the 7-day auto-abort),
+ * then purges the draft document IF it's still a draft. `purgeDraft`'s
+ * compare-and-set on `state='draft'` makes this safe for the FR13 collision
+ * path, where initiate targeted an existing ACTIVE document (which must NOT
+ * be deleted by an abandoned re-upload) rather than a fresh draft. The key
+ * is re-derived server-side (never trusted from the client), scoped to the
+ * bound org, so a foreign documentId is a `not_found` no-op.
+ */
+export async function abortUpload(
+  input: AbortUploadInput,
+  deps: AbortUploadDeps,
+): Promise<void> {
+  const doc = await deps.documents.findById(input.documentId);
+  if (!doc) {
+    throw new UploadError("not_found");
+  }
+  const orgId = deps.documents.scopeOrgId;
+  const key = documentKey(orgId, input.documentId, input.versionId);
+
+  // S3 first (external), then the DB purge — mirrors the upload ordering.
+  // Best-effort: the multipart may already be gone (double-abort, or the
+  // 7-day auto-abort fired); a failure here shouldn't strand the draft row.
+  await deps.store.abortMultipartUpload(key, input.uploadId);
+  // Only removes a still-draft document; a collision re-upload's active
+  // target is left untouched by the state guard.
+  await deps.documents.purgeDraft(input.documentId);
+}

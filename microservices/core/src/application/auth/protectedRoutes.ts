@@ -48,6 +48,7 @@ import { postInvitationsHandler } from "./invitations/postInvitationsHandler";
 import { getUserHandler } from "./user/getUserHandler";
 import { postSuspendHandler } from "./users/postSuspendHandler";
 import { postUnsuspendHandler } from "./users/postUnsuspendHandler";
+import { roomRoutes } from "../room/handlers/roomRoutes";
 
 const meRoutes = new Elysia()
   .resolve(requireAuth)
@@ -73,4 +74,11 @@ const orgScopedRoutes = new Elysia()
   .use(postUnsuspendHandler)
   .use(getAuditEventsHandler);
 
-export const protectedRoutes = new Elysia().use(meRoutes).use(orgScopedRoutes);
+export const protectedRoutes = new Elysia()
+  .use(meRoutes)
+  .use(orgScopedRoutes)
+  // room-and-folders (slice 2) / T-011. `roomRoutes` builds its OWN guard
+  // chain (see its header) rather than mounting under `orgScopedRoutes` —
+  // it needs the extra `accessControlNoop` seam after the scoped-repos
+  // guard that no other org-scoped route uses yet.
+  .use(roomRoutes);
