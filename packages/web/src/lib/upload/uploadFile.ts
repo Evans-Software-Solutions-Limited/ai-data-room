@@ -18,6 +18,7 @@ import {
   MimeTypeEnum,
   UPLOAD_PART_SIZE,
   type CanonicalFolder,
+  type MimeType,
 } from "@ai-data-room/api-utils/schemas/rooms";
 
 import type { api } from "@/lib/eden";
@@ -96,27 +97,11 @@ export async function uploadFile(
     throw new UploadClientError("unsupported_type");
   }
 
-  // 2. initiate.
-  //
-  // Reconciliation (flagged in the PR): Eden Treaty infers this route's
-  // `mimeType` body field as `never`, not the literal union it actually
-  // is. Root cause (confirmed via an isolated repro against a minimal
-  // Elysia + eden app): `postUploadInitiateHandler.ts` builds the schema
-  // as `t.Union(MimeTypeEnum.options.map(t.Literal))` — `.map()` over a
-  // const tuple returns a plain (non-tuple) array type, and Eden's
-  // internal `Replace<Body, Blob | Blob[], Files>` mapped type (in
-  // `@elysiajs/eden`'s `treaty/types.d.ts`) collapses that specific
-  // field to `never` when the union was constructed from an array rather
-  // than an explicit literal tuple (`t.Union([t.Literal(...), ...])`
-  // resolves correctly). Every OTHER field on this body — including the
-  // `target` discriminated union — resolves correctly. Casting just the
-  // one poisoned field to `never` (always a legal assertion — `never` is
-  // a subtype of everything) is the minimal, purely client-side fix;
-  // it doesn't touch runtime behaviour or the wire payload. The
-  // alternative (reworking the handler's schema to build a genuine
-  // literal tuple, or pulling `@sinclair/typebox` into the web workspace
-  // to write a precisely-typed wrapper) is a bigger change than this
-  // task's scope — flagged for a follow-up rather than done here.
+  // 2. initiate. The client mime pre-check above guarantees `file.type` is
+  // one of `MimeTypeEnum`'s members, which the initiate body's `mimeType`
+  // field types as that literal union (see `literalUnion` in
+  // `postUploadInitiateHandler.ts`) — so a plain `string` isn't assignable
+  // and we narrow to the union here.
   const initiateRes = await deps.api.core
     .orgs({ orgId })
     .uploads.initiate.post({
@@ -125,7 +110,7 @@ export async function uploadFile(
           ? { kind: "canonical", folder: target.folder }
           : { kind: "opportunity", opportunityId: target.opportunityId },
       filename: file.name,
-      mimeType: file.type as never,
+      mimeType: file.type as MimeType,
       sizeBytes: file.size,
     });
 

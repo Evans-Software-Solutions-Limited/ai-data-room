@@ -1633,6 +1633,51 @@ describe("protectedRoutes", () => {
       });
     });
 
+    it("422 on POST /uploads/initiate for an unsupported mimeType (FR9)", async () => {
+      arrangeAuthorisedActor();
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/uploads/initiate`, {
+          method: "POST",
+          sessionCookie: "sealed-blob",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            target: { kind: "canonical", folder: "02_Financials" },
+            filename: "malware.exe",
+            mimeType: "application/x-msdownload",
+            sizeBytes: 2048,
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(422);
+    });
+
+    it("422 on POST /uploads/initiate when mimeType is missing (schema has no default)", async () => {
+      // Guards the literal-union mimeType schema against a regression to a
+      // defaulting form (e.g. `t.UnionEnum`, which injects a default that
+      // silently coerces a MISSING value through as the first type) — a
+      // missing mimeType must be rejected, never assumed.
+      arrangeAuthorisedActor();
+
+      const routes = await loadProtectedRoutes();
+      const res = await routes.handle(
+        makeRequest(`/orgs/${LOCAL_ORG_ID}/uploads/initiate`, {
+          method: "POST",
+          sessionCookie: "sealed-blob",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            target: { kind: "canonical", folder: "02_Financials" },
+            filename: "contract.pdf",
+            sizeBytes: 2048,
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(422);
+    });
+
     it("POST /uploads/:uploadId/complete — 200 on the happy path", async () => {
       arrangeAuthorisedActor();
       mocks.documentFindById.mockResolvedValue({ ...DOCUMENT, state: "draft" });

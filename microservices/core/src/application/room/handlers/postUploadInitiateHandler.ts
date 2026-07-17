@@ -40,11 +40,37 @@ const targetSchema = t.Union([
   }),
 ]);
 
-// `t.Literal` per MIME type keeps the Elysia schema in lockstep with
-// `MimeTypeEnum` (FR9) without re-declaring the list.
-const mimeTypeSchema = t.Union(
-  MimeTypeEnum.options.map((value) => t.Literal(value)),
-);
+// A TypeBox literal union built from a readonly string TUPLE, keeping the
+// Elysia schema in lockstep with `MimeTypeEnum` (FR9) without re-declaring
+// the list.
+//
+// Why not a bare `t.Union(values.map(t.Literal))`: `.map()` produces a plain
+// `TLiteral[]` (array, not tuple). The server-side `Static` is fine, but
+// `@elysiajs/eden`'s treaty client infers the corresponding body field as
+// `never` on the web side (forcing every caller to cast). The runtime here
+// is still exactly that `.map()` — a union of literals, no `default`, so a
+// missing field still 422s (unlike `t.UnionEnum`, which injects a default
+// and lets a missing value coerce through). What repairs the type is the
+// annotated return type `LiteralUnionOf<T>`: it maps element-wise over the
+// `const` tuple `T` to carry the per-member literals back OUT of this
+// generic body (inside which `T` is opaque and destructuring would widen to
+// `string`). eden then infers the real `"application/pdf" | …` union.
+type LiteralUnionOf<T extends readonly string[]> = ReturnType<
+  typeof t.Union<{
+    -readonly [K in keyof T]: ReturnType<typeof t.Literal<T[K] & string>>;
+  }>
+>;
+
+function literalUnion<const T extends readonly [string, ...string[]]>(
+  values: T,
+): LiteralUnionOf<T> {
+  // Runtime is a plain union-of-literals; the annotated return type (mapped
+  // element-wise over the `const` tuple `T`) is what carries the per-member
+  // literals out of this generic body, where `T` is otherwise opaque.
+  return t.Union(values.map((value) => t.Literal(value))) as LiteralUnionOf<T>;
+}
+
+const mimeTypeSchema = literalUnion(MimeTypeEnum.options);
 
 export const postUploadInitiateHandler = new Elysia().post(
   "/orgs/:orgId/uploads/initiate",
