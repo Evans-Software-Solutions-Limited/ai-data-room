@@ -337,6 +337,14 @@ export const UploadTargetSchema = z.discriminatedUnion("kind", [
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 /**
+ * Multipart part size (5 MB — the `@aws-sdk/lib-storage` default). The
+ * server presigns one URL per part of this size; the web client chunks
+ * with the SAME size so part boundaries line up. Single source of truth
+ * shared across the presigned-part client/server boundary.
+ */
+export const UPLOAD_PART_SIZE = 5 * 1024 * 1024;
+
+/**
  * `POST /uploads/initiate` body. `mimeType` ∈ `MimeTypeEnum` enforces
  * FR9 (unsupported types rejected here); `sizeBytes` ≤ `MAX_UPLOAD_BYTES`
  * enforces FR10 — both at the schema boundary before any S3 call.

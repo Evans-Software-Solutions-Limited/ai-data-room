@@ -13,14 +13,17 @@ import { useGetCurrentUser } from "@/hooks/api/useGetCurrentUser";
 import { useGetRoom } from "@/hooks/api/useGetRoom";
 import { useGetFolderContents } from "@/hooks/api/useGetFolderContents";
 import type { FolderTarget } from "@/hooks/api/useGetFolderContents";
+import { useUploadDocuments } from "@/hooks/api/useUploadDocuments";
 
 vi.mock("@/hooks/api/useGetCurrentUser");
 vi.mock("@/hooks/api/useGetRoom");
 vi.mock("@/hooks/api/useGetFolderContents");
+vi.mock("@/hooks/api/useUploadDocuments");
 
 const mockUseGetCurrentUser = vi.mocked(useGetCurrentUser);
 const mockUseGetRoom = vi.mocked(useGetRoom);
 const mockUseGetFolderContents = vi.mocked(useGetFolderContents);
+const mockUseUploadDocuments = vi.mocked(useUploadDocuments);
 
 const baseUser = {
   userId: "u-1",
@@ -95,6 +98,15 @@ function renderRoom() {
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+beforeEach(() => {
+  mockUseUploadDocuments.mockReturnValue({
+    uploads: [],
+    startUploads: vi.fn(),
+    cancelUpload: vi.fn(),
+    dismiss: vi.fn(),
+  });
 });
 
 describe("Room", () => {
@@ -372,6 +384,61 @@ describe("Room", () => {
       renderRoom();
 
       expect(screen.getByText("Owner")).toBeDefined();
+    });
+
+    it("shows the Upload button for an owner and opens the modal on click", () => {
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      const uploadButton = screen.getByRole("button", { name: "Upload" });
+      expect(uploadButton).toBeDefined();
+      expect(screen.queryByRole("dialog")).toBeNull();
+
+      fireEvent.click(uploadButton);
+
+      expect(screen.getByRole("dialog")).toBeDefined();
+      expect(
+        screen.getByText(/drop documents here, or click to browse/i),
+      ).toBeDefined();
+    });
+
+    it("shows the Upload button for an editor", () => {
+      mockUseGetCurrentUser.mockReturnValue({
+        isAuthenticated: true,
+        user: { ...baseUser, role: "editor" },
+        status: "success",
+      });
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      expect(screen.getByRole("button", { name: "Upload" })).toBeDefined();
+    });
+
+    it("hides the Upload button for a viewer", () => {
+      mockUseGetCurrentUser.mockReturnValue({
+        isAuthenticated: true,
+        user: { ...baseUser, role: "viewer" },
+        status: "success",
+      });
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      expect(screen.queryByRole("button", { name: "Upload" })).toBeNull();
     });
   });
 });

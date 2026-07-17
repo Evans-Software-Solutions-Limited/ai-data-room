@@ -216,7 +216,7 @@ production, measured via a weekly audit query.
 
 ## T-013 — Web: folder navigation + document list
 
-Status: `[ ]`
+Status: `[x]` (PR #64 — web `/room` folder nav + document list; Playwright AC deferred to T-019/stack)
 **Scope:** Vite SPA route `/room` (React Router entry): renders
 the seven canonical folders + `Opportunities/` list. Clicking a
 folder → list documents. Uses `/me` + `/rooms` responses.

@@ -25,6 +25,7 @@ import {
   UploadInitiateSchema,
   UploadCompleteSchema,
   MAX_UPLOAD_BYTES,
+  UPLOAD_PART_SIZE,
 } from "../rooms";
 
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
@@ -522,5 +523,15 @@ describe("UploadCompleteSchema", () => {
     expect(() =>
       UploadCompleteSchema.parse({ ...base, documentId: "nope" }),
     ).toThrow();
+  });
+});
+
+describe("UPLOAD_PART_SIZE (T-014)", () => {
+  it("is 5 MB — the shared client/server multipart chunk size", () => {
+    // Single source of truth across the presigned-part client/server
+    // boundary (see this file's header + the T-014 build spec): the web
+    // client's chunking math and the server's presigned part count MUST
+    // agree on this exact value.
+    expect(UPLOAD_PART_SIZE).toBe(5 * 1024 * 1024);
   });
 });
