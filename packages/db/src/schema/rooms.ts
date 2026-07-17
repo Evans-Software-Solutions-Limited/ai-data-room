@@ -287,9 +287,12 @@ export const documentDeletions = pgTable("document_deletions", {
   orgId: uuid("org_id")
     .notNull()
     .references(() => organizations.id),
-  softDeletedBy: uuid("soft_deleted_by")
-    .notNull()
-    .references(() => users.id),
+  // Nullable: a system-initiated hard-delete (the T-010 retention sweep)
+  // has no user actor, and the original soft-deleter isn't persisted on
+  // `documents` — so a swept row's initiator is genuinely unknown (null),
+  // mirroring how `audit_events.actor_user_id` is null for system events.
+  // A support-initiated hard-delete (T-009) still records the operator.
+  softDeletedBy: uuid("soft_deleted_by").references(() => users.id),
   hardDeletedAt: timestamp("hard_deleted_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

@@ -155,4 +155,20 @@ export class OpportunityRepo extends ScopedRepo {
       );
     return rows as Opportunity[];
   }
+
+  /**
+   * Hard-delete an opportunity row (support-only / T-010 retention sweep).
+   * Scoped, so a foreign-org id matches nothing. Returns the deleted row or
+   * `null`. NOTE: `documents.opportunity_id → opportunities.id` is
+   * ON DELETE NO ACTION (RESTRICT), so the caller MUST hard-delete every
+   * document in the subroom first (the sweep does) — otherwise this throws
+   * a 23503 foreign-key violation rather than orphaning documents.
+   */
+  async hardDelete(id: string): Promise<Opportunity | null> {
+    const rows = await this.db
+      .delete(opportunities)
+      .where(this.scoped(opportunities.orgId, eq(opportunities.id, id)))
+      .returning();
+    return firstOrNull(rows as Opportunity[]);
+  }
 }

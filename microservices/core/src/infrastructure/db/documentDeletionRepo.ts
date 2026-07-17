@@ -23,7 +23,9 @@ const { documentDeletions } = schema;
 
 export interface CreateDocumentDeletionInput {
   documentId: string;
-  softDeletedBy: string;
+  /** The initiator of the deletion, or `null` for a system-initiated
+   *  (retention-sweep) hard-delete with no user actor. */
+  softDeletedBy: string | null;
 }
 
 export class DocumentDeletionRepo extends ScopedRepo {

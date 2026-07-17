@@ -238,12 +238,18 @@ export async function restoreDocument(
 
 export interface HardDeleteDocumentInput {
   documentId: string;
-  /** The actor initiating the hard-delete — a support operator, or the
-   *  retention sweep's system actor (T-010). Recorded as the deletion
-   *  record's `soft_deleted_by` (the attributable initiator of the
-   *  deletion chain; `documents` doesn't track a separate soft-deleter). */
-  actorUserId: string;
+  /** The actor initiating the hard-delete — a support operator's id, or
+   *  `null` for the retention sweep's system actor (T-010, no user).
+   *  Recorded as the deletion record's `soft_deleted_by` (the attributable
+   *  initiator of the deletion chain; `documents` doesn't track a separate
+   *  soft-deleter, so a swept row's initiator is null). */
+  actorUserId: string | null;
   audit: AuditContext;
+  /** Extra audit metadata merged into the emitted events. The retention
+   *  sweep passes `systemAuditContext(...).metadata` (`{ actor:"system",
+   *  reason }`) so a system-initiated hard-delete names the job that ran it
+   *  in the audit trail (the `systemScope` FR2 contract). */
+  auditMetadata?: Record<string, unknown>;
 }
 
 export interface HardDeleteDocumentDeps {
@@ -347,6 +353,7 @@ export async function hardDeleteDocument(
     sourceIp: input.audit.sourceIp,
     userAgent: input.audit.userAgent,
     metadata: {
+      ...(input.auditMetadata ?? {}),
       documentId: input.documentId,
       versionsDeleted: versions.length,
     },
@@ -362,7 +369,12 @@ export async function hardDeleteDocument(
  *  reason }` metadata), differing only in event type + reason. */
 function auditFailure(
   deps: { auditRepo: AuditRepo },
-  input: { documentId: string; actorUserId: string; audit: AuditContext },
+  input: {
+    documentId: string;
+    actorUserId: string | null;
+    audit: AuditContext;
+    auditMetadata?: Record<string, unknown>;
+  },
   eventType: "file_soft_deleted" | "file_restored" | "file_hard_deleted",
   orgId: string,
   reason: DeletionErrorReason,
@@ -374,6 +386,10 @@ function auditFailure(
     orgId,
     sourceIp: input.audit.sourceIp,
     userAgent: input.audit.userAgent,
-    metadata: { documentId: input.documentId, reason },
+    metadata: {
+      ...(input.auditMetadata ?? {}),
+      documentId: input.documentId,
+      reason,
+    },
   });
 }

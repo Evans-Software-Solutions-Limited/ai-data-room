@@ -152,7 +152,7 @@ integration test with 500-row fixture.
 
 ## T-009 — Application: soft-delete + restore + hard-delete
 
-Status: `[ ]`
+Status: `[x]` (PR #61)
 **Scope:** `softDeleteDocument`, `restoreDocument`,
 `hardDeleteDocument` (support-only path — not exposed via handler at
 v0.1). Soft-delete sets `state='soft_deleted'` + `soft_deleted_at`;

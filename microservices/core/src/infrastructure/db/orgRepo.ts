@@ -66,4 +66,21 @@ export class OrgRepo {
       .where(eq(organizations.slug, slug));
     return firstOrNull(rows as Org[]);
   }
+
+  /**
+   * Every org id, for a system job that must run once per tenant (the
+   * T-010 retention sweep loops `systemScope(orgId, …)` over these). This
+   * is NOT an "all-orgs handle" over tenant data — `organizations` is the
+   * TENANT_AGNOSTIC registry (the org IS the tenant, see `tenancy.ts`), so
+   * enumerating its partition keys is safe here; every subsequent
+   * document/opportunity read the sweep does is still per-org `systemScope`.
+   * Ordered by `id` for a deterministic, resumable sweep order.
+   */
+  async listAllIds(): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .orderBy(organizations.id);
+    return rows.map((r) => r.id);
+  }
 }
