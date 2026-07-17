@@ -35,9 +35,17 @@ import { randomUUID } from "node:crypto";
 import type { Db } from "@ai-data-room/db";
 import {
   MAX_UPLOAD_BYTES,
+  UPLOAD_PART_SIZE,
   type MimeType,
   type UploadTarget,
 } from "@ai-data-room/api-utils/schemas/rooms";
+
+// Re-exported so existing importers (e.g. `upload.test.ts`) keep working —
+// see the T-014 build spec's "Step 0" note: `UPLOAD_PART_SIZE` moved to
+// `@ai-data-room/api-utils/schemas/rooms` (next to `MAX_UPLOAD_BYTES`) so
+// the web client can import the runtime value too (it can only import
+// TYPES from `@ai-data-room/core`).
+export { UPLOAD_PART_SIZE } from "@ai-data-room/api-utils/schemas/rooms";
 
 import type { AuditRepo } from "../../infrastructure/db/auditRepo";
 import type { DocumentRepo } from "../../infrastructure/db/documentRepo";
@@ -84,11 +92,6 @@ function isUniqueViolation(err: unknown): boolean {
     (err as { code?: unknown }).code === "23505"
   );
 }
-
-/** Multipart part size (5 MB — the `@aws-sdk/lib-storage` default). The
- *  server presigns one URL per part of this size; the web client (T-014)
- *  MUST chunk with the same size so its part boundaries line up. */
-export const UPLOAD_PART_SIZE = 5 * 1024 * 1024;
 
 /** TTL for the presigned part-upload URLs — generous enough to upload a
  *  100 MB file over a slow link without re-initiating. */

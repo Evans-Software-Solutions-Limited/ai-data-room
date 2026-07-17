@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, Navigate } from "react-router";
-import type {
-  CanonicalFolder,
-  DocumentDTO,
+import {
+  CANONICAL_FOLDERS,
+  type CanonicalFolder,
+  type DocumentDTO,
 } from "@ai-data-room/api-utils/schemas/rooms";
 
 import { Loader } from "@/components/Loader";
@@ -11,12 +12,15 @@ import {
   ChevronRightIcon,
   StatusDot,
 } from "@/components/room/icons";
+import { UploadModal } from "@/components/room/UploadModal";
 import { useGetCurrentUser } from "@/hooks/api/useGetCurrentUser";
 import {
   useGetFolderContents,
   type FolderTarget,
 } from "@/hooks/api/useGetFolderContents";
 import { useGetRoom } from "@/hooks/api/useGetRoom";
+import { useUploadDocuments } from "@/hooks/api/useUploadDocuments";
+import type { UploadTargetInput } from "@/lib/upload/uploadFile";
 import { canonicalFolderDescription } from "@/lib/folderDescriptions";
 import { canonicalFolderLabel } from "@/lib/canonicalFolderLabel";
 import { cn } from "@/lib/utils";
@@ -24,14 +28,18 @@ import { formatDate } from "@/lib/formatDate";
 import { formatUploaderId } from "@/lib/formatUploaderId";
 
 // The `/room` folder-navigation + document list screen — room-and-folders
-// (slice 2), T-013. STRICT slice-2 scope: shell + folder nav + document
-// list only. No checklist panel (slice 4), no AI sense-check (slice 5), no
-// upload (T-014), no soft-delete/restore/versions (T-016), no "view-as"
-// identity switcher (mocked-auth preview only, prod uses the real
-// session), and no Workspace nav links wired up (Ask the room / Audit log
-// / Members belong to later slices). The reserved `--room-ai-*`... in
-// fact the `--ai-*` indigo group is not even declared in `index.css` yet
-// (see its header comment) — this page uses ink + the status palette only.
+// (slice 2), T-013 + T-014 (upload). STRICT slice-2 scope: shell + folder
+// nav + document list + a plain pick/upload-with-progress modal only. No
+// checklist panel (slice 4), no AI sense-check (slice 5) — the upload
+// modal has no relevance verdict or checklist affordance — no
+// soft-delete/restore/versions (T-016), no "view-as" identity switcher
+// (mocked-auth preview only, prod uses the real session), and no
+// Workspace nav links wired up (Ask the room / Audit log / Members belong
+// to later slices). The reserved `--room-ai-*`... in fact the `--ai-*`
+// indigo group is not even declared in `index.css` yet (see its header
+// comment) — this page uses ink + the status palette only.
+
+const ROOM_WRITE_ROLES = ["owner", "editor"];
 
 type Selection =
   | { kind: "canonical"; folder: CanonicalFolder }
@@ -83,6 +91,7 @@ function RoomShell({
 }) {
   const { room, status: roomStatus } = useGetRoom(orgId);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   // Default-select the first canonical folder until the room has loaded and
   // the user hasn't picked anything yet — derived rather than an effect, so
@@ -104,6 +113,22 @@ function RoomShell({
     status: listingStatus,
     isError: listingIsError,
   } = useGetFolderContents(orgId, target);
+
+  // The hook must be called unconditionally (rules of hooks) even before
+  // a folder is selected, so it's gated with a safe default target — the
+  // button/modal that would actually drive it only render once
+  // `effectiveSelection` is set (see below).
+  const uploadTarget: UploadTargetInput = effectiveSelection
+    ? effectiveSelection.kind === "canonical"
+      ? { kind: "canonical", folder: effectiveSelection.folder }
+      : { kind: "opportunity", opportunityId: effectiveSelection.id }
+    : { kind: "canonical", folder: CANONICAL_FOLDERS[0] };
+  const { uploads, startUploads, cancelUpload, dismiss } = useUploadDocuments(
+    orgId,
+    uploadTarget,
+  );
+
+  const canUpload = role !== null && ROOM_WRITE_ROLES.includes(role);
 
   if (roomStatus === "pending") {
     return <Loader />;
@@ -230,19 +255,32 @@ function RoomShell({
         </header>
 
         <main className="mx-auto w-full max-w-[1180px] flex-1 px-8 py-8">
-          {eyebrow && (
-            <p className="font-room-mono text-xs uppercase tracking-wide text-room-ink-3">
-              {eyebrow}
-            </p>
-          )}
-          <h1 className="mt-2 font-room-serif text-[34px] leading-tight text-room-ink">
-            {title}
-          </h1>
-          {description && (
-            <p className="mt-2 max-w-[60ch] text-sm text-room-ink-2">
-              {description}
-            </p>
-          )}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              {eyebrow && (
+                <p className="font-room-mono text-xs uppercase tracking-wide text-room-ink-3">
+                  {eyebrow}
+                </p>
+              )}
+              <h1 className="mt-2 font-room-serif text-[34px] leading-tight text-room-ink">
+                {title}
+              </h1>
+              {description && (
+                <p className="mt-2 max-w-[60ch] text-sm text-room-ink-2">
+                  {description}
+                </p>
+              )}
+            </div>
+            {canUpload && effectiveSelection && (
+              <button
+                type="button"
+                onClick={() => setUploadOpen(true)}
+                className="mt-1 shrink-0 rounded-room-pill border border-room-rule bg-room-ink px-4 py-1.5 text-sm font-medium text-room-ink-on-dark hover:opacity-90"
+              >
+                Upload
+              </button>
+            )}
+          </div>
 
           <div className="mt-8">
             {listingStatus === "pending" ? (
@@ -272,6 +310,18 @@ function RoomShell({
           </div>
         </main>
       </div>
+
+      {effectiveSelection && (
+        <UploadModal
+          open={uploadOpen}
+          targetLabel={title}
+          uploads={uploads}
+          onClose={() => setUploadOpen(false)}
+          onFilesSelected={startUploads}
+          onCancelUpload={cancelUpload}
+          onDismiss={dismiss}
+        />
+      )}
     </div>
   );
 }
