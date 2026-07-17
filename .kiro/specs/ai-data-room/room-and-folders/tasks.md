@@ -185,7 +185,7 @@ fixtures.
 
 ## T-011 — Handlers: rooms + opportunities + documents
 
-Status: `[ ]`
+Status: `[x]` (PR #63 — 14 routes + no-op access-control seam; dev-stack integration deferred to AWS batch)
 **Scope:** Wire the application layer into HTTP handlers per
 §Interfaces. All routes behind session middleware + access-control
 middleware (the latter is a no-op until `access-control` slice

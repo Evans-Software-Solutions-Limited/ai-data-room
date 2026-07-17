@@ -3,6 +3,14 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/figtree";
 
+/* datum/room fonts (slice 2 / room-and-folders / T-013) — self-hosted via
+   fontsource, matching the existing Figtree convention above. */
+@import "@fontsource-variable/source-serif-4";
+@import "@fontsource-variable/ibm-plex-sans";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+
 @custom-variant dark (&:is(.dark *));
 
 /* ==========================================================================
@@ -99,6 +107,99 @@
   --sidebar-accent-foreground: oklch(0.99 0 0);
   --sidebar-border: oklch(1 0 0 / 12%);
   --sidebar-ring: oklch(0.68 0.2 35);
+}
+
+/* ==========================================================================
+   datum/room DESIGN TOKENS — slice 2 (room-and-folders), T-013.
+
+   Verbatim palette from the Claude Design prototype's `tokens.css`
+   (design_handoff_datum_room), namespaced `--room-*` so they extend the
+   theme above rather than fork it: the app's shadcn tokens (`--card`,
+   `--border`, `--primary`, …) already own those bare names, so the `/room`
+   shell gets its own aliases instead of overriding shared ones used by
+   every other page. Single warm "ink on paper" theme — the prototype has
+   no dark variant, so these are NOT re-defined under `.dark`; `/room` reads
+   the same in both OS themes until a real dark variant is designed.
+
+   The `--ai-*` reserved group is deliberately OMITTED — slice 2 ships no
+   AI-origin UI, so the indigo AI surface (and the `data-ai="indigo"`
+   contract switch) stays undeclared until the slice that first needs it
+   (slice 5, ai-doc-sensecheck) wires it in for real.
+   ========================================================================== */
+:root {
+  /* Surfaces & ink (warm neutrals; no pure black/white) */
+  --room-paper: oklch(0.971 0.006 84);
+  --room-paper-2: oklch(0.944 0.008 84);
+  --room-paper-3: oklch(0.922 0.01 82);
+  --room-card: oklch(0.995 0.002 84);
+  --room-ink: oklch(0.262 0.008 74);
+  --room-ink-2: oklch(0.43 0.012 74);
+  --room-ink-3: oklch(0.56 0.012 74);
+  --room-ink-on-dark: oklch(0.971 0.004 84);
+
+  /* Hairlines, radii, shadow */
+  --room-rule: oklch(0.862 0.012 80);
+  --room-rule-2: oklch(0.908 0.01 82);
+  --room-rule-strong: oklch(0.8 0.014 78);
+  --room-radius-sm: 3px;
+  --room-radius: 5px;
+  --room-radius-lg: 8px;
+  --room-radius-pill: 999px;
+  --room-shadow-1:
+    0 1px 1px rgba(26, 24, 21, 0.03), 0 1px 2px rgba(26, 24, 21, 0.05);
+  --room-shadow-2:
+    0 2px 6px rgba(26, 24, 21, 0.06), 0 12px 28px rgba(26, 24, 21, 0.07);
+
+  /* Status palette (muted, NEVER the reserved AI indigo) */
+  --room-ok: oklch(0.502 0.072 150);
+  --room-ok-tint: oklch(0.955 0.022 150);
+  --room-warn: oklch(0.582 0.098 72);
+  --room-warn-tint: oklch(0.955 0.03 78);
+  --room-err: oklch(0.452 0.118 28);
+  --room-err-tint: oklch(0.952 0.028 28);
+  --room-pending: oklch(0.5 0.006 74);
+  --room-pending-tint: oklch(0.945 0.006 80);
+
+  /* Type */
+  --room-font-serif:
+    "Source Serif 4 Variable", Georgia, "Times New Roman", serif;
+  --room-font-sans:
+    "IBM Plex Sans Variable", system-ui, -apple-system, sans-serif;
+  --room-font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@theme inline {
+  --color-room-paper: var(--room-paper);
+  --color-room-paper-2: var(--room-paper-2);
+  --color-room-paper-3: var(--room-paper-3);
+  --color-room-card: var(--room-card);
+  --color-room-ink: var(--room-ink);
+  --color-room-ink-2: var(--room-ink-2);
+  --color-room-ink-3: var(--room-ink-3);
+  --color-room-ink-on-dark: var(--room-ink-on-dark);
+  --color-room-rule: var(--room-rule);
+  --color-room-rule-2: var(--room-rule-2);
+  --color-room-rule-strong: var(--room-rule-strong);
+  --color-room-ok: var(--room-ok);
+  --color-room-ok-tint: var(--room-ok-tint);
+  --color-room-warn: var(--room-warn);
+  --color-room-warn-tint: var(--room-warn-tint);
+  --color-room-err: var(--room-err);
+  --color-room-err-tint: var(--room-err-tint);
+  --color-room-pending: var(--room-pending);
+  --color-room-pending-tint: var(--room-pending-tint);
+
+  --radius-room-sm: var(--room-radius-sm);
+  --radius-room: var(--room-radius);
+  --radius-room-lg: var(--room-radius-lg);
+  --radius-room-pill: var(--room-radius-pill);
+
+  --shadow-room-1: var(--room-shadow-1);
+  --shadow-room-2: var(--room-shadow-2);
+
+  --font-room-serif: var(--room-font-serif);
+  --font-room-sans: var(--room-font-sans);
+  --font-room-mono: var(--room-font-mono);
 }
 
 @theme inline {
