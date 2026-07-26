@@ -243,7 +243,7 @@ file; handles resume on tab reload via an in-memory upload registry.
 
 ## T-015 — Web: opportunity create / rename / archive
 
-Status: `[ ]`
+Status: `[x]` (PR #67 — create/rename/archive on `/room`, owner/editor-gated; Playwright AC deferred to T-019/stack)
 **Scope:** Pages under `/room/opportunities/*`. Admin-gated via role
 check (enforcement server-side; UI disables accordingly).
 **Files (likely):** `packages/web/app/room/opportunities/**/*.tsx`.

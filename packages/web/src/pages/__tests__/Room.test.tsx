@@ -25,6 +25,26 @@ vi.mock("@/hooks/api/useGetCurrentUser");
 vi.mock("@/hooks/api/useGetRoom");
 vi.mock("@/hooks/api/useGetFolderContents");
 vi.mock("@/hooks/api/useUploadDocuments");
+// `DocumentDetailModal` (T-016) owns its own hooks (version-history query
+// + the three document mutations) internally rather than taking them as
+// props, unlike the other room modals above — so it's stubbed here as a
+// thin presenter double. Its own behaviour (version history, download,
+// delete/restore) is covered by `DocumentDetailModal.test.tsx`; this file
+// only needs to prove Room.tsx wires the clicked document through.
+vi.mock("@/components/room/DocumentDetailModal", () => ({
+  DocumentDetailModal: ({
+    open,
+    document,
+  }: {
+    open: boolean;
+    document: DocumentDTO | null;
+  }) =>
+    open && document ? (
+      <div role="dialog" aria-label={document.displayName}>
+        <h2>{document.displayName}</h2>
+      </div>
+    ) : null,
+}));
 // Partial mock: keep the real `OpportunityMutationError` class (Room.tsx
 // does `instanceof` checks against it) and mock only the three hooks.
 vi.mock("@/hooks/api/useOpportunityMutations", async (importOriginal) => {
@@ -745,6 +765,30 @@ describe("Room", () => {
 
       expect(reset).toHaveBeenCalled();
       expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("opens the document detail modal when a document row is clicked", () => {
+      mockFolderContents(() => ({
+        listing: { documents: [companyOverviewDoc] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Certificate_of_Incorporation.pdf",
+        }),
+      );
+
+      expect(
+        screen.getByRole("heading", {
+          name: "Certificate_of_Incorporation.pdf",
+        }),
+      ).toBeDefined();
     });
 
     it("surfaces a slug_taken create-mutation error in the form modal", () => {

@@ -15,6 +15,7 @@ import {
   StatusDot,
 } from "@/components/room/icons";
 import { ArchiveOpportunityDialog } from "@/components/room/ArchiveOpportunityDialog";
+import { DocumentDetailModal } from "@/components/room/DocumentDetailModal";
 import { OpportunityFormModal } from "@/components/room/OpportunityFormModal";
 import { UploadModal } from "@/components/room/UploadModal";
 import { useGetCurrentUser } from "@/hooks/api/useGetCurrentUser";
@@ -40,19 +41,20 @@ import { formatUploaderId } from "@/lib/formatUploaderId";
 
 // The `/room` folder-navigation + document list screen — room-and-folders
 // (slice 2), T-013 + T-014 (upload) + T-015 (opportunity create/rename/
-// archive). STRICT slice-2 scope: shell + folder nav + document list + a
-// plain pick/upload-with-progress modal + plain opportunity CRUD only. No
-// checklist panel (slice 4), no AI sense-check (slice 5) — the upload
-// modal has no relevance verdict or checklist affordance — no
-// soft-delete/restore/versions (T-016), no "view-as" identity switcher
-// (mocked-auth preview only, prod uses the real session), no
-// access-control/external-viewer/NDA/invite/AI-suggestion/scope-editor
-// affordances from the design prototype's Opportunity screen (those are
-// later slices), and no Workspace nav links wired up (Ask the room /
-// Audit log / Members belong to later slices). The reserved
-// `--room-ai-*`... in fact the `--ai-*` indigo group is not even declared
-// in `index.css` yet (see its header comment) — this page uses ink + the
-// status palette only.
+// archive) + T-016 (document detail: version history + soft-delete +
+// in-session restore). STRICT slice-2 scope: shell + folder nav +
+// document list + a plain pick/upload-with-progress modal + plain
+// opportunity CRUD + the document detail modal only. No checklist panel
+// (slice 4), no AI sense-check (slice 5) — the upload modal and the
+// detail modal have no relevance verdict or checklist affordance — no
+// "view-as" identity switcher (mocked-auth preview only, prod uses the
+// real session), no access-control/external-viewer/NDA/invite/AI-
+// suggestion/scope-editor affordances from the design prototype's
+// Opportunity screen (those are later slices), and no Workspace nav
+// links wired up (Ask the room / Audit log / Members belong to later
+// slices). The reserved `--room-ai-*`... in fact the `--ai-*` indigo
+// group is not even declared in `index.css` yet (see its header
+// comment) — this page uses ink + the status palette only.
 
 const ROOM_WRITE_ROLES = ["owner", "editor"];
 
@@ -111,6 +113,7 @@ function RoomShell({
     "create" | "rename" | null
   >(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [detailDoc, setDetailDoc] = useState<DocumentDTO | null>(null);
 
   const createOpportunity = useCreateOpportunity(orgId);
   const renameOpportunity = useRenameOpportunity(orgId);
@@ -431,7 +434,10 @@ function RoomShell({
                 </p>
               </div>
             ) : listing && listing.documents.length > 0 ? (
-              <DocumentsTable documents={listing.documents} />
+              <DocumentsTable
+                documents={listing.documents}
+                onSelectDocument={setDetailDoc}
+              />
             ) : (
               <div className="flex min-h-40 flex-col items-center justify-center gap-1 rounded-room-lg border border-dashed border-room-rule py-12 text-center">
                 <p className="text-sm text-room-ink-2">
@@ -486,6 +492,18 @@ function RoomShell({
         onClose={closeArchiveDialog}
         onConfirm={handleArchiveConfirm}
       />
+
+      <DocumentDetailModal
+        // Forces a remount (fresh in-session `deleted` state) whenever a
+        // different document is opened — same "no reset effect" idiom as
+        // `OpportunityFormModal`'s callsite above.
+        key={detailDoc?.id ?? "none"}
+        open={detailDoc !== null}
+        document={detailDoc}
+        orgId={orgId}
+        canWrite={canUpload}
+        onClose={() => setDetailDoc(null)}
+      />
     </div>
   );
 }
@@ -539,7 +557,13 @@ function FolderRow({
   );
 }
 
-function DocumentsTable({ documents }: { documents: DocumentDTO[] }) {
+function DocumentsTable({
+  documents,
+  onSelectDocument,
+}: {
+  documents: DocumentDTO[];
+  onSelectDocument: (document: DocumentDTO) => void;
+}) {
   return (
     <table className="w-full border-collapse text-sm">
       <thead>
@@ -555,11 +579,19 @@ function DocumentsTable({ documents }: { documents: DocumentDTO[] }) {
             key={document.id}
             className="border-b border-room-rule-2 last:border-0"
           >
-            <td
-              className="max-w-0 truncate py-3 pr-4 font-room-mono text-room-ink"
-              title={document.displayName}
-            >
-              {document.displayName}
+            <td className="max-w-0 truncate py-3 pr-4 font-room-mono text-room-ink">
+              {/* A focusable filename button opens the detail modal — the
+                  simplest keyboard-accessible way to make the row
+                  "clickable" (T-016) without a manual row-level
+                  onClick/onKeyDown/role="button" combo. */}
+              <button
+                type="button"
+                title={document.displayName}
+                onClick={() => onSelectDocument(document)}
+                className="max-w-full truncate text-left underline-offset-2 hover:underline"
+              >
+                {document.displayName}
+              </button>
             </td>
             <td
               className="py-3 pr-4 text-room-ink-2"
