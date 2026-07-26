@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { vi } from "vitest";
 import { MemoryRouter } from "react-router";
 import { CANONICAL_FOLDERS } from "@ai-data-room/api-utils/schemas/rooms";
@@ -14,16 +14,66 @@ import { useGetRoom } from "@/hooks/api/useGetRoom";
 import { useGetFolderContents } from "@/hooks/api/useGetFolderContents";
 import type { FolderTarget } from "@/hooks/api/useGetFolderContents";
 import { useUploadDocuments } from "@/hooks/api/useUploadDocuments";
+import {
+  OpportunityMutationError,
+  useArchiveOpportunity,
+  useCreateOpportunity,
+  useRenameOpportunity,
+} from "@/hooks/api/useOpportunityMutations";
 
 vi.mock("@/hooks/api/useGetCurrentUser");
 vi.mock("@/hooks/api/useGetRoom");
 vi.mock("@/hooks/api/useGetFolderContents");
 vi.mock("@/hooks/api/useUploadDocuments");
+// Partial mock: keep the real `OpportunityMutationError` class (Room.tsx
+// does `instanceof` checks against it) and mock only the three hooks.
+vi.mock("@/hooks/api/useOpportunityMutations", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@/hooks/api/useOpportunityMutations")
+    >();
+  return {
+    ...actual,
+    useCreateOpportunity: vi.fn(),
+    useRenameOpportunity: vi.fn(),
+    useArchiveOpportunity: vi.fn(),
+  };
+});
 
 const mockUseGetCurrentUser = vi.mocked(useGetCurrentUser);
 const mockUseGetRoom = vi.mocked(useGetRoom);
 const mockUseGetFolderContents = vi.mocked(useGetFolderContents);
 const mockUseUploadDocuments = vi.mocked(useUploadDocuments);
+const mockUseCreateOpportunity = vi.mocked(useCreateOpportunity);
+const mockUseRenameOpportunity = vi.mocked(useRenameOpportunity);
+const mockUseArchiveOpportunity = vi.mocked(useArchiveOpportunity);
+
+/** A minimal stand-in for react-query's `UseMutationResult` — Room.tsx
+ *  only reads `mutate`/`isPending`/`error`/`reset` off these, so the mock
+ *  only needs to satisfy that surface (cast past the rest of the real
+ *  type, which callers never touch). Generic over the target hook's
+ *  return type since create/rename/archive each take different
+ *  mutation variables. */
+function makeMutationStub<
+  T extends
+    | ReturnType<typeof useCreateOpportunity>
+    | ReturnType<typeof useRenameOpportunity>
+    | ReturnType<typeof useArchiveOpportunity>,
+>(
+  overrides: {
+    mutate?: ReturnType<typeof vi.fn>;
+    isPending?: boolean;
+    error?: Error | null;
+    reset?: ReturnType<typeof vi.fn>;
+  } = {},
+): T {
+  return {
+    mutate: overrides.mutate ?? vi.fn(),
+    isPending: overrides.isPending ?? false,
+    error: overrides.error ?? null,
+    reset: overrides.reset ?? vi.fn(),
+  } as unknown as T;
+}
 
 const baseUser = {
   userId: "u-1",
@@ -107,6 +157,15 @@ beforeEach(() => {
     cancelUpload: vi.fn(),
     dismiss: vi.fn(),
   });
+  mockUseCreateOpportunity.mockReturnValue(
+    makeMutationStub<ReturnType<typeof useCreateOpportunity>>(),
+  );
+  mockUseRenameOpportunity.mockReturnValue(
+    makeMutationStub<ReturnType<typeof useRenameOpportunity>>(),
+  );
+  mockUseArchiveOpportunity.mockReturnValue(
+    makeMutationStub<ReturnType<typeof useArchiveOpportunity>>(),
+  );
 });
 
 describe("Room", () => {
@@ -405,6 +464,10 @@ describe("Room", () => {
       expect(
         screen.getByText(/drop documents here, or click to browse/i),
       ).toBeDefined();
+
+      fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+      expect(screen.queryByRole("dialog")).toBeNull();
     });
 
     it("shows the Upload button for an editor", () => {
@@ -439,6 +502,268 @@ describe("Room", () => {
       renderRoom();
 
       expect(screen.queryByRole("button", { name: "Upload" })).toBeNull();
+    });
+
+    it('shows the "New" button for an owner and opens the create modal on click', () => {
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      const newButton = screen.getByRole("button", { name: "New" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+
+      fireEvent.click(newButton);
+
+      expect(screen.getByRole("dialog")).toBeDefined();
+      expect(screen.getByText("New opportunity")).toBeDefined();
+    });
+
+    it('hides the "New" button for a viewer', () => {
+      mockUseGetCurrentUser.mockReturnValue({
+        isAuthenticated: true,
+        user: { ...baseUser, role: "viewer" },
+        status: "success",
+      });
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      expect(screen.queryByRole("button", { name: "New" })).toBeNull();
+    });
+
+    it("shows Rename and Archive for an owner only once an opportunity is selected", () => {
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      expect(screen.queryByRole("button", { name: "Rename" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
+
+      fireEvent.click(screen.getByText("Vendor A"));
+
+      expect(screen.getByRole("button", { name: "Rename" })).toBeDefined();
+      expect(screen.getByRole("button", { name: "Archive" })).toBeDefined();
+    });
+
+    it("hides Rename and Archive for a viewer even with an opportunity selected", () => {
+      mockUseGetCurrentUser.mockReturnValue({
+        isAuthenticated: true,
+        user: { ...baseUser, role: "viewer" },
+        status: "success",
+      });
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      fireEvent.click(screen.getByText("Vendor A"));
+
+      expect(screen.queryByRole("button", { name: "Rename" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
+    });
+
+    it("creates an opportunity and selects it, closing the modal on success", () => {
+      const createdDto: OpportunityDTO = {
+        id: "opp-2",
+        slug: "Vendor_C",
+        name: "Vendor C",
+        status: "active",
+        createdAt: "2026-07-10T00:00:00.000Z",
+      };
+      const mutate = vi.fn(
+        (
+          _vars: { slug: string; name?: string },
+          opts: { onSuccess: (dto: OpportunityDTO) => void },
+        ) => opts.onSuccess(createdDto),
+      );
+      mockUseCreateOpportunity.mockReturnValue(
+        makeMutationStub<ReturnType<typeof useCreateOpportunity>>({ mutate }),
+      );
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      fireEvent.click(screen.getByRole("button", { name: "New" }));
+      fireEvent.change(screen.getByLabelText("Slug"), {
+        target: { value: "Vendor_C" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+      expect(mutate).toHaveBeenCalledWith(
+        { slug: "Vendor_C", name: undefined },
+        expect.objectContaining({ onSuccess: expect.any(Function) }),
+      );
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.getByText("VENDOR_C · OPPORTUNITY")).toBeDefined();
+    });
+
+    it("renames the selected opportunity and updates the selection on success", () => {
+      const renamedDto: OpportunityDTO = {
+        id: "opp-1",
+        slug: "Vendor_A2",
+        name: "Vendor A2",
+        status: "active",
+        createdAt: "2026-07-10T00:00:00.000Z",
+      };
+      const mutate = vi.fn(
+        (
+          _vars: { id: string; slug: string; name?: string },
+          opts: { onSuccess: (dto: OpportunityDTO) => void },
+        ) => opts.onSuccess(renamedDto),
+      );
+      mockUseRenameOpportunity.mockReturnValue(
+        makeMutationStub<ReturnType<typeof useRenameOpportunity>>({ mutate }),
+      );
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      fireEvent.click(screen.getByText("Vendor A"));
+      fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+
+      expect((screen.getByLabelText("Slug") as HTMLInputElement).value).toBe(
+        "Vendor_A",
+      );
+
+      fireEvent.change(screen.getByLabelText("Slug"), {
+        target: { value: "Vendor_A2" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(mutate).toHaveBeenCalledWith(
+        { id: "opp-1", slug: "Vendor_A2", name: "Vendor A" },
+        expect.objectContaining({ onSuccess: expect.any(Function) }),
+      );
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.getByText("VENDOR_A2 · OPPORTUNITY")).toBeDefined();
+    });
+
+    it("archives the selected opportunity and clears the selection on success", () => {
+      const archivedDto: OpportunityDTO = {
+        id: "opp-1",
+        slug: "Vendor_A",
+        name: "Vendor A",
+        status: "archived",
+        createdAt: "2026-07-10T00:00:00.000Z",
+      };
+      const mutate = vi.fn(
+        (
+          _vars: { id: string },
+          opts: { onSuccess: (dto: OpportunityDTO) => void },
+        ) => opts.onSuccess(archivedDto),
+      );
+      mockUseArchiveOpportunity.mockReturnValue(
+        makeMutationStub<ReturnType<typeof useArchiveOpportunity>>({
+          mutate,
+        }),
+      );
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      fireEvent.click(screen.getByText("Vendor A"));
+      fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+
+      const dialog = screen.getByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Archive" }));
+
+      expect(mutate).toHaveBeenCalledWith(
+        { id: "opp-1" },
+        expect.objectContaining({ onSuccess: expect.any(Function) }),
+      );
+      expect(screen.queryByRole("dialog")).toBeNull();
+      // Selection is cleared — falls back to the first canonical folder.
+      expect(screen.queryByRole("button", { name: "Rename" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
+    });
+
+    it("closes the create modal via Cancel and resets the mutation state", () => {
+      const reset = vi.fn();
+      mockUseCreateOpportunity.mockReturnValue(
+        makeMutationStub<ReturnType<typeof useCreateOpportunity>>({ reset }),
+      );
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      fireEvent.click(screen.getByRole("button", { name: "New" }));
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(reset).toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("closes the archive dialog via Cancel and resets the mutation state", () => {
+      const reset = vi.fn();
+      mockUseArchiveOpportunity.mockReturnValue(
+        makeMutationStub<ReturnType<typeof useArchiveOpportunity>>({ reset }),
+      );
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      fireEvent.click(screen.getByText("Vendor A"));
+      fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+
+      const dialog = screen.getByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+      expect(reset).toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("surfaces a slug_taken create-mutation error in the form modal", () => {
+      mockUseCreateOpportunity.mockReturnValue(
+        makeMutationStub<ReturnType<typeof useCreateOpportunity>>({
+          error: new OpportunityMutationError("slug_taken"),
+        }),
+      );
+      mockFolderContents(() => ({
+        listing: { documents: [] },
+        status: "success",
+        isError: false,
+      }));
+
+      renderRoom();
+
+      fireEvent.click(screen.getByRole("button", { name: "New" }));
+
+      expect(screen.getByText(/already exists/i)).toBeDefined();
     });
   });
 });
