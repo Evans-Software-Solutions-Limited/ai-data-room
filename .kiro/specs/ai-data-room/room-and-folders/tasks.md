@@ -231,7 +231,7 @@ route-table entry in `packages/web/src/App.tsx`.
 
 ## T-014 — Web: upload UI (dropzone + progress)
 
-Status: `[ ]`
+Status: `[x]` (PR #65 — dropzone + per-file progress modal on `/room`, presigned-part transport; PR #66 fixed the eden `mimeType` literal-union inference; Playwright AC deferred to T-019/stack)
 **Scope:** `UploadDropzone` component using `@aws-sdk/lib-storage` on
 the client against our `/uploads/*` endpoints. Shows progress per
 file; handles resume on tab reload via an in-memory upload registry.

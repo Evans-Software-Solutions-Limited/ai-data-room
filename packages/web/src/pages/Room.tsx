@@ -4,14 +4,18 @@ import {
   CANONICAL_FOLDERS,
   type CanonicalFolder,
   type DocumentDTO,
+  type OpportunityDTO,
 } from "@ai-data-room/api-utils/schemas/rooms";
 
 import { Loader } from "@/components/Loader";
 import {
   BrandDiamond,
   ChevronRightIcon,
+  PlusIcon,
   StatusDot,
 } from "@/components/room/icons";
+import { ArchiveOpportunityDialog } from "@/components/room/ArchiveOpportunityDialog";
+import { OpportunityFormModal } from "@/components/room/OpportunityFormModal";
 import { UploadModal } from "@/components/room/UploadModal";
 import { useGetCurrentUser } from "@/hooks/api/useGetCurrentUser";
 import {
@@ -19,6 +23,13 @@ import {
   type FolderTarget,
 } from "@/hooks/api/useGetFolderContents";
 import { useGetRoom } from "@/hooks/api/useGetRoom";
+import {
+  OpportunityMutationError,
+  useArchiveOpportunity,
+  useCreateOpportunity,
+  useRenameOpportunity,
+  type OpportunityMutationReason,
+} from "@/hooks/api/useOpportunityMutations";
 import { useUploadDocuments } from "@/hooks/api/useUploadDocuments";
 import type { UploadTargetInput } from "@/lib/upload/uploadFile";
 import { canonicalFolderDescription } from "@/lib/folderDescriptions";
@@ -28,16 +39,20 @@ import { formatDate } from "@/lib/formatDate";
 import { formatUploaderId } from "@/lib/formatUploaderId";
 
 // The `/room` folder-navigation + document list screen — room-and-folders
-// (slice 2), T-013 + T-014 (upload). STRICT slice-2 scope: shell + folder
-// nav + document list + a plain pick/upload-with-progress modal only. No
+// (slice 2), T-013 + T-014 (upload) + T-015 (opportunity create/rename/
+// archive). STRICT slice-2 scope: shell + folder nav + document list + a
+// plain pick/upload-with-progress modal + plain opportunity CRUD only. No
 // checklist panel (slice 4), no AI sense-check (slice 5) — the upload
 // modal has no relevance verdict or checklist affordance — no
 // soft-delete/restore/versions (T-016), no "view-as" identity switcher
-// (mocked-auth preview only, prod uses the real session), and no
-// Workspace nav links wired up (Ask the room / Audit log / Members belong
-// to later slices). The reserved `--room-ai-*`... in fact the `--ai-*`
-// indigo group is not even declared in `index.css` yet (see its header
-// comment) — this page uses ink + the status palette only.
+// (mocked-auth preview only, prod uses the real session), no
+// access-control/external-viewer/NDA/invite/AI-suggestion/scope-editor
+// affordances from the design prototype's Opportunity screen (those are
+// later slices), and no Workspace nav links wired up (Ask the room /
+// Audit log / Members belong to later slices). The reserved
+// `--room-ai-*`... in fact the `--ai-*` indigo group is not even declared
+// in `index.css` yet (see its header comment) — this page uses ink + the
+// status palette only.
 
 const ROOM_WRITE_ROLES = ["owner", "editor"];
 
@@ -92,6 +107,14 @@ function RoomShell({
   const { room, status: roomStatus } = useGetRoom(orgId);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [opportunityModalMode, setOpportunityModalMode] = useState<
+    "create" | "rename" | null
+  >(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+
+  const createOpportunity = useCreateOpportunity(orgId);
+  const renameOpportunity = useRenameOpportunity(orgId);
+  const archiveOpportunity = useArchiveOpportunity(orgId);
 
   // Default-select the first canonical folder until the room has loaded and
   // the user hasn't picked anything yet — derived rather than an effect, so
@@ -143,6 +166,83 @@ function RoomShell({
       </div>
     );
   }
+
+  const selectedOpportunity =
+    effectiveSelection?.kind === "opportunity" ? effectiveSelection : null;
+
+  function closeOpportunityModal() {
+    setOpportunityModalMode(null);
+    createOpportunity.reset();
+    renameOpportunity.reset();
+  }
+
+  function handleOpportunitySubmit(values: { slug: string; name?: string }) {
+    if (opportunityModalMode === "create") {
+      createOpportunity.mutate(values, {
+        onSuccess: (dto: OpportunityDTO) => {
+          setOpportunityModalMode(null);
+          setSelection({
+            kind: "opportunity",
+            id: dto.id,
+            name: dto.name,
+            slug: dto.slug,
+          });
+        },
+      });
+    } else if (opportunityModalMode === "rename" && selectedOpportunity) {
+      renameOpportunity.mutate(
+        { id: selectedOpportunity.id, ...values },
+        {
+          onSuccess: (dto: OpportunityDTO) => {
+            setOpportunityModalMode(null);
+            setSelection({
+              kind: "opportunity",
+              id: dto.id,
+              name: dto.name,
+              slug: dto.slug,
+            });
+          },
+        },
+      );
+    }
+  }
+
+  function closeArchiveDialog() {
+    setArchiveOpen(false);
+    archiveOpportunity.reset();
+  }
+
+  function handleArchiveConfirm() {
+    if (!selectedOpportunity) return;
+    archiveOpportunity.mutate(
+      { id: selectedOpportunity.id },
+      {
+        onSuccess: () => {
+          setArchiveOpen(false);
+          setSelection(null);
+        },
+      },
+    );
+  }
+
+  const opportunityMutationPending =
+    opportunityModalMode === "create"
+      ? createOpportunity.isPending
+      : renameOpportunity.isPending;
+
+  const opportunityMutationErrorReason: OpportunityMutationReason | undefined =
+    opportunityModalMode === "create"
+      ? createOpportunity.error instanceof OpportunityMutationError
+        ? createOpportunity.error.reason
+        : undefined
+      : renameOpportunity.error instanceof OpportunityMutationError
+        ? renameOpportunity.error.reason
+        : undefined;
+
+  const archiveErrorReason: OpportunityMutationReason | undefined =
+    archiveOpportunity.error instanceof OpportunityMutationError
+      ? archiveOpportunity.error.reason
+      : undefined;
 
   const folderLabel =
     effectiveSelection?.kind === "canonical"
@@ -205,7 +305,19 @@ function RoomShell({
         </nav>
 
         <nav aria-label="Opportunities" className="flex flex-col gap-1">
-          <SectionLabel>Opportunities</SectionLabel>
+          <div className="flex items-center justify-between">
+            <SectionLabel>Opportunities</SectionLabel>
+            {canUpload && (
+              <button
+                type="button"
+                onClick={() => setOpportunityModalMode("create")}
+                className="mr-2 flex items-center gap-0.5 rounded-room px-1 py-0.5 text-xs font-medium text-room-ink-3 hover:bg-room-paper-3/60 hover:text-room-ink"
+              >
+                <PlusIcon className="h-2.5 w-2.5" />
+                New
+              </button>
+            )}
+          </div>
           {room.opportunities.length === 0 ? (
             <p className="px-2 py-1 text-xs text-room-ink-3">
               No opportunities yet.
@@ -272,13 +384,33 @@ function RoomShell({
               )}
             </div>
             {canUpload && effectiveSelection && (
-              <button
-                type="button"
-                onClick={() => setUploadOpen(true)}
-                className="mt-1 shrink-0 rounded-room-pill border border-room-rule bg-room-ink px-4 py-1.5 text-sm font-medium text-room-ink-on-dark hover:opacity-90"
-              >
-                Upload
-              </button>
+              <div className="mt-1 flex shrink-0 items-center gap-2">
+                {selectedOpportunity && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setOpportunityModalMode("rename")}
+                      className="rounded-room-pill border border-room-rule px-4 py-1.5 text-sm text-room-ink hover:bg-room-paper-3"
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setArchiveOpen(true)}
+                      className="rounded-room-pill border border-room-rule px-4 py-1.5 text-sm text-room-ink hover:bg-room-paper-3"
+                    >
+                      Archive
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setUploadOpen(true)}
+                  className="rounded-room-pill border border-room-rule bg-room-ink px-4 py-1.5 text-sm font-medium text-room-ink-on-dark hover:opacity-90"
+                >
+                  Upload
+                </button>
+              </div>
             )}
           </div>
 
@@ -322,6 +454,38 @@ function RoomShell({
           onDismiss={dismiss}
         />
       )}
+
+      <OpportunityFormModal
+        // Forces a remount (fresh local form state) whenever the mode or
+        // the target opportunity changes — see the "no reset effect"
+        // note in OpportunityFormModal.tsx.
+        key={`${opportunityModalMode ?? "closed"}-${selectedOpportunity?.id ?? "new"}`}
+        open={opportunityModalMode !== null}
+        mode={opportunityModalMode ?? "create"}
+        initialSlug={
+          opportunityModalMode === "rename"
+            ? selectedOpportunity?.slug
+            : undefined
+        }
+        initialName={
+          opportunityModalMode === "rename"
+            ? selectedOpportunity?.name
+            : undefined
+        }
+        pending={opportunityMutationPending}
+        errorReason={opportunityMutationErrorReason}
+        onClose={closeOpportunityModal}
+        onSubmit={handleOpportunitySubmit}
+      />
+
+      <ArchiveOpportunityDialog
+        open={archiveOpen}
+        opportunityName={selectedOpportunity?.name ?? ""}
+        pending={archiveOpportunity.isPending}
+        errorReason={archiveErrorReason}
+        onClose={closeArchiveDialog}
+        onConfirm={handleArchiveConfirm}
+      />
     </div>
   );
 }
