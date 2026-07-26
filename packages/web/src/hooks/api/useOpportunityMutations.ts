@@ -1,8 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type {
-  Opportunity,
-  OpportunityDTO,
-} from "@ai-data-room/api-utils/schemas/rooms";
+import type { OpportunityDTO } from "@ai-data-room/api-utils/schemas/rooms";
 
 import { api } from "@/lib/eden";
 
@@ -11,37 +8,13 @@ import { api } from "@/lib/eden";
 // mapping and cache-invalidation shape, so they live in a single file
 // (same rationale as `opportunityErrors.ts` on the server side).
 //
-// Reconciliation note: the T-015 build spec's contract table says all
-// three routes return `OpportunityDTO`, but the handlers
-// (`postOpportunityHandler`/`patchOpportunityHandler` return the
-// *domain* `Opportunity` straight from `createOpportunity`/
-// `renameOpportunity` — `Date` fields, not the DTO's ISO strings — and
-// `postArchiveOpportunityHandler` returns `archiveOpportunity`'s
-// `{ opportunity, grantsRevoked }` wrapper, not a bare opportunity at
-// all. Confirmed against
-// `microservices/core/src/application/room/opportunities.ts` and
-// enforced by `bun run typecheck`. This is a backend response-shape gap
-// (no `response:` schema on those routes to normalise to the DTO) —
-// out of scope to fix here per the web-only task boundary, so
-// `toOpportunityDTO` below adapts on the client instead.
-//
-// `createdAt` is typed `Date` (inferred straight from the DB-row shape)
-// but travels over the wire as JSON — which has no `Date` type — so the
-// value actually seen at runtime is an ISO string despite what the type
-// says. Handle both rather than trusting the (unreliable) static type.
-function toOpportunityDTO(opportunity: Opportunity): OpportunityDTO {
-  const createdAt =
-    opportunity.createdAt instanceof Date
-      ? opportunity.createdAt.toISOString()
-      : String(opportunity.createdAt);
-  return {
-    id: opportunity.id,
-    slug: opportunity.slug,
-    name: opportunity.name,
-    status: opportunity.status,
-    createdAt,
-  };
-}
+// All three handlers return a bare `OpportunityDTO` (the server maps via
+// its own `toOpportunityDTO`, mirroring `getRoom`), so eden types
+// `res.data` as the DTO directly — no client-side adapter needed. (This
+// used to carry a client `toOpportunityDTO` shim because the mutation
+// handlers returned raw domain rows / the archive `{opportunity,...}`
+// wrapper; that backend gap was closed in the opportunity-mutation-DTO
+// fix.)
 
 export type OpportunityMutationReason =
   | "invalid_slug"
@@ -116,7 +89,7 @@ export function useCreateOpportunity(orgId: string) {
       if (res.status !== 201 || !res.data) {
         throw new OpportunityMutationError(reasonFrom(res));
       }
-      return toOpportunityDTO(res.data);
+      return res.data;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["room", orgId] });
@@ -144,7 +117,7 @@ export function useRenameOpportunity(orgId: string) {
       if (res.status !== 200 || !res.data) {
         throw new OpportunityMutationError(reasonFrom(res));
       }
-      return toOpportunityDTO(res.data);
+      return res.data;
     },
     onSuccess: () => {
       // The folder pane shows the opportunity's name/slug as an eyebrow,
@@ -169,7 +142,7 @@ export function useArchiveOpportunity(orgId: string) {
       if (res.status !== 200 || !res.data) {
         throw new OpportunityMutationError(reasonFrom(res));
       }
-      return toOpportunityDTO(res.data.opportunity);
+      return res.data;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["room", orgId] });

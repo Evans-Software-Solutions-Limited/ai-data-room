@@ -9,6 +9,7 @@
 import Elysia, { t } from "elysia";
 
 import { renameOpportunity } from "../opportunities";
+import { toOpportunityDTO } from "../dto";
 import type { ScopedRepos } from "../../../infrastructure/db/scoped";
 import { protectedDeps } from "../../auth/_shared/deps";
 import {
@@ -38,7 +39,7 @@ export const patchOpportunityHandler = new Elysia().patch(
     const audit = buildAuditContext(headers);
 
     try {
-      return await renameOpportunity(
+      const opportunity = await renameOpportunity(
         {
           id: params.id,
           slug: body.slug,
@@ -53,6 +54,8 @@ export const patchOpportunityHandler = new Elysia().patch(
           auditRepo: protectedDeps.auditRepo,
         },
       );
+      // Client DTO (see `postOpportunityHandler` for why).
+      return toOpportunityDTO(opportunity);
     } catch (err) {
       return translateOpportunityError(err);
     }

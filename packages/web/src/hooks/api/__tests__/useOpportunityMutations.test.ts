@@ -95,32 +95,6 @@ describe("useCreateOpportunity", () => {
     );
   });
 
-  it("converts a Date createdAt into an ISO string", async () => {
-    // The handler's TS type says `createdAt: Date` (see the
-    // reconciliation note in useOpportunityMutations.ts) — exercise that
-    // branch directly rather than only the string-shaped mocks above.
-    postOpportunity.mockResolvedValue({
-      status: 201,
-      data: {
-        id: "opp-3",
-        slug: "Vendor_D",
-        name: "Vendor D",
-        status: "active",
-        createdAt: new Date("2026-07-01T00:00:00.000Z"),
-      },
-    });
-    const { wrapper } = createWrapper();
-
-    const { result } = renderHook(() => useCreateOpportunity("org-1"), {
-      wrapper,
-    });
-
-    result.current.mutate({ slug: "Vendor_D" });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.createdAt).toBe("2026-07-01T00:00:00.000Z");
-  });
-
   it("falls back to reason unknown for an unrecognized error body", async () => {
     postOpportunity.mockResolvedValue({
       status: 500,
@@ -198,13 +172,10 @@ describe("useArchiveOpportunity", () => {
       status: "archived" as const,
       createdAt: "2026-07-01T00:00:00.000Z",
     };
-    // `postArchiveOpportunityHandler` returns `archiveOpportunity`'s
-    // `{ opportunity, grantsRevoked }` wrapper, not a bare opportunity —
-    // see the reconciliation note in `useOpportunityMutations.ts`.
-    archiveOpportunityPost.mockResolvedValue({
-      status: 200,
-      data: { opportunity: dto, grantsRevoked: 2 },
-    });
+    // `postArchiveOpportunityHandler` now returns the bare client DTO
+    // (the `{ opportunity, grantsRevoked }` wrapper was dropped in the
+    // opportunity-mutation-DTO fix — `grantsRevoked` is audit-only).
+    archiveOpportunityPost.mockResolvedValue({ status: 200, data: dto });
     const { wrapper, invalidateQueries } = createWrapper();
 
     const { result } = renderHook(() => useArchiveOpportunity("org-1"), {

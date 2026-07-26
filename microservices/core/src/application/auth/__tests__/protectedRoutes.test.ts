@@ -1309,7 +1309,15 @@ describe("protectedRoutes", () => {
       );
 
       expect(res.status).toBe(201);
-      expect(await res.json()).toMatchObject({ id: OPPORTUNITY_ID });
+      // Response is the client DTO (no internal orgId/createdBy/updatedAt;
+      // createdAt as an ISO string) — `toEqual` locks that exact shape.
+      expect(await res.json()).toEqual({
+        id: OPPORTUNITY_ID,
+        slug: "vendor-a",
+        name: "Vendor A",
+        status: "active",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
     });
 
     it("GET /opportunities — 200 with the active list (FR7)", async () => {
@@ -1399,7 +1407,14 @@ describe("protectedRoutes", () => {
       );
 
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ slug: "vendor-a-renamed" });
+      // Client DTO shape (no leaked internal columns).
+      expect(await res.json()).toEqual({
+        id: OPPORTUNITY_ID,
+        slug: "vendor-a-renamed",
+        name: "Vendor A",
+        status: "active",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
     });
 
     it("POST /opportunities/:id/archive — 200 on archive (FR6)", async () => {
@@ -1422,8 +1437,18 @@ describe("protectedRoutes", () => {
       );
 
       expect(res.status).toBe(200);
-      const body = (await res.json()) as { grantsRevoked: number };
-      expect(body.grantsRevoked).toBe(2);
+      // Archive returns the bare client DTO (status flipped to "archived"),
+      // NOT the internal `{ opportunity, grantsRevoked }` wrapper — the
+      // revocation count is audit-only, never in the HTTP response.
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body).toEqual({
+        id: OPPORTUNITY_ID,
+        slug: "vendor-a",
+        name: "Vendor A",
+        status: "archived",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
+      expect(body).not.toHaveProperty("grantsRevoked");
     });
 
     it("GET /documents/:id — 200 with a presigned download URL (FR14)", async () => {

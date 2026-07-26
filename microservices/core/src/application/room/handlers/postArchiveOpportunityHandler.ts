@@ -10,6 +10,7 @@
 import Elysia, { t } from "elysia";
 
 import { archiveOpportunity } from "../opportunities";
+import { toOpportunityDTO } from "../dto";
 import type { ScopedRepos } from "../../../infrastructure/db/scoped";
 import { protectedDeps } from "../../auth/_shared/deps";
 import {
@@ -39,7 +40,11 @@ export const postArchiveOpportunityHandler = new Elysia().post(
     const audit = buildAuditContext(headers);
 
     try {
-      return await archiveOpportunity(
+      // `archiveOpportunity` returns `{ opportunity, grantsRevoked }`; the
+      // HTTP response is the bare client DTO (consistent with create/rename
+      // — see `postOpportunityHandler`). `grantsRevoked` is dropped: no
+      // client consumes it and the revocation is already on the audit trail.
+      const { opportunity } = await archiveOpportunity(
         {
           id: params.id,
           actorUserId: actor.localUserId,
@@ -52,6 +57,7 @@ export const postArchiveOpportunityHandler = new Elysia().post(
           auditRepo: protectedDeps.auditRepo,
         },
       );
+      return toOpportunityDTO(opportunity);
     } catch (err) {
       return translateOpportunityError(err);
     }
