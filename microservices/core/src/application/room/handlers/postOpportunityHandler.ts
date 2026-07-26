@@ -9,6 +9,7 @@
 import Elysia, { t } from "elysia";
 
 import { createOpportunity } from "../opportunities";
+import { toOpportunityDTO } from "../dto";
 import type { ScopedRepos } from "../../../infrastructure/db/scoped";
 import { protectedDeps } from "../../auth/_shared/deps";
 import {
@@ -52,7 +53,11 @@ export const postOpportunityHandler = new Elysia().post(
         },
       );
       set.status = 201;
-      return opportunity;
+      // Map to the client DTO (id/slug/name/status/createdAt-as-ISO) — the
+      // same shape `getRoom` returns — so the mutation response never leaks
+      // internal columns (orgId/createdBy/updatedAt) and eden types
+      // `createdAt` as the string it really is over the wire.
+      return toOpportunityDTO(opportunity);
     } catch (err) {
       return translateOpportunityError(err);
     }
